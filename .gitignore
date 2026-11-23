@@ -36,3 +36,12 @@ shots/
 
 # single-file preview copy
 *-preview.html
+
+# next.js / vercel
+.next/
+out/
+.vercel
+next-env.d.ts
+
+# local database scratch
+.pgdata/
