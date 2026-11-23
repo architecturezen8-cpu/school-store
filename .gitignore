@@ -48,3 +48,4 @@ next-env.d.ts
 
 # embedded PGlite database (re-created + re-seeded on demand)
 .pglite/
+tsconfig.tsbuildinfo

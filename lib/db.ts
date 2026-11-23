@@ -49,6 +49,7 @@ export type PGliteLike = {
   ): Promise<{ rows: T[] }>;
   exec(sql: string): Promise<unknown>;
   transaction<T>(fn: (tx: PGliteLike) => Promise<T>): Promise<T>;
+  waitReady: Promise<void>;
 };
 
 /**
@@ -73,11 +74,15 @@ async function createPool(): Promise<Pool> {
 export const pool: Promise<Pool> | null =
   backend === "pg" ? (global.__pgPool ??= createPool()) : null;
 
+/** Absolute so every worker process resolves the same directory. */
+const PGLITE_DIR = path.join(process.cwd(), ".pglite");
+
 async function pglite(): Promise<PGliteLike> {
   if (!global.__pglite) {
     global.__pglite = (async () => {
       const { PGlite } = await import("@electric-sql/pglite");
-      const db = new PGlite("./.pglite") as unknown as PGliteLike;
+      const db = new PGlite(PGLITE_DIR) as unknown as PGliteLike;
+      await db.waitReady;
 
       // Initialise once per process: schema + seed, both idempotent.
       if (!global.__pgliteReady) {
