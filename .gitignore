@@ -33,3 +33,19 @@ Thumbs.db
 verify/
 verify-*.png
 shots/
+
+# single-file preview copy
+*-preview.html
+
+# next.js / vercel
+.next/
+out/
+.vercel
+next-env.d.ts
+
+# local database scratch
+.pgdata/
+
+# embedded PGlite database (re-created + re-seeded on demand)
+.pglite/
+tsconfig.tsbuildinfo
