@@ -1,6 +1,7 @@
 import { ArrowUp, Mail, MapPin, Phone } from "lucide-react";
 import CrestLogo from "@/components/CrestLogo";
 import { href, withBase } from "@/lib/links";
+import { openTrack } from "@/lib/nav";
 import Reveal from "@/components/Reveal";
 
 function FacebookIcon() {
@@ -82,7 +83,7 @@ export default function Footer() {
           <Reveal className="sm:col-span-2 lg:col-span-5 lg:pr-10">
             <div className="flex items-center gap-4">
               <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-white shadow-[0_0_44px_rgba(255,255,255,0.18)]">
-                <CrestLogo className="h-9 w-9 text-ink" />
+                <CrestLogo className="h-9 w-9 text-ink" decorative />
               </span>
               <div className="min-w-0">
                 <p className="font-display text-xl font-semibold leading-tight tracking-tight">
@@ -124,6 +125,16 @@ export default function Footer() {
                   <li key={l.label}>
                     <a
                       href={l.href}
+                      // "#track" has no target on the page — it opens the navbar's
+                      // tracking dialog, same as the "Track my order" menu item.
+                      onClick={
+                        l.href === "#track"
+                          ? (e) => {
+                              e.preventDefault();
+                              openTrack();
+                            }
+                          : undefined
+                      }
                       className="group inline-flex items-center gap-2 text-[13px] leading-5 text-white/60 transition-colors hover:text-white"
                     >
                       <span className="h-px w-0 bg-gold transition-all duration-300 group-hover:w-3.5" />

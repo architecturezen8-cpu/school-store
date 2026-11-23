@@ -3,6 +3,7 @@ import type { Category } from "@/data/seed";
 import { href, withBase } from "@/lib/links";
 import Reveal from "@/components/Reveal";
 import SectionHead from "@/components/SectionHead";
+import ProductImage from "@/components/ProductImage";
 
 const stats = [
   { value: "1873", label: "Heritage since" },
@@ -42,11 +43,13 @@ export default function Categories({ categories }: { categories: Category[] }) {
                   i === 0 ? "min-h-[420px] md:min-h-0" : "min-h-[260px]"
                 }`}
               >
-                <img
-                  src={c.image}
-                  alt={c.title}
-                  className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-[1.06]"
-                />
+                <div className="absolute inset-0">
+                  <ProductImage
+                    src={c.image}
+                    alt={c.title}
+                    className="transition-transform duration-[1200ms] ease-out group-hover:scale-[1.06]"
+                  />
+                </div>
                 <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/45 to-transparent" />
                 <div className="absolute inset-0 bg-gradient-to-br from-navy-900/60 to-transparent opacity-60" />
 

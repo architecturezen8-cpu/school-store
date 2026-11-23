@@ -23,6 +23,10 @@ if (existsSync(PARKED)) await rm(PARKED, { recursive: true, force: true });
 const hadApi = existsSync(API);
 if (hadApi) await rename(API, PARKED);
 
+// A dev server leaves type validators for the parked routes in .next; they make
+// the production type check fail on files that intentionally are not there.
+await rm(".next/dev", { recursive: true, force: true });
+
 // --webpack: the WASM Tailwind engine (used in browser IDEs) cannot be statically
 // analysed by Turbopack, and webpack is the one engine that works everywhere.
 const result = spawnSync("npx", ["next", "build", "--webpack"], {

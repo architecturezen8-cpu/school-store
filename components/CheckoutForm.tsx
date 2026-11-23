@@ -130,23 +130,32 @@ export default function CheckoutForm({ onClose }: { onClose: () => void }) {
 
             <div className="mt-6 space-y-3">
               <input
+                name="name"
+                type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Full name"
                 aria-label="Full name"
                 autoComplete="name"
+                required
                 className="w-full rounded-full border border-white/15 bg-navy-800 px-5 py-3 text-sm outline-none transition placeholder:text-white/45 focus:border-white/40"
               />
               <input
+                name="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Email"
                 type="email"
+                inputMode="email"
                 aria-label="Email"
                 autoComplete="email"
+                required
                 className="w-full rounded-full border border-white/15 bg-navy-800 px-5 py-3 text-sm outline-none transition placeholder:text-white/45 focus:border-white/40"
               />
               <input
+                name="phone"
+                type="tel"
+                inputMode="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="Phone (optional)"
@@ -155,10 +164,12 @@ export default function CheckoutForm({ onClose }: { onClose: () => void }) {
                 className="w-full rounded-full border border-white/15 bg-navy-800 px-5 py-3 text-sm outline-none transition placeholder:text-white/45 focus:border-white/40"
               />
               <textarea
+                name="address"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="Delivery address / note"
                 aria-label="Delivery address or note"
+                autoComplete="street-address"
                 rows={2}
                 className="w-full rounded-2xl border border-white/15 bg-navy-800 px-5 py-3 text-sm outline-none transition placeholder:text-white/45 focus:border-white/40"
               />

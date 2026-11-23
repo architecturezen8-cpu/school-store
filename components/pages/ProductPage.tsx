@@ -10,6 +10,7 @@ import { ShopProductCard } from "@/components/pages/ShopPage";
 import Reveal from "@/components/Reveal";
 import SectionHead from "@/components/SectionHead";
 import ReviewsBlock from "@/components/ReviewsBlock";
+import ProductImage from "@/components/ProductImage";
 import QuickView from "@/components/QuickView";
 
 const perks = [
@@ -111,11 +112,9 @@ export default function ProductPage({
           <Reveal>
             <div>
               <div className="relative overflow-hidden rounded-[1.75rem] bg-navy-900">
-                <img
-                  src={gallery[active]}
-                  alt={product.name}
-                  className="aspect-[4/5] w-full object-cover"
-                />
+                <div className="aspect-[4/5] w-full">
+                  <ProductImage src={gallery[active]} alt={product.name} />
+                </div>
                 {product.tag && (
                   <span className="absolute left-5 top-5 rounded-lg bg-ink px-3.5 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-white">
                     {product.tag}

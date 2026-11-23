@@ -32,12 +32,15 @@ export default function Hero() {
       {heroSlides.map((s, i) => (
         <div
           key={i}
+          aria-hidden={i === index ? undefined : true}
           className="absolute inset-0 transition-opacity duration-[1800ms] ease-out"
           style={{ opacity: i === index ? 1 : 0 }}
         >
           <Image
             src={s.image}
-            alt=""
+            /* Only the slide on screen is real content; the other two are
+               hidden by opacity and must not be announced. */
+            alt={i === index ? `${s.caption} — St. Thomas' College Matale` : ""}
             fill
             priority={i === 0}
             sizes="100vw"

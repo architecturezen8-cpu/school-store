@@ -30,10 +30,13 @@ const navLinks: NavLink[] = [
 
 /** Horizontal crest + wordmark lockup (mobile & tablet) */
 function BrandLockup() {
+  // No aria-label: the visible wordmark ("St.Thomas' College") *is* the
+  // accessible name. Labelling it "Home" would hide the college name from
+  // screen readers and fail label-in-name.
   return (
-    <a href={withBase(href.home)} className="flex items-center gap-3" aria-label="Home">
+    <a href={withBase(href.home)} className="flex items-center gap-3">
       <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white shadow-[0_8px_26px_rgba(0,0,0,0.45)]">
-        <CrestLogo className="h-7 w-7 text-ink" />
+        <CrestLogo className="h-7 w-7 text-ink" decorative />
       </span>
       <span className="flex flex-col leading-none">
         <span className="font-display text-[15px] font-semibold tracking-tight text-white">
@@ -386,13 +389,15 @@ function DesktopBar({
         </nav>
 
         {/* center logo */}
+        {/* The crest is decorative art; the link still needs a name, so the
+            label is real text (visually hidden) rather than an aria-label. */}
         <a
           href={withBase(href.home)}
           className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-          aria-label="Home"
         >
+          <span className="sr-only">The Thomian Store — home</span>
           <span className="grid h-14 w-14 place-items-center rounded-full bg-white shadow-[0_15px_45px_rgba(0,0,0,0.5)] transition-transform duration-500 hover:scale-105">
-            <CrestLogo className="h-9 w-9 text-ink" />
+            <CrestLogo className="h-9 w-9 text-ink" decorative />
           </span>
         </a>
 

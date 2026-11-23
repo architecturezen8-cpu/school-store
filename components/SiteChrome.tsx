@@ -6,7 +6,7 @@ import Footer from "@/components/Footer";
 import SearchOverlay from "@/components/SearchOverlay";
 import CartDrawer from "@/components/CartDrawer";
 import TrackOrderModal from "@/components/TrackOrderModal";
-import { onOpenSearch, useRouteName } from "@/lib/nav";
+import { onOpenSearch, onOpenTrack, useRouteName } from "@/lib/nav";
 import type { Product } from "@/data/seed";
 
 /**
@@ -30,6 +30,7 @@ export default function SiteChrome({
 
   // Pages open the search overlay through this event — see lib/nav.tsx.
   useEffect(() => onOpenSearch(() => setSearchOpen(true)), []);
+  useEffect(() => onOpenTrack(() => setTrackOpen(true)), []);
 
   return (
     <div className="relative min-h-screen overflow-x-clip bg-ink font-sans text-white">
