@@ -24,6 +24,7 @@ Netlify වල **rebuild එකක් = build minute එකක්** (100–300 �
   upload කරන එකට build minute එකක් ගාණට එන්නේ නෑ.
 - **GitHub Pages** (Settings → Pages → Branch + `/docs`) — නොමිලේ, unlimited, build
   minutes කියන සීමාවක් නෑ. හැම push එකකටම auto-deploy.
+  පියවරෙන් පියවර: **`GITHUB-PAGES.md`**
 - ඉක්මන් බැලීම් වලට — උඩ කිව්ව ෆයිල් එක double-click කරන්න.
 
 ## මම වෙනස් කරපු දේ (මේ වතාවේ)
