@@ -67,6 +67,7 @@ export default function TrackOrderModal({
 
         {!trackedId ? (
           <form
+            aria-label="Track an order"
             className="mt-6"
             onSubmit={(e) => {
               e.preventDefault();
@@ -77,6 +78,7 @@ export default function TrackOrderModal({
               value={orderId}
               onChange={(e) => setOrderId(e.target.value)}
               placeholder="e.g. STC-1873"
+              aria-label="Order ID"
               className="w-full rounded-full border border-white/15 bg-navy-800 px-5 py-3.5 text-sm tracking-wider text-white outline-none transition placeholder:text-white/25 focus:border-white/40 focus:bg-navy-700"
             />
             <button

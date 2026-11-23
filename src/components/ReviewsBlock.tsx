@@ -145,6 +145,7 @@ export default function ReviewsBlock({
         <div className="overflow-hidden">
           <form
             onSubmit={submit}
+            aria-label={`Write a review for ${productName}`}
             className="mt-8 rounded-[1.5rem] bg-navy-950 p-7"
           >
             <p className="text-sm font-semibold text-white">

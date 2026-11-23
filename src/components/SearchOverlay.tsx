@@ -60,6 +60,7 @@ export default function SearchOverlay({
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search the store…"
+            aria-label="Search the store"
             className="w-full bg-transparent font-display text-3xl text-white outline-none placeholder:text-white/25 md:text-4xl"
           />
           <button
