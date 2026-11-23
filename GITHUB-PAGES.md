@@ -1,7 +1,30 @@
-# GitHub Pages — පියවරෙන් පියවර
+# GitHub Pages — තත්ත්වය සහ පියවර
 
-මේක **එක වතාවක්** කරන්න ඕන දෙයක්. ඊට පස්සේ හැම වෙනසක්ම auto-deploy වෙනවා —
-build minutes 0, quota 0, නොමිලේ.
+## ✅ දැන් live
+
+**<https://architecturezen8-cpu.github.io/school-store/>**
+
+Pages දැනටමත් on වෙලා, හරියට build වෙලා තියෙනවා:
+- Source: branch `arena/e2057950-school-store`, folder `/` (root)
+- Root එකේ `index.html` එකක් නැති නිසා (build එක `docs/` එකේ) root එකේ ඉඳන්
+  `docs/index.html` එකට redirect කරන කුඩා ෆයිල් එකක් දැම්මා — දැන් `/` සහ
+  `/docs/index.html` දෙකම වැඩ කරනවා
+- පරීක්ෂා කළා: home, `#/shop`, `#/tickets` — හරියට render වෙනවා
+
+**ඉදිරියේ වෙනසක් කරන විට:**
+
+```bash
+npm run build:docs   # → docs/index.html
+git add docs/index.html index.html
+git commit -m "…"
+git push             # Pages එක විනාඩියකින් auto-deploy
+```
+
+---
+
+## (අවශ්‍ය නම් පමණක්) සැකසුම් වෙනස් කිරීම
+
+හැම වෙනසක්ම auto-deploy වෙනවා — build minutes 0, quota 0, නොමිලේ.
 
 සයිට් එකේ හැම දෙයක්ම දැන් සූදානම්: `docs/index.html` (2.5 MB, තනි ෆයිල් එකක්) සහ
 `docs/.nojekyll` — branch එකට push කරලා තියෙනවා. Pages site එක තවම හදලා නෑ.
