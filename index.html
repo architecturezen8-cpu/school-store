@@ -3,12 +3,40 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>St. Thomas' College Matale — The Thomian Store</title>
-    <meta name="description" content="The official store of St. Thomas' College Matale. Merchandise, event tickets, uniforms & badges — Animo et Fide, Est. 1873." />
-    <meta name="theme-color" content="#04060d" />
+    <title>The Thomian Store — St. Thomas' College Matale</title>
+
+    <!--
+      GitHub Pages for this repository is configured with
+      Source: Deploy from a branch → branch: main/arena/… → folder: / (root).
+      The deployable single-file build lives in docs/index.html, so this page
+      forwards to it. Nothing else is required; `npm run build:docs` keeps
+      docs/index.html up to date and Pages redeploys on every push.
+    -->
+    <meta http-equiv="refresh" content="0; url=./docs/index.html" />
+    <link rel="canonical" href="./docs/index.html" />
+    <script>
+      location.replace("./docs/index.html" + location.hash);
+    </script>
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #04060d;
+        color: #fff;
+        font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+        text-align: center;
+      }
+      a { color: #ffd444; }
+      p { font-size: 14px; letter-spacing: 0.02em; opacity: 0.85; }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <div>
+      <p>Opening The Thomian Store…</p>
+      <p><a href="./docs/index.html">Continue to the store</a></p>
+    </div>
   </body>
 </html>
