@@ -37,7 +37,7 @@ export default function ProductPage({ slug }: { slug: string }) {
     return (
       <section className="flex min-h-[70vh] flex-col items-center justify-center px-5 pt-32 text-center">
         <p className="font-display text-3xl font-semibold">Product not found</p>
-        <p className="mt-3 text-sm text-white/45">
+        <p className="mt-3 text-sm text-white/65">
           That item may have moved or sold out.
         </p>
         <a
@@ -73,23 +73,23 @@ export default function ProductPage({ slug }: { slug: string }) {
       <div className="relative mx-auto max-w-[1400px] px-5 lg:px-10">
         {/* breadcrumb */}
         <Reveal>
-          <nav className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/35">
+          <nav className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/65">
             <a href={href.home} className="transition-colors hover:text-white">
               Home
             </a>
-            <ChevronRight size={12} className="text-white/20" />
+            <ChevronRight size={12} className="text-white/50" />
             <a href={href.shop} className="transition-colors hover:text-white">
               Shop
             </a>
-            <ChevronRight size={12} className="text-white/20" />
+            <ChevronRight size={12} className="text-white/50" />
             <a
               href={href.shopCategory(product.category)}
               className="transition-colors hover:text-white"
             >
               {getCategoryName(product.category)}
             </a>
-            <ChevronRight size={12} className="text-white/20" />
-            <span className="text-white/60">{product.name}</span>
+            <ChevronRight size={12} className="text-white/50" />
+            <span className="text-white/65">{product.name}</span>
           </nav>
         </Reveal>
 
@@ -155,7 +155,7 @@ export default function ProductPage({ slug }: { slug: string }) {
                     </svg>
                   ))}
                 </div>
-                <span className="text-xs text-white/40">
+                <span className="text-xs text-white/65">
                   {product.reviews} reviews
                 </span>
               </div>
@@ -171,7 +171,7 @@ export default function ProductPage({ slug }: { slug: string }) {
               {/* size / option picker */}
               {product.options && (
                 <div className="mt-8">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-white/40">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-white/65">
                     {product.options.label}
                   </p>
                   <div className="mt-3.5 flex flex-wrap gap-2.5">
@@ -182,7 +182,7 @@ export default function ProductPage({ slug }: { slug: string }) {
                         className={`min-w-[3.25rem] rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors duration-300 ${
                           picked === v
                             ? "bg-white text-ink"
-                            : "bg-navy-900 text-white/60 hover:bg-navy-800 hover:text-white"
+                            : "bg-navy-900 text-white/65 hover:bg-navy-800 hover:text-white"
                         }`}
                       >
                         {v}
@@ -195,7 +195,7 @@ export default function ProductPage({ slug }: { slug: string }) {
               {/* colour picker */}
               {product.colours && (
                 <div className="mt-7">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-white/40">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-white/65">
                     Colour
                   </p>
                   <div className="mt-3.5 flex flex-wrap gap-2.5">
@@ -206,7 +206,7 @@ export default function ProductPage({ slug }: { slug: string }) {
                         className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors duration-300 ${
                           colour === c
                             ? "bg-white text-ink"
-                            : "bg-navy-900 text-white/60 hover:bg-navy-800 hover:text-white"
+                            : "bg-navy-900 text-white/65 hover:bg-navy-800 hover:text-white"
                         }`}
                       >
                         {c}
@@ -222,7 +222,7 @@ export default function ProductPage({ slug }: { slug: string }) {
                   <button
                     onClick={() => setQty((q) => Math.max(1, q - 1))}
                     aria-label="Decrease quantity"
-                    className="grid h-12 w-11 place-items-center rounded-l-full text-white/60 transition hover:text-white"
+                    className="grid h-12 w-11 place-items-center rounded-l-full text-white/65 transition hover:text-white"
                   >
                     <Minus size={15} />
                   </button>
@@ -230,7 +230,7 @@ export default function ProductPage({ slug }: { slug: string }) {
                   <button
                     onClick={() => setQty((q) => q + 1)}
                     aria-label="Increase quantity"
-                    className="grid h-12 w-11 place-items-center rounded-r-full text-white/60 transition hover:text-white"
+                    className="grid h-12 w-11 place-items-center rounded-r-full text-white/65 transition hover:text-white"
                   >
                     <Plus size={15} />
                   </button>
@@ -263,7 +263,7 @@ export default function ProductPage({ slug }: { slug: string }) {
 
               {/* details list */}
               <div className="mt-10 border-t border-white/10 pt-7">
-                <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-white/40">
+                <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-white/65">
                   Details
                 </p>
                 <ul className="mt-4 space-y-2.5">
@@ -280,7 +280,7 @@ export default function ProductPage({ slug }: { slug: string }) {
               <ul className="mt-8 space-y-3 border-t border-white/10 pt-7">
                 {perks.map((p) => (
                   <li key={p.text} className="flex items-center gap-3 text-sm text-white/50">
-                    <p.icon size={16} className="shrink-0 text-white/35" />
+                    <p.icon size={16} className="shrink-0 text-white/65" />
                     {p.text}
                   </li>
                 ))}

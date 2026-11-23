@@ -54,7 +54,7 @@ function Countdown({ target }: { target: Date }) {
           <p className="font-display text-xl font-semibold leading-none tabular-nums">
             {String(c.v).padStart(2, "0")}
           </p>
-          <p className="mt-1.5 text-[9px] font-bold uppercase tracking-[0.18em] text-white/35">
+          <p className="mt-1.5 text-[9px] font-bold uppercase tracking-[0.18em] text-white/65">
             {c.l}
           </p>
         </div>
@@ -112,18 +112,18 @@ function EventCard({
           <h3 className="font-display text-[1.35rem] font-semibold leading-tight tracking-tight text-white">
             {event.title}
           </h3>
-          <p className="mt-2 line-clamp-2 text-[13px] leading-relaxed text-white/45">
+          <p className="mt-2 line-clamp-2 text-[13px] leading-relaxed text-white/65">
             {event.subtitle}
           </p>
 
           {/* meta */}
-          <div className="mt-4 space-y-2 border-t border-white/[0.08] pt-4 text-[12px] text-white/40">
+          <div className="mt-4 space-y-2 border-t border-white/[0.08] pt-4 text-[12px] text-white/65">
             <p className="flex items-center gap-2.5">
-              <Clock size={13} className="shrink-0 text-white/25" />
+              <Clock size={13} className="shrink-0 text-white/50" />
               {event.doors}
             </p>
             <p className="flex items-center gap-2.5">
-              <Users size={13} className="shrink-0 text-white/25" />
+              <Users size={13} className="shrink-0 text-white/50" />
               {event.venue}, {event.city}
             </p>
           </div>
@@ -131,7 +131,7 @@ function EventCard({
           {/* footer row */}
           <div className="mt-6 flex items-center justify-between gap-3 pt-1">
             <div>
-              <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/30">
+              <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/50">
                 From
               </p>
               <p className="mt-1 font-display text-[15px] font-semibold text-white">
@@ -198,7 +198,7 @@ export default function TicketsPage() {
             </div>
 
             <div className="flex flex-col justify-center px-7 py-9 md:px-10 md:py-12">
-              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/45">
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/65">
                 {fullDate(featuredEvent.date)}
               </p>
               <h2 className="mt-4 font-display text-[2.1rem] font-semibold leading-tight tracking-tight md:text-[2.6rem]">
@@ -211,19 +211,19 @@ export default function TicketsPage() {
                 {featuredEvent.description}
               </p>
 
-              <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px] text-white/45">
+              <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px] text-white/65">
                 <span className="flex items-center gap-2">
-                  <Clock size={14} className="text-white/30" />
+                  <Clock size={14} className="text-white/50" />
                   {featuredEvent.doors}
                 </span>
                 <span className="flex items-center gap-2">
-                  <Users size={14} className="text-white/30" />
+                  <Users size={14} className="text-white/50" />
                   {featuredEvent.venue}, {featuredEvent.city}
                 </span>
               </div>
 
               <div className="mt-8">
-                <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-white/45">
+                <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-white/65">
                   Gates open in
                 </p>
                 <div className="mt-3">
@@ -235,7 +235,7 @@ export default function TicketsPage() {
                 {featuredEvent.tiers.map((t) => (
                   <span
                     key={t.id}
-                    className="rounded-full bg-navy-900 px-4 py-2 text-[11px] font-semibold text-white/60 transition-colors duration-300 hover:text-white"
+                    className="rounded-full bg-navy-900 px-4 py-2 text-[11px] font-semibold text-white/65 transition-colors duration-300 hover:text-white"
                   >
                     {t.name} ·{" "}
                     <span className="text-white">
@@ -266,7 +266,7 @@ export default function TicketsPage() {
               Upcoming events
             </h2>
             <span className="h-px flex-1 bg-white/10" />
-            <span className="text-xs text-white/30">
+            <span className="text-xs text-white/50">
               {upcoming.length} events
             </span>
           </div>
@@ -300,12 +300,12 @@ export default function TicketsPage() {
                 },
               ].map((f) => (
                 <li key={f.title} className="flex items-start gap-3.5">
-                  <f.icon size={17} className="mt-0.5 shrink-0 text-white/35" />
+                  <f.icon size={17} className="mt-0.5 shrink-0 text-white/65" />
                   <div>
                     <p className="text-[13.5px] font-semibold text-white">
                       {f.title}
                     </p>
-                    <p className="mt-1.5 text-[12.5px] leading-relaxed text-white/45">
+                    <p className="mt-1.5 text-[12.5px] leading-relaxed text-white/65">
                       {f.desc}
                     </p>
                   </div>

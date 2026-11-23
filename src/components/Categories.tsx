@@ -91,7 +91,7 @@ export default function Categories() {
                   <dt className="font-display text-[2.1rem] font-semibold leading-none tracking-tight text-white">
                     {s.value}
                   </dt>
-                  <dd className="mt-3 text-[10px] font-semibold uppercase tracking-[0.3em] text-white/40">
+                  <dd className="mt-3 text-[10px] font-semibold uppercase tracking-[0.3em] text-white/60">
                     {s.label}
                   </dd>
                 </div>

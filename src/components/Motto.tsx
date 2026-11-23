@@ -45,7 +45,7 @@ export default function Motto() {
             Animo <span className="text-gold">et</span> Fide
           </h2>
 
-          <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.5em] text-white/45">
+          <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.5em] text-white/60">
             Courage &amp; Faith
           </p>
         </Reveal>
@@ -56,7 +56,7 @@ export default function Motto() {
             {marks.map((m, i) => (
               <span key={m} className="flex items-center gap-4">
                 {i > 0 && <span className="h-1 w-1 rounded-full bg-white/20" />}
-                <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/40">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/60">
                   {m}
                 </span>
               </span>

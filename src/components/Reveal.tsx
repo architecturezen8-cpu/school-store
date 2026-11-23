@@ -28,6 +28,16 @@ export default function Reveal({
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+
+    // No IntersectionObserver (very old browser, or a crawler/preview that
+    // strips it): show the content immediately instead of leaving it at
+    // opacity 0 forever — a blank page is far worse than a missing animation.
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    if (typeof IntersectionObserver === "undefined" || reduced) {
+      setVisible(true);
+      return;
+    }
+
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {

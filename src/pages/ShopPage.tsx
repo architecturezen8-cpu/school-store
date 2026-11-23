@@ -51,7 +51,7 @@ function SortMenu({
         aria-expanded={open}
         className="flex items-center gap-2.5 rounded-full bg-navy-900 px-5 py-2.5 text-xs font-semibold tracking-wide text-white/70 transition-colors duration-300 hover:bg-navy-800 hover:text-white"
       >
-        <span className="text-white/35">Sort</span>
+        <span className="text-white/60">Sort</span>
         {current.label}
         <ChevronDown
           size={13}
@@ -164,19 +164,19 @@ export function ShopProductCard({
         </div>
 
         <div className="mt-4 flex items-center justify-between">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/40">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/60">
             {getCategoryName(product.category)}
           </p>
           <p className="text-sm font-bold text-white">{lkr(product.price)}</p>
         </div>
 
-        <h3 className="mt-2 text-base font-semibold leading-snug text-white">
+        <h2 className="mt-2 text-base font-semibold leading-snug text-white">
           {product.name}
-        </h3>
+        </h2>
 
         <div className="mt-2.5 flex items-center gap-2">
           <Stars rating={product.rating} />
-          <span className="text-xs text-white/35">({product.reviews})</span>
+          <span className="text-xs text-white/60">({product.reviews})</span>
         </div>
       </a>
     </Reveal>
@@ -240,15 +240,15 @@ export default function ShopPage({
       <div className="relative mx-auto max-w-[1400px] px-5 lg:px-10">
         {/* breadcrumb */}
         <Reveal>
-          <nav className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/35">
+          <nav className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/60">
             <a href={href.home} className="transition-colors hover:text-white">
               Home
             </a>
-            <span className="text-white/20">/</span>
+            <span className="text-white/50">/</span>
             <span className="text-white/60">Shop</span>
             {active && (
               <>
-                <span className="text-white/20">/</span>
+                <span className="text-white/50">/</span>
                 <span className="text-white/60">
                   {categories.find((c) => c.slug === active)?.title}
                 </span>
@@ -287,7 +287,7 @@ export default function ShopPage({
                 <button
                   onClick={onSearch}
                   aria-label="Search"
-                  className="rounded-full px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/40 transition-colors hover:text-white"
+                  className="rounded-full px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/60 transition-colors hover:text-white"
                 >
                   Search
                 </button>
@@ -343,7 +343,7 @@ export default function ShopPage({
               <div className="flex items-center gap-3">
                 <button
                   onClick={onSearch}
-                  className="rounded-full px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/40 transition-colors hover:text-white"
+                  className="rounded-full px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/60 transition-colors hover:text-white"
                 >
                   Search
                 </button>
@@ -355,7 +355,7 @@ export default function ShopPage({
 
         {/* count */}
         <Reveal delay={180}>
-          <p className="mt-7 text-xs text-white/30">
+          <p className="mt-7 text-xs text-white/50">
             Showing {visible.length} of {products.length} items
             {active && ` · ${categories.find((c) => c.slug === active)?.title}`}
           </p>
@@ -374,7 +374,7 @@ export default function ShopPage({
         </div>
 
         {visible.length === 0 && (
-          <p className="py-16 text-center text-sm text-white/40">
+          <p className="py-16 text-center text-sm text-white/60">
             Nothing in this collection yet.
           </p>
         )}
@@ -433,7 +433,7 @@ function FilterRow({
       <span className="text-[13px] font-semibold tracking-wide">{label}</span>
       <span
         className={`text-[11px] font-semibold ${
-          active ? "text-ink/50" : "text-white/30"
+          active ? "text-ink/50" : "text-white/50"
         }`}
       >
         {count}

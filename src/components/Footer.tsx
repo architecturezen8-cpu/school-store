@@ -69,13 +69,13 @@ export default function Footer() {
                 <p className="font-display text-xl font-semibold leading-tight tracking-tight">
                   St. Thomas’ College
                 </p>
-                <p className="mt-1.5 text-[10px] font-bold uppercase tracking-[0.28em] text-white/40">
+                <p className="mt-1.5 text-[10px] font-bold uppercase tracking-[0.28em] text-white/60">
                   The Official Store · Est. 1873
                 </p>
               </div>
             </div>
 
-            <p className="mt-6 text-sm leading-relaxed text-white/45">
+            <p className="mt-6 text-sm leading-relaxed text-white/60">
               Every purchase carries the crest — and every rupee goes back into
               the college we love.
             </p>
@@ -96,7 +96,7 @@ export default function Footer() {
 
           {/* explore */}
           <Reveal delay={100}>
-            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/30">
+            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/65">
               Explore
             </p>
             <ul className="mt-5 space-y-3.5">
@@ -116,7 +116,7 @@ export default function Footer() {
 
           {/* collections */}
           <Reveal delay={170}>
-            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/30">
+            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/65">
               Collections
             </p>
             <ul className="mt-5 space-y-3.5">
@@ -140,29 +140,29 @@ export default function Footer() {
           <div className="mt-14 flex flex-col gap-4 border-t border-white/[0.08] pt-8 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
             <a
               href="tel:+94662221873"
-              className="flex items-center gap-2.5 text-sm text-white/50 transition-colors hover:text-white"
+              className="flex items-center gap-2.5 text-sm text-white/65 transition-colors hover:text-white"
             >
-              <Phone size={15} className="text-white/35" />
+              <Phone size={15} className="text-white/60" />
               +94 66 222 1873
             </a>
             <a
               href="mailto:store@stcmatale.lk"
-              className="flex items-center gap-2.5 text-sm text-white/50 transition-colors hover:text-white"
+              className="flex items-center gap-2.5 text-sm text-white/65 transition-colors hover:text-white"
             >
-              <Mail size={15} className="text-white/35" />
+              <Mail size={15} className="text-white/60" />
               store@stcmatale.lk
             </a>
-            <span className="flex items-center gap-2.5 text-sm text-white/50">
-              <MapPin size={15} className="text-white/35" />
+            <span className="flex items-center gap-2.5 text-sm text-white/65">
+              <MapPin size={15} className="text-white/60" />
               Matale, Central Province
             </span>
           </div>
         </Reveal>
 
         {/* ---------- bottom bar ---------- */}
-        <div className="mt-8 flex flex-col gap-2 border-t border-white/[0.08] py-7 text-xs text-white/35 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-8 flex flex-col gap-2 border-t border-white/[0.08] py-7 text-xs text-white/60 sm:flex-row sm:items-center sm:justify-between">
           <p>© {new Date().getFullYear()} St. Thomas’ College Matale</p>
-          <p className="font-display text-[12px] tracking-[0.24em] text-white/40">
+          <p className="font-display text-[12px] tracking-[0.24em] text-white/60">
             ANIMO ET FIDE
           </p>
         </div>

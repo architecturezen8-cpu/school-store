@@ -58,12 +58,12 @@ export default function Featured() {
             <ul className="grid gap-7 sm:grid-cols-3 sm:gap-6">
               {services.map((s) => (
                 <li key={s.title} className="flex items-start gap-3.5">
-                  <s.icon size={17} className="mt-0.5 shrink-0 text-white/35" />
+                  <s.icon size={17} className="mt-0.5 shrink-0 text-white/60" />
                   <div>
                     <p className="text-[13.5px] font-semibold tracking-tight text-white">
                       {s.title}
                     </p>
-                    <p className="mt-1.5 text-[12.5px] leading-relaxed text-white/45">
+                    <p className="mt-1.5 text-[12.5px] leading-relaxed text-white/60">
                       {s.desc}
                     </p>
                   </div>

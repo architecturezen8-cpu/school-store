@@ -47,7 +47,7 @@ export default function Reviews() {
                   <span className="grid h-11 w-11 place-items-center rounded-full border border-white/15 bg-navy-800 font-display text-base font-semibold text-white">
                     {r.name.charAt(0)}
                   </span>
-                  <Quote size={20} className="fill-white/10 text-white/25" />
+                  <Quote size={20} className="fill-white/10 text-white/50" />
                 </div>
 
                 <div className="mt-5">
@@ -60,7 +60,7 @@ export default function Reviews() {
 
                 <figcaption className="mt-6 border-t border-white/10 pt-4">
                   <p className="text-sm font-semibold text-white">{r.name}</p>
-                  <p className="mt-0.5 text-xs text-white/40">{r.role}</p>
+                  <p className="mt-0.5 text-xs text-white/60">{r.role}</p>
                 </figcaption>
               </figure>
             </Reveal>

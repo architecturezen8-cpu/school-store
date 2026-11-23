@@ -47,7 +47,12 @@ export default function SearchOverlay({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[90]">
+    <div
+      className="fixed inset-0 z-[90]"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Search the store"
+    >
       <div
         className="absolute inset-0 bg-ink"
         onClick={onClose}
@@ -61,7 +66,7 @@ export default function SearchOverlay({
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search the store…"
             aria-label="Search the store"
-            className="w-full bg-transparent font-display text-3xl text-white outline-none placeholder:text-white/25 md:text-4xl"
+            className="w-full bg-transparent font-display text-3xl text-white outline-none placeholder:text-white/50 md:text-4xl"
           />
           <button
             onClick={onClose}
@@ -74,7 +79,7 @@ export default function SearchOverlay({
 
         {q.trim() === "" ? (
           <div className="mt-10">
-            <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-white/35">
+            <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-white/60">
               Popular right now
             </p>
             <div className="mt-4 flex flex-wrap gap-2.5">
@@ -91,7 +96,7 @@ export default function SearchOverlay({
           </div>
         ) : (
           <div className="mt-8">
-            <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-white/35">
+            <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-white/60">
               {results.length > 0
                 ? `${results.length} result${results.length > 1 ? "s" : ""}`
                 : "Nothing found"}
@@ -108,7 +113,7 @@ export default function SearchOverlay({
                     <p className="truncate font-display text-xl text-white">
                       {p.name}
                     </p>
-                    <p className="text-xs text-white/40">{p.category}</p>
+                    <p className="text-xs text-white/60">{p.category}</p>
                   </div>
                   <span className="text-sm font-semibold text-white">
                     {lkr(p.price)}
@@ -127,7 +132,7 @@ export default function SearchOverlay({
                 </a>
               ))}
               {results.length === 0 && (
-                <p className="py-6 text-sm text-white/40">
+                <p className="py-6 text-sm text-white/60">
                   Try “hoodie”, “cap” or “tickets”.
                 </p>
               )}
@@ -137,7 +142,7 @@ export default function SearchOverlay({
 
         <button
           onClick={onClose}
-          className="mt-auto flex items-center gap-2 self-center pt-10 text-[11px] uppercase tracking-[0.3em] text-white/30 transition hover:text-white"
+          className="mt-auto flex items-center gap-2 self-center pt-10 text-[11px] uppercase tracking-[0.3em] text-white/50 transition hover:text-white"
         >
           Close search <ArrowUpRight size={13} />
         </button>

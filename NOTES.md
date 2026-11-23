@@ -34,3 +34,42 @@ The full JSON report (every check, error text and a11y note) lands in
 
 Anything not covered by the test (pixel layout, hover states, real animations)
 needs a human look at the Arena preview.
+
+---
+
+# Real-browser QA (agent-browser + headless Chromium)
+
+The smoke test above runs the app in jsdom, which cannot see layout. For layout,
+hover states, screenshots and axe audits there is a real Chromium rig:
+
+```bash
+bash scripts/browser-qa.sh install                 # once: ~70 MB into /tmp (nothing in the repo)
+bash scripts/browser-qa.sh shot '/#/shop' /tmp/shop.png
+bash scripts/browser-qa.sh shot '/#/shop' /tmp/shop-m.png "iPhone 15"
+bash scripts/browser-qa.sh audit '/#/product/crest-hoodie'
+bash scripts/browser-qa.sh ab snapshot -i          # drive the page by hand
+```
+
+Why this rig exists: `agent-browser install` and Playwright's browser CDN are both
+unreachable from the sandbox, so the binary is pulled from the npm registry instead
+(`@sparticuz/chromium@143`, the last build that bundles the NSS/NSPR libraries it
+needs). `scripts/browser-qa.sh install` documents and automates that.
+
+The static build has to be served for these checks:
+
+```bash
+npm run build:docs
+python3 -m http.server 8080 --bind 0.0.0.0 --directory docs
+```
+
+## What a browser pass covers
+
+| Check | Command |
+|---|---|
+| Layout at 1440 / 1280 / 393 px, full-page | `shot ... --full` |
+| Axe-core WCAG audit per route | `audit '/#/shop'` |
+| Console errors / page errors | `ab errors` |
+| Real interaction (typing, clicking, focus) | `ab click` / `ab fill` / `ab press` |
+
+Screenshots are the only way to catch the things jsdom is blind to: horizontal
+overflow, truncated labels, stacked overlays, and contrast on image backgrounds.

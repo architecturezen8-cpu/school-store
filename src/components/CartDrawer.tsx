@@ -15,6 +15,11 @@ export default function CartDrawer() {
     };
   }, [isOpen]);
 
+  // An aria-hidden container must not hold focusable elements (axe
+  // aria-hidden-focus). Use `inert` while the drawer is closed so the
+  // panel stays mounted for its slide animation but is untabbable.
+  const inertProps = isOpen ? {} : ({ inert: true } as const);
+
   const remaining = Math.max(0, FREE_SHIPPING - subtotal);
   const pct = Math.min(100, (subtotal / FREE_SHIPPING) * 100);
 
@@ -22,6 +27,7 @@ export default function CartDrawer() {
     <div
       className={`fixed inset-0 z-[80] ${isOpen ? "" : "pointer-events-none"}`}
       aria-hidden={!isOpen}
+      {...inertProps}
     >
       <div
         onClick={() => setOpen(false)}
@@ -38,7 +44,7 @@ export default function CartDrawer() {
         <div className="flex items-center justify-between border-b border-white/5 px-6 py-5">
           <div>
             <h3 className="font-display text-2xl font-medium">Your Bag</h3>
-            <p className="text-xs text-white/40">
+            <p className="text-xs text-white/60">
               {count === 0 ? "No items yet" : `${count} item${count > 1 ? "s" : ""}`}
             </p>
           </div>
@@ -92,7 +98,7 @@ export default function CartDrawer() {
                         <button
                           onClick={() => remove(item.slug)}
                           aria-label={`Remove ${item.name}`}
-                          className="text-white/30 transition hover:text-red-400"
+                          className="text-white/50 transition hover:text-red-400"
                         >
                           <Trash2 size={15} />
                         </button>
@@ -133,7 +139,7 @@ export default function CartDrawer() {
                   {lkr(subtotal)}
                 </span>
               </div>
-              <p className="mt-1 text-xs text-white/30">
+              <p className="mt-1 text-xs text-white/50">
                 Shipping &amp; taxes calculated at checkout.
               </p>
               <button className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-accent py-4 text-xs font-bold uppercase tracking-[0.25em] text-ink transition hover:shadow-[0_0_45px_rgba(255,255,255,0.10)]">
@@ -143,13 +149,13 @@ export default function CartDrawer() {
           </>
         ) : (
           <div className="flex flex-1 flex-col items-center justify-center px-8 text-center">
-            <span className="grid h-16 w-16 place-items-center rounded-full border border-white/10 text-white/30">
+            <span className="grid h-16 w-16 place-items-center rounded-full border border-white/10 text-white/50">
               <ShoppingBag size={24} />
             </span>
             <p className="mt-5 font-display text-2xl text-white/85">
               Your bag is empty
             </p>
-            <p className="mt-2 text-sm text-white/40">
+            <p className="mt-2 text-sm text-white/60">
               Crests, scarves &amp; tickets await — go on, be a proud Thomian.
             </p>
             <a

@@ -132,7 +132,7 @@ export default function QuickView({
             <X size={17} />
           </button>
 
-          <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-white/45">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-white/60">
             {getCategoryName(product.category).replace(/-/g, " ")}
           </p>
 
@@ -154,7 +154,7 @@ export default function QuickView({
                 </svg>
               ))}
             </div>
-            <span className="text-xs text-white/35">({product.reviews})</span>
+            <span className="text-xs text-white/60">({product.reviews})</span>
           </div>
 
           <p className="mt-5 font-display text-[1.75rem] font-semibold tracking-tight">
@@ -168,7 +168,7 @@ export default function QuickView({
           {/* colours */}
           {product.colours && (
             <div className="mt-6">
-              <p className="text-[10px] font-bold uppercase tracking-[0.26em] text-white/45">
+              <p className="text-[10px] font-bold uppercase tracking-[0.26em] text-white/60">
                 Colour: <span className="text-white/80">{colour}</span>
               </p>
               <div className="mt-3 flex flex-wrap gap-2.5">
@@ -195,7 +195,7 @@ export default function QuickView({
           {/* sizes */}
           {product.options && (
             <div className="mt-6">
-              <p className="text-[10px] font-bold uppercase tracking-[0.26em] text-white/45">
+              <p className="text-[10px] font-bold uppercase tracking-[0.26em] text-white/60">
                 {product.options.label}:{" "}
                 <span className="text-white/80">{size}</span>
               </p>

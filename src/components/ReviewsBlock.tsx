@@ -121,7 +121,7 @@ export default function ReviewsBlock({
             </span>
             <div>
               <Stars value={Math.round(avg)} />
-              <p className="mt-1.5 text-xs text-white/35">
+              <p className="mt-1.5 text-xs text-white/60">
                 Based on {seedCount} reviews
               </p>
             </div>
@@ -153,7 +153,7 @@ export default function ReviewsBlock({
             </p>
 
             <div className="mt-5 flex items-center gap-3">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-white/40">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-white/60">
                 Your rating
               </span>
               <div className="flex items-center gap-1">
@@ -181,7 +181,7 @@ export default function ReviewsBlock({
               onChange={(e) => setName(e.target.value)}
               placeholder="Your name"
               required
-              className="mt-5 w-full rounded-xl bg-navy-800 px-5 py-3.5 text-sm text-white outline-none transition placeholder:text-white/30 focus:bg-navy-700"
+              className="mt-5 w-full rounded-xl bg-navy-800 px-5 py-3.5 text-sm text-white outline-none transition placeholder:text-white/50 focus:bg-navy-700"
             />
             <textarea
               value={body}
@@ -189,7 +189,7 @@ export default function ReviewsBlock({
               placeholder="How was the product? Fit, quality, delivery…"
               required
               rows={4}
-              className="mt-3 w-full resize-none rounded-xl bg-navy-800 px-5 py-3.5 text-sm leading-relaxed text-white outline-none transition placeholder:text-white/30 focus:bg-navy-700"
+              className="mt-3 w-full resize-none rounded-xl bg-navy-800 px-5 py-3.5 text-sm leading-relaxed text-white outline-none transition placeholder:text-white/50 focus:bg-navy-700"
             />
 
             <div className="mt-4 flex items-center gap-3">
@@ -206,7 +206,7 @@ export default function ReviewsBlock({
                 )}
               </button>
               {sent && (
-                <span className="text-xs text-white/45">
+                <span className="text-xs text-white/60">
                   Thank you — your review is now live.
                 </span>
               )}
@@ -226,7 +226,7 @@ export default function ReviewsBlock({
                 </span>
                 <div>
                   <p className="text-sm font-semibold text-white">{r.name}</p>
-                  <p className="mt-0.5 text-xs text-white/35">{r.date}</p>
+                  <p className="mt-0.5 text-xs text-white/60">{r.date}</p>
                 </div>
               </div>
               <div className="mt-4">

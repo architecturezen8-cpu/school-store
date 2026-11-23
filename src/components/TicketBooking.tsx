@@ -31,6 +31,7 @@ export default function TicketBooking({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [ref, setRef] = useState("");
+  const [tried, setTried] = useState(false);
 
   // reset whenever a new event opens
   useEffect(() => {
@@ -40,6 +41,7 @@ export default function TicketBooking({
     setEmail("");
     setPhone("");
     setRef("");
+    setTried(false);
     setQty({ [event.tiers[0]?.id ?? ""]: 1 });
   }, [event]);
 
@@ -93,7 +95,12 @@ export default function TicketBooking({
       return;
     }
     if (step === 2) {
-      if (!name.trim() || !email.trim()) return;
+      // An empty form used to do nothing at all, which reads as a broken
+      // button. Flip `tried` so the missing fields can explain themselves.
+      if (!name.trim() || !email.trim() || !email.includes("@")) {
+        setTried(true);
+        return;
+      }
       setRef(bookingRef());
       setStep(3);
     }
@@ -106,6 +113,7 @@ export default function TicketBooking({
       className="fixed inset-0 z-[999] flex items-center justify-center px-4 py-8"
       role="dialog"
       aria-modal="true"
+      aria-label={`Book tickets — ${event.title}`}
     >
       <div className="absolute inset-0 bg-ink/90" onClick={onClose} />
 
@@ -120,7 +128,7 @@ export default function TicketBooking({
               <h3 className="mt-2.5 font-display text-2xl font-semibold leading-tight tracking-tight">
                 {event.title}
               </h3>
-              <p className="mt-1.5 text-[13px] text-white/45">
+              <p className="mt-1.5 text-[13px] text-white/60">
                 {fullDate(event.date)} · {event.venue}, {event.city}
               </p>
             </div>
@@ -134,33 +142,33 @@ export default function TicketBooking({
           </div>
 
           {/* step indicator */}
-          <div className="mt-6 flex items-center gap-2">
+          <div className="mt-6 flex items-center gap-1.5 sm:gap-2">
             {STEPS.map((label, i) => {
               const n = i + 1;
               const done = step > n;
               const active = step === n;
               return (
-                <div key={label} className="flex flex-1 items-center gap-2">
+                <div key={label} className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
                   <span
                     className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-[10px] font-bold transition-colors ${
                       done
                         ? "bg-gold text-ink"
                         : active
                           ? "bg-white text-ink"
-                          : "bg-navy-900 text-white/40"
+                          : "bg-navy-900 text-white/60"
                     }`}
                   >
                     {done ? <Check size={11} /> : n}
                   </span>
                   <span
-                    className={`text-[11px] font-semibold uppercase tracking-[0.14em] ${
-                      active ? "text-white" : "text-white/35"
+                    className={`truncate text-[9px] font-semibold uppercase tracking-[0.04em] sm:text-[11px] sm:tracking-[0.14em] ${
+                      active ? "text-white" : "text-white/60"
                     }`}
                   >
                     {label}
                   </span>
                   {i < STEPS.length - 1 && (
-                    <span className="h-px flex-1 bg-white/10" />
+                    <span className="hidden h-px flex-1 bg-white/10 sm:block" />
                   )}
                 </div>
               );
@@ -177,18 +185,18 @@ export default function TicketBooking({
                 return (
                   <div
                     key={t.id}
-                    className={`rounded-2xl border p-5 transition-colors duration-300 ${
+                    className={`rounded-2xl border p-4 transition-colors duration-300 sm:p-5 ${
                       on
                         ? "border-white/25 bg-navy-900"
                         : "border-white/8 bg-navy-950 hover:border-white/20"
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start justify-between gap-3 sm:gap-4">
                       <button
                         onClick={() =>
                           setQty((q) => ({ ...q, [t.id]: on ? 0 : 1 }))
                         }
-                        className="flex flex-1 items-start gap-3.5 text-left"
+                        className="flex min-w-0 flex-1 items-start gap-3 text-left sm:gap-3.5"
                       >
                         <span
                           className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border transition-colors ${
@@ -199,9 +207,9 @@ export default function TicketBooking({
                         >
                           {on && <Check size={11} />}
                         </span>
-                        <span>
+                        <span className="min-w-0">
                           <span className="flex flex-wrap items-center gap-2">
-                            <span className="font-display text-[17px] font-semibold text-white">
+                            <span className="font-display text-[15px] font-semibold text-white sm:text-[17px]">
                               {t.name}
                             </span>
                             {t.note && (
@@ -225,7 +233,7 @@ export default function TicketBooking({
                       </button>
 
                       <div className="shrink-0 text-right">
-                        <p className="font-display text-[15px] font-semibold text-white">
+                        <p className="font-display text-[13px] font-semibold text-white sm:text-[15px]">
                           {t.price === 0 ? "Free" : lkr(t.price)}
                         </p>
                         {on && (
@@ -257,7 +265,7 @@ export default function TicketBooking({
             </div>
 
             <div className="mt-6 flex items-center justify-between border-t border-white/8 pt-5">
-              <span className="text-[13px] text-white/45">
+              <span className="text-[13px] text-white/60">
                 {count} ticket{count === 1 ? "" : "s"}
               </span>
               <span className="font-display text-xl font-semibold">
@@ -280,7 +288,7 @@ export default function TicketBooking({
           <div className="px-7 py-6">
             <div className="rounded-2xl bg-navy-950 p-5">
               <div className="flex items-center justify-between text-[13px]">
-                <span className="text-white/45">
+                <span className="text-white/60">
                   {count} ticket{count === 1 ? "" : "s"}
                   {chosen.length > 0 && ` · ${chosen[0].name}`}
                   {chosen.length > 1 && ` +${chosen.length - 1}`}
@@ -296,6 +304,8 @@ export default function TicketBooking({
                 onChange={setName}
                 placeholder="A. B. Perera"
                 type="text"
+                invalid={tried && !name.trim()}
+                hint="Please enter the name for the tickets."
               />
               <Field
                 label="Email"
@@ -303,6 +313,8 @@ export default function TicketBooking({
                 onChange={setEmail}
                 placeholder="you@example.lk"
                 type="email"
+                invalid={tried && (!email.trim() || !email.includes("@"))}
+                hint="We send the e-ticket here — check the address."
               />
               <Field
                 label="Phone"
@@ -313,7 +325,7 @@ export default function TicketBooking({
               />
             </div>
 
-            <p className="mt-4 text-[12px] leading-relaxed text-white/35">
+            <p className="mt-4 text-[12px] leading-relaxed text-white/60">
               E-tickets are emailed instantly. Show the booking reference at the
               gate.
             </p>
@@ -345,7 +357,7 @@ export default function TicketBooking({
               </span>
               <div>
                 <p className="font-display text-xl font-semibold">Booked.</p>
-                <p className="text-[13px] text-white/45">
+                <p className="text-[13px] text-white/60">
                   Sent to {email || "your email"}
                 </p>
               </div>
@@ -445,16 +457,20 @@ function Field({
   onChange,
   placeholder,
   type,
+  invalid = false,
+  hint,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   placeholder: string;
   type: string;
+  invalid?: boolean;
+  hint?: string;
 }) {
   return (
     <label className="block">
-      <span className="text-[10px] font-bold uppercase tracking-[0.26em] text-white/45">
+      <span className="text-[10px] font-bold uppercase tracking-[0.26em] text-white/60">
         {label}
       </span>
       <input
@@ -462,8 +478,14 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="mt-2 w-full rounded-xl bg-navy-900 px-5 py-3.5 text-sm text-white outline-none transition placeholder:text-white/25 focus:bg-navy-800"
+        aria-invalid={invalid || undefined}
+        className={`mt-2 w-full rounded-xl bg-navy-900 px-5 py-3.5 text-sm text-white outline-none transition placeholder:text-white/50 focus:bg-navy-800 ${
+          invalid ? "ring-1 ring-red-400/70" : ""
+        }`}
       />
+      {invalid && hint ? (
+        <span className="mt-1.5 block text-[11px] text-red-300">{hint}</span>
+      ) : null}
     </label>
   );
 }

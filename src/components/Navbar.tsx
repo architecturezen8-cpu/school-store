@@ -36,7 +36,7 @@ function BrandLockup() {
         <span className="font-display text-[15px] font-semibold tracking-tight text-white">
           St.Thomas&apos; College
         </span>
-        <span className="mt-1.5 text-[8.5px] font-bold uppercase tracking-[0.3em] text-white/45">
+        <span className="mt-1.5 text-[8.5px] font-bold uppercase tracking-[0.3em] text-white/60">
           Matale. Est.1873.
         </span>
       </span>
@@ -176,7 +176,7 @@ export default function Navbar({
                             </span>
                             <ChevronDown
                               size={15}
-                              className={`text-white/35 transition-transform duration-300 ${
+                              className={`text-white/60 transition-transform duration-300 ${
                                 shopExpanded ? "rotate-180" : ""
                               }`}
                             />
@@ -342,7 +342,7 @@ function DesktopBar({
                           <span className="block font-display text-[14px] font-medium leading-tight text-white">
                             {child.label}
                           </span>
-                          <span className="mt-1 block text-[11px] leading-snug text-white/40">
+                          <span className="mt-1 block text-[11px] leading-snug text-white/60">
                             {child.note}
                           </span>
                         </span>
@@ -403,7 +403,10 @@ function DesktopBar({
             <Search size={17} />
           </button>
           <button
-            onClick={() => setOpen(true)}
+            onClick={() => {
+              const target = document.getElementById("contact");
+              if (target) target.scrollIntoView({ behavior: "smooth" });
+            }}
             aria-label="My account"
             className="hidden h-10 w-10 place-items-center rounded-full text-white/65 transition-colors duration-300 hover:bg-navy-800 hover:text-white md:grid"
           >

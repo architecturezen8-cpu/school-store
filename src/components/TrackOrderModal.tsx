@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, PackageSearch, X } from "lucide-react";
 
 const steps = [
@@ -17,6 +17,7 @@ export default function TrackOrderModal({
 }) {
   const [orderId, setOrderId] = useState("");
   const [trackedId, setTrackedId] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
@@ -39,10 +40,23 @@ export default function TrackOrderModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  // focus the order-ID field as soon as the dialog opens
+  useEffect(() => {
+    if (open) {
+      const t = window.setTimeout(() => inputRef.current?.focus(), 60);
+      return () => window.clearTimeout(t);
+    }
+  }, [open]);
+
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[90] grid place-items-center px-4">
+    <div
+      className="fixed inset-0 z-[90] grid place-items-center px-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Track my order"
+    >
       <div
         className="absolute inset-0 bg-black/80"
         onClick={onClose}
@@ -75,11 +89,12 @@ export default function TrackOrderModal({
             }}
           >
             <input
+              ref={inputRef}
               value={orderId}
               onChange={(e) => setOrderId(e.target.value)}
               placeholder="e.g. STC-1873"
               aria-label="Order ID"
-              className="w-full rounded-full border border-white/15 bg-navy-800 px-5 py-3.5 text-sm tracking-wider text-white outline-none transition placeholder:text-white/25 focus:border-white/40 focus:bg-navy-700"
+              className="w-full rounded-full border border-white/15 bg-navy-800 px-5 py-3.5 text-sm tracking-wider text-white outline-none transition placeholder:text-white/50 focus:border-white/40 focus:bg-navy-700"
             />
             <button
               type="submit"
@@ -91,7 +106,7 @@ export default function TrackOrderModal({
         ) : (
           <div className="mt-6">
             <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-navy-800 px-4 py-3">
-              <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-white/40">
+              <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-white/60">
                 Order
               </span>
               <span className="font-semibold tracking-widest text-white">
@@ -120,7 +135,7 @@ export default function TrackOrderModal({
                           ? "border-white bg-white text-ink"
                           : active
                             ? "border-white bg-transparent text-white"
-                            : "border-white/20 text-white/30"
+                            : "border-white/20 text-white/50"
                       }`}
                     >
                       {done ? (
@@ -136,12 +151,12 @@ export default function TrackOrderModal({
                     <div className="-mt-0.5 flex-1">
                       <p
                         className={`text-sm font-semibold ${
-                          done || active ? "text-white" : "text-white/35"
+                          done || active ? "text-white" : "text-white/60"
                         }`}
                       >
                         {s.label}
                       </p>
-                      <p className="mt-0.5 text-xs text-white/35">{s.time}</p>
+                      <p className="mt-0.5 text-xs text-white/60">{s.time}</p>
                     </div>
                   </li>
                 );
