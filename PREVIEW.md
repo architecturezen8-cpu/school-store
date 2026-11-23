@@ -28,14 +28,30 @@ Building a proxy tunnel in the sandbox was attempted and is not possible here:
 
 | Attempt | Result |
 |---|---|
-| `curl`/`wget` to `loca.lt`, `bore.pub`, `ngrok.com`, `trycloudflare.com`, `serveo.net`, `localhost.run` | TLS handshake to the tunnel hosts is reset by the sandbox egress proxy (TCP opens, TLS is dropped) |
+| **Cloudflare Quick Tunnel** (`cloudflared` 2026.10.6 from npm, run against `localhost:8080`) | binary runs, then `failed to request quick Tunnel: Post "https://api.trycloudflare.com/tunnel": EOF` — the TLS session to Cloudflare is dropped before the HTTP request |
+| `curl` to `api.cloudflare.com`, `www.cloudflare.com`, `api.trycloudflare.com` | `000`, TLS closed with `SSLZeroReturnError` (raw `openssl s_client`/Python socket, so it is the egress proxy, not curl) |
+| SSH reverse tunnel (`ssh -p 443 -R 80:localhost:8080 nokey@localhost.run`) | `kex_exchange_identification: Connection closed by remote host` |
+| `npx localtunnel` (loca.lt) | hangs, then times out |
+| `loca.lt`, `bore.pub`, `ngrok.com`, `serveo.net` | TCP opens, TLS handshake reset |
 | `apt-get install cloudflared` / `ngrok` | `deb.debian.org` is blocked, package not resolvable |
 | GitHub Pages via API | the token has no `pages` scope (`403 Resource not accessible by integration`) |
 | Creating a new public repo (fresh Pages site) | token is repo-scoped: `403` |
 | Arena preview URLs (`https://<port>-<sandbox>.e2b.app`) | bound to the logged-in session; missing `e2b-traffic-access-token` for anyone else → 403 |
 
-So the tunnel has to be opened from a machine that is allowed to reach a tunnel service,
-or the file has to be served by a host you can reach. Netlify Drop is the fastest of those.
+Only `github.com`, `api.github.com`, `registry.npmjs.org`, `pypi.org` and
+`files.pythonhosted.org` are reachable, so *any* tunnel provider is out: the sandbox can
+download a tunnel client (npm works) but cannot talk to the provider's control plane.
+
+The tunnel therefore has to be opened from a machine that is allowed to reach a tunnel
+service, or the file has to be served by a host you can reach. Netlify Drop is the fastest
+of those. A Cloudflare Tunnel opened **on your own machine** works fine:
+
+```bash
+# on your machine, in a checkout of this repo
+npm run build:docs
+python3 -m http.server 8080 --directory docs
+cloudflared tunnel --url http://localhost:8080     # prints a https://….trycloudflare.com URL
+```
 
 ## If you want a permanent link instead
 
