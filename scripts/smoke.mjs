@@ -43,6 +43,9 @@ await build({
     emptyOutDir: true,
     cssCodeSplit: false,
     rollupOptions: {
+      // the app entry is src/main.tsx — the repo-root index.html is only the
+      // GitHub Pages redirect, so it must never be used as the bundle entry
+      input: path.join(ROOT, "src", "main.tsx"),
       output: { format: "iife", inlineDynamicImports: true, entryFileNames: "app.js" },
     },
   },

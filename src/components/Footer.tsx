@@ -1,4 +1,4 @@
-import { Mail, MapPin, Phone } from "lucide-react";
+import { ArrowUp, Mail, MapPin, Phone } from "lucide-react";
 import CrestLogo from "./CrestLogo";
 import Reveal from "./Reveal";
 
@@ -29,13 +29,14 @@ function YoutubeIcon() {
 }
 
 const socials = [
-  { label: "Facebook", icon: FacebookIcon },
-  { label: "Instagram", icon: InstagramIcon },
-  { label: "YouTube", icon: YoutubeIcon },
+  { label: "Facebook", icon: FacebookIcon, href: "#/" },
+  { label: "Instagram", icon: InstagramIcon, href: "#/" },
+  { label: "YouTube", icon: YoutubeIcon, href: "#/" },
 ];
 
 const explore = [
   { label: "Home", href: "#/" },
+  { label: "The Shop", href: "#/shop" },
   { label: "Event Tickets", href: "#/tickets" },
   { label: "Track my order", href: "#track" },
 ];
@@ -48,45 +49,62 @@ const collections = [
   { label: "Batch Shirts", slug: "batch-shirts" },
 ];
 
+const contact = [
+  { icon: Phone, label: "+94 66 222 1873", href: "tel:+94662221873" },
+  { icon: Mail, label: "store@stcmatale.lk", href: "mailto:store@stcmatale.lk" },
+  { icon: MapPin, label: "Matale, Central Province", href: null },
+];
+
+/** Small uppercase column title with a gold rule, so the three columns share one baseline. */
+function ColumnTitle({ children }: { children: string }) {
+  return (
+    <p className="flex items-center gap-2.5 text-[10px] font-bold uppercase tracking-[0.3em] text-white/60">
+      <span className="h-px w-5 bg-gold/70" aria-hidden />
+      {children}
+    </p>
+  );
+}
+
 export default function Footer() {
   return (
     <footer
       id="contact"
-      className="relative border-t border-white/[0.08] bg-navy-950 pb-6 pt-14 md:pt-16"
+      className="relative overflow-hidden border-t border-white/[0.08] bg-navy-950"
     >
-      <div className="pointer-events-none absolute left-1/2 top-0 h-[300px] w-[min(90vw,680px)] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(22,36,74,0.45),transparent)]" />
+      {/* soft crest glow behind the brand column */}
+      <div className="pointer-events-none absolute -left-24 top-0 h-[340px] w-[340px] rounded-full bg-[radial-gradient(closest-side,rgba(22,36,74,0.55),transparent)]" />
 
-      <div className="relative mx-auto max-w-[1400px] px-5 lg:px-10">
-        {/* ---------- upper: brand · explore · collections ---------- */}
-        <div className="grid gap-12 lg:grid-cols-[1.15fr_auto_auto] lg:gap-16 xl:gap-24">
-          {/* brand */}
-          <Reveal className="max-w-sm">
+      <div className="relative mx-auto max-w-[1400px] px-5 pb-8 pt-14 md:pt-16 lg:px-10">
+        {/* ---------- three columns on one 12-col grid ---------- */}
+        <div className="grid grid-cols-1 gap-12 sm:grid-cols-2 lg:grid-cols-12 lg:gap-10">
+          {/* 1 — brand */}
+          <Reveal className="sm:col-span-2 lg:col-span-5 lg:pr-10">
             <div className="flex items-center gap-4">
               <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-white shadow-[0_0_44px_rgba(255,255,255,0.18)]">
                 <CrestLogo className="h-9 w-9 text-ink" />
               </span>
-              <div>
+              <div className="min-w-0">
                 <p className="font-display text-xl font-semibold leading-tight tracking-tight">
                   St. Thomas’ College
                 </p>
-                <p className="mt-1.5 text-[10px] font-bold uppercase tracking-[0.28em] text-white/60">
+                <p className="mt-1.5 text-[10px] font-bold uppercase leading-4 tracking-[0.24em] text-white/60">
                   The Official Store · Est. 1873
                 </p>
               </div>
             </div>
 
-            <p className="mt-6 text-sm leading-relaxed text-white/60">
+            <p className="mt-6 max-w-sm text-sm leading-relaxed text-white/60">
               Every purchase carries the crest — and every rupee goes back into
               the college we love.
             </p>
 
             <div className="mt-7 flex items-center gap-3">
-              {socials.map(({ label, icon: Icon }) => (
+              {socials.map(({ label, icon: Icon, href }) => (
                 <a
                   key={label}
-                  href="#/"
+                  href={href}
                   aria-label={label}
-                  className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-navy-900 text-white/55 transition-all duration-300 hover:bg-white hover:text-ink"
+                  className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-navy-900 text-white/60 transition-all duration-300 hover:-translate-y-0.5 hover:bg-white hover:text-ink"
                 >
                   <Icon />
                 </a>
@@ -94,77 +112,108 @@ export default function Footer() {
             </div>
           </Reveal>
 
-          {/* explore */}
-          <Reveal delay={100}>
-            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/65">
-              Explore
-            </p>
-            <ul className="mt-5 space-y-3.5">
-              {explore.map((l) => (
-                <li key={l.label}>
-                  <a
-                    href={l.href}
-                    className="group flex items-center gap-2 text-[13px] text-white/55 transition-colors hover:text-white"
-                  >
-                    <span className="h-px w-0 bg-white transition-all duration-300 group-hover:w-3.5" />
-                    {l.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </Reveal>
+          {/* 2 — explore */}
+          <div className="lg:col-span-3">
+            <Reveal delay={100}>
+              <ColumnTitle>Explore</ColumnTitle>
+            </Reveal>
+            <Reveal delay={100}>
+              <ul className="mt-5 space-y-3">
+                {explore.map((l) => (
+                  <li key={l.label}>
+                    <a
+                      href={l.href}
+                      className="group inline-flex items-center gap-2 text-[13px] leading-5 text-white/60 transition-colors hover:text-white"
+                    >
+                      <span className="h-px w-0 bg-gold transition-all duration-300 group-hover:w-3.5" />
+                      {l.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </Reveal>
+          </div>
 
-          {/* collections */}
-          <Reveal delay={170}>
-            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/65">
-              Collections
-            </p>
-            <ul className="mt-5 space-y-3.5">
-              {collections.map((l) => (
-                <li key={l.slug}>
-                  <a
-                    href={`#/shop/${l.slug}`}
-                    className="group flex items-center gap-2 whitespace-nowrap text-[13px] text-white/55 transition-colors hover:text-white"
-                  >
-                    <span className="h-px w-0 bg-white transition-all duration-300 group-hover:w-3.5" />
-                    {l.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </Reveal>
+          {/* 3 — collections */}
+          <div className="lg:col-span-4">
+            <Reveal delay={170}>
+              <ColumnTitle>Collections</ColumnTitle>
+            </Reveal>
+            <Reveal delay={170}>
+              <ul className="mt-5 space-y-3">
+                {collections.map((l) => (
+                  <li key={l.slug}>
+                    <a
+                      href={`#/shop/${l.slug}`}
+                      className="group inline-flex items-center gap-2 text-[13px] leading-5 text-white/60 transition-colors hover:text-white"
+                    >
+                      <span className="h-px w-0 bg-gold transition-all duration-300 group-hover:w-3.5" />
+                      {l.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </Reveal>
+          </div>
         </div>
 
-        {/* ---------- contact strip ---------- */}
-        <Reveal delay={220}>
-          <div className="mt-14 flex flex-col gap-4 border-t border-white/[0.08] pt-8 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
-            <a
-              href="tel:+94662221873"
-              className="flex items-center gap-2.5 text-sm text-white/65 transition-colors hover:text-white"
-            >
-              <Phone size={15} className="text-white/60" />
-              +94 66 222 1873
-            </a>
-            <a
-              href="mailto:store@stcmatale.lk"
-              className="flex items-center gap-2.5 text-sm text-white/65 transition-colors hover:text-white"
-            >
-              <Mail size={15} className="text-white/60" />
-              store@stcmatale.lk
-            </a>
-            <span className="flex items-center gap-2.5 text-sm text-white/65">
-              <MapPin size={15} className="text-white/60" />
-              Matale, Central Province
-            </span>
+        {/* ---------- contact row, aligned to the same 12-col grid ---------- */}
+        <div className="mt-14 border-t border-white/[0.08] pt-8">
+          <div className="grid grid-cols-1 gap-x-10 gap-y-5 sm:grid-cols-3">
+            {contact.map(({ icon: Icon, label, href }) => {
+              const inner = (
+                <>
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10 bg-navy-900 text-white/60 transition-colors group-hover:border-gold/40 group-hover:text-gold">
+                    <Icon size={14} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[9px] font-bold uppercase tracking-[0.24em] text-white/50">
+                      {href?.startsWith("tel:")
+                        ? "Call the store"
+                        : href?.startsWith("mailto:")
+                          ? "Email us"
+                          : "Visit"}
+                    </span>
+                    <span className="mt-1 block truncate text-[13px] leading-5 text-white/75 transition-colors group-hover:text-white">
+                      {label}
+                    </span>
+                  </span>
+                </>
+              );
+
+              return href ? (
+                <a key={label} href={href} className="group flex items-center gap-3">
+                  {inner}
+                </a>
+              ) : (
+                <div key={label} className="group flex items-center gap-3">
+                  {inner}
+                </div>
+              );
+            })}
           </div>
-        </Reveal>
+        </div>
 
         {/* ---------- bottom bar ---------- */}
-        <div className="mt-8 flex flex-col gap-2 border-t border-white/[0.08] py-7 text-xs text-white/60 sm:flex-row sm:items-center sm:justify-between">
-          <p>© {new Date().getFullYear()} St. Thomas’ College Matale</p>
-          <p className="font-display text-[12px] tracking-[0.24em] text-white/60">
+        <div className="mt-10 flex flex-col items-center gap-4 border-t border-white/[0.08] pt-7 sm:flex-row sm:justify-between">
+          <p className="order-2 text-[11px] tracking-wide text-white/50 sm:order-1">
+            © {new Date().getFullYear()} St. Thomas’ College Matale · All rights reserved
+          </p>
+
+          <p className="order-1 font-display text-[11px] tracking-[0.32em] text-white/60 sm:order-2">
             ANIMO ET FIDE
           </p>
+
+          <a
+            href="#/"
+            className="group order-3 inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-white/60 transition-colors hover:border-white/25 hover:text-white"
+          >
+            Back to top
+            <ArrowUp
+              size={12}
+              className="transition-transform duration-300 group-hover:-translate-y-0.5"
+            />
+          </a>
         </div>
       </div>
     </footer>
