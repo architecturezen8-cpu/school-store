@@ -33,5 +33,6 @@ Thumbs.db
 verify/
 verify-*.png
 shots/
-thomian-store-site.zip
-preview-build.zip
+
+# single-file preview copy
+*-preview.html

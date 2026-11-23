@@ -1,60 +1,39 @@
-# How to open a shareable preview of the site
+# Preview — නොමිලේ, rebuild නැතුව
+# පෙරදසුනක් බැලීම (කිසිම rebuild එකක් නැතුව)
 
-## Short version
+## ළඟම ක්‍රමය: ෆයිල් එක open කරන්න
 
-The site is one self-contained file. Drop it on any static host to get a public link in
-about 20 seconds:
+**`The-Thomian-Store-preview.html`** — repo root එකේ තියෙන තනි ෆයිල් එක (2.5 MB).
 
-1. Open <https://app.netlify.com/drop>
-2. Drag `preview-build.zip` (in this repo's workspace root) onto the page
-3. Copy the `https://….netlify.app` URL it gives you
+1. GitHub එකෙන් ඒ ෆයිල් එක download කරන්න
+   (`docs/index.html` එකත් එකම ෆයිල් එකයි)
+2. දෙගිට ගහන්න (double-click) — browser එකේ open වෙනවා
 
-No account, no build step, no config. The zip contains `index.html` (2.5 MB, JS + CSS +
-images inlined) and `.nojekyll`.
+Rebuild එකක් නෑ, upload එකක් නෑ, internet connection එකක් පවා අවශ්‍ය නෑ (fonts සහ
+stock photos ටික internet එකෙන් load වෙනවා, ඉතුරු ඔක්කොම ෆයිල් එක ඇතුළේ).
 
-Alternatives that serve the same single file:
+මේක වැඩ කරන්නේ build එකේ JS එක `type="module"` නොව **classic `<script>`** එකක්
+විදිහට embed වෙන නිසා. `file://` එකේ module scripts block වෙනවා — දැන් ඒ ප්‍රශ්නය නෑ.
 
-- **Vercel:** `npx vercel deploy docs --prod` in a checkout
-- **Cloudflare Pages:** upload `docs/`, no build command, output dir `/`
-- **GitHub Pages:** Settings → Pages → Branch `arena/e2057950-school-store`, folder `/docs`
-  (needs one click from the repo owner — see DEPLOY.md)
-- **Any static host / S3 bucket / school web server:** copy `docs/index.html`
+## Netlify quota එක ගැන
 
-Regenerate the file after a change with `npm run build:docs`.
+Netlify වල **rebuild එකක් = build minute එකක්** (100–300 නොමිලේ). වෙනසක් කරන
+හැම වතාවකම Netlify එකට push කරලා rebuild කරන එක ඒ නිසාම නරක අදහසක්. ඒ වෙනුවට:
 
-## Why the sandbox cannot publish a tunnel itself
+- **Netlify deploy එකක් = `docs/index.html` එක replace කිරීමක්.** Build command
+  එකක් නැතුව, `docs/` ෆෝල්ඩරය serve කරන්න විතරයි. එතකොට අලුත් ෆයිල් එකක්
+  upload කරන එකට build minute එකක් ගාණට එන්නේ නෑ.
+- **GitHub Pages** (Settings → Pages → Branch + `/docs`) — නොමිලේ, unlimited, build
+  minutes කියන සීමාවක් නෑ. හැම push එකකටම auto-deploy.
+- ඉක්මන් බැලීම් වලට — උඩ කිව්ව ෆයිල් එක double-click කරන්න.
 
-Building a proxy tunnel in the sandbox was attempted and is not possible here:
+## මම වෙනස් කරපු දේ (මේ වතාවේ)
 
-| Attempt | Result |
-|---|---|
-| **Cloudflare Quick Tunnel** (`cloudflared` 2026.10.6 from npm, run against `localhost:8080`) | binary runs, then `failed to request quick Tunnel: Post "https://api.trycloudflare.com/tunnel": EOF` — the TLS session to Cloudflare is dropped before the HTTP request |
-| `curl` to `api.cloudflare.com`, `www.cloudflare.com`, `api.trycloudflare.com` | `000`, TLS closed with `SSLZeroReturnError` (raw `openssl s_client`/Python socket, so it is the egress proxy, not curl) |
-| SSH reverse tunnel (`ssh -p 443 -R 80:localhost:8080 nokey@localhost.run`) | `kex_exchange_identification: Connection closed by remote host` |
-| `npx localtunnel` (loca.lt) | hangs, then times out |
-| `loca.lt`, `bore.pub`, `ngrok.com`, `serveo.net` | TCP opens, TLS handshake reset |
-| `apt-get install cloudflared` / `ngrok` | `deb.debian.org` is blocked, package not resolvable |
-| GitHub Pages via API | the token has no `pages` scope (`403 Resource not accessible by integration`) |
-| Creating a new public repo (fresh Pages site) | token is repo-scoped: `403` |
-| Arena preview URLs (`https://<port>-<sandbox>.e2b.app`) | bound to the logged-in session; missing `e2b-traffic-access-token` for anyone else → 403 |
-
-Only `github.com`, `api.github.com`, `registry.npmjs.org`, `pypi.org` and
-`files.pythonhosted.org` are reachable, so *any* tunnel provider is out: the sandbox can
-download a tunnel client (npm works) but cannot talk to the provider's control plane.
-
-The tunnel therefore has to be opened from a machine that is allowed to reach a tunnel
-service, or the file has to be served by a host you can reach. Netlify Drop is the fastest
-of those. A Cloudflare Tunnel opened **on your own machine** works fine:
-
-```bash
-# on your machine, in a checkout of this repo
-npm run build:docs
-python3 -m http.server 8080 --directory docs
-cloudflared tunnel --url http://localhost:8080     # prints a https://….trycloudflare.com URL
-```
-
-## If you want a permanent link instead
-
-Enable GitHub Pages once (repo → Settings → Pages → Branch → `/docs`), and the site is live
-at `https://architecturezen8-cpu.github.io/school-store/` after a minute. It then updates
-automatically every time `docs/index.html` is rebuilt and pushed.
+- Build එකේ output එක දැන් **classic script** එකක් (module නොව) — `file://` එකෙන්
+  කෙලින්ම වැඩ කරන්න.
+- `dist/index.html` එකේ JS එක `<head>` එකේ තිබුණා (React error #299 → site එක
+  හිස්). දැන් bundle එක `<body>` එකේ අන්තිමට තියෙනවා.
+- `vite-plugin-singlefile` වෙනුවට කුඩා custom plugin එකක් — CSS `<style>` එකක්, JS
+  classic `<script>` එකක්, images inline. ප්‍රතිඵලය එකම තනි HTML ෆයිල් එක.
+- පරීක්ෂා කළා: `file://` එකෙන් home / shop / product / tickets හරි, Quick view →
+  Add to bag → cart badge ද හරි, console errors නෑ, axe a11y clean (4 route).
