@@ -17,7 +17,9 @@ One-time setup, done in the browser by the repo owner:
 
 1. Open <https://github.com/architecturezen8-cpu/school-store/settings/pages>
 2. **Source** → *Deploy from a branch*
-3. **Branch** → `arena/e2057950-school-store` (or `main` once merged) · **Folder** → `/docs`
+3. **Branch** → `arena/e2057950-school-store` (or `main` once merged) · **Folder** → `/ (root)`
+   — the root `index.html` redirects to `docs/index.html`, so both URLs work.
+   (`/docs` also works if you prefer linking straight to the build.)
 4. **Save**
 
 After 1–2 minutes the site is live at:

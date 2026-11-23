@@ -6,9 +6,9 @@
 
 Pages දැනටමත් on වෙලා, හරියට build වෙලා තියෙනවා:
 - Source: branch `arena/e2057950-school-store`, folder `/` (root)
-- Root එකේ `index.html` එකක් නැති නිසා (build එක `docs/` එකේ) root එකේ ඉඳන්
-  `docs/index.html` එකට redirect කරන කුඩා ෆයිල් එකක් දැම්මා — දැන් `/` සහ
-  `/docs/index.html` දෙකම වැඩ කරනවා
+- Build එක `docs/index.html` එකේ තියෙන නිසා root එකේ `index.html` එකක් දැම්මා —
+  ඒක `docs/index.html` එකට redirect කරන කුඩා ෆයිල් එකක් (hash එකත් එක්කම).
+  ඒ නිසා `/` සහ `/docs/index.html` දෙකම වැඩ කරනවා
 - පරීක්ෂා කළා: home, `#/shop`, `#/tickets` — හරියට render වෙනවා
 
 **ඉදිරියේ වෙනසක් කරන විට:**
@@ -22,12 +22,27 @@ git push             # Pages එක විනාඩියකින් auto-deplo
 
 ---
 
+## Build layout එක (කඩන්න එපා)
+
+| ෆයිල් | මොකටද |
+| --- | --- |
+| `app/index.html` | Vite app entry එක (rollup `input`) |
+| `index.html` (root) | Pages redirect → `docs/index.html` — **app entry නෙවෙයි** |
+| `docs/index.html` | Deploy වෙන තනි ෆයිල් build එක |
+
+- `vite.config.ts` එකේ `root` එක repo root එකේම තියෙන්න ඕන — Tailwind v4 එක
+  utilities හොයාගන්නේ root එකෙන්. `root: "app"` කළොත් CSS එකේ classes ඔක්කොම
+  නැති වෙනවා සහ design එක කැඩෙනවා.
+- `src/index.css` එකේ `@source "."` එකෙන් `src/` එක scan වෙනවා.
+
+---
+
 ## (අවශ්‍ය නම් පමණක්) සැකසුම් වෙනස් කිරීම
 
 හැම වෙනසක්ම auto-deploy වෙනවා — build minutes 0, quota 0, නොමිලේ.
 
 සයිට් එකේ හැම දෙයක්ම දැන් සූදානම්: `docs/index.html` (2.5 MB, තනි ෆයිල් එකක්) සහ
-`docs/.nojekyll` — branch එකට push කරලා තියෙනවා. Pages site එක තවම හදලා නෑ.
+`docs/.nojekyll` — branch එකට push කරලා තියෙනවා, Pages site එකත් on.
 
 ---
 
