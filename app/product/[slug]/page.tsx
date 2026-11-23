@@ -5,9 +5,17 @@ import { getCategories, getProduct, getProducts } from "@/lib/store";
 import { lkr } from "@/data/seed";
 
 export const revalidate = 300;
-export const dynamicParams = true;
+// Every product is prerendered; unknown slugs still reach notFound() on a server,
+// while a static export simply 404s at the host level.
+export const dynamicParams = false;
 
 type Params = Promise<{ slug: string }>;
+
+/** One page per product, so the static export has every product URL. */
+export async function generateStaticParams() {
+  const products = await getProducts();
+  return products.map((p) => ({ slug: p.slug }));
+}
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { slug } = await params;

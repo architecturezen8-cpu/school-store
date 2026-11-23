@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Check, ChevronLeft, ChevronRight, Minus, Plus, X } from "lucide-react";
 import { lkr, getCategoryName, type Product } from "@/data/seed";
 import { useCart } from "@/components/context/CartContext";
+import { href, withBase } from "@/lib/nav";
 
 const SWATCHES: Record<string, string> = {
   Navy: "#0f1a33",
@@ -265,7 +266,7 @@ export default function QuickView({
           </button>
 
           <a
-            href={`#/product/${product.slug}`}
+            href={withBase(href.product(product.slug))}
             onClick={onClose}
             className="mt-2.5 block w-full rounded-full border border-white/15 py-3.5 text-center text-[11px] font-bold uppercase tracking-[0.22em] text-white/70 transition-colors hover:bg-white hover:text-ink"
           >

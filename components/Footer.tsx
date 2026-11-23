@@ -1,5 +1,6 @@
 import { ArrowUp, Mail, MapPin, Phone } from "lucide-react";
 import CrestLogo from "@/components/CrestLogo";
+import { href, withBase } from "@/lib/links";
 import Reveal from "@/components/Reveal";
 
 function FacebookIcon() {
@@ -29,15 +30,15 @@ function YoutubeIcon() {
 }
 
 const socials = [
-  { label: "Facebook", icon: FacebookIcon, href: "#/" },
-  { label: "Instagram", icon: InstagramIcon, href: "#/" },
-  { label: "YouTube", icon: YoutubeIcon, href: "#/" },
+  { label: "Facebook", icon: FacebookIcon, href: href.home },
+  { label: "Instagram", icon: InstagramIcon, href: href.home },
+  { label: "YouTube", icon: YoutubeIcon, href: href.home },
 ];
 
 const explore = [
-  { label: "Home", href: "#/" },
-  { label: "The Shop", href: "#/shop" },
-  { label: "Event Tickets", href: "#/tickets" },
+  { label: "Home", href: href.home },
+  { label: "The Shop", href: href.shop },
+  { label: "Event Tickets", href: href.tickets },
   { label: "Track my order", href: "#track" },
 ];
 
@@ -144,7 +145,7 @@ export default function Footer() {
                 {collections.map((l) => (
                   <li key={l.slug}>
                     <a
-                      href={`#/shop/${l.slug}`}
+                      href={withBase(href.shopCategory(l.slug))}
                       className="group inline-flex items-center gap-2 text-[13px] leading-5 text-white/60 transition-colors hover:text-white"
                     >
                       <span className="h-px w-0 bg-gold transition-all duration-300 group-hover:w-3.5" />
@@ -182,7 +183,11 @@ export default function Footer() {
               );
 
               return href ? (
-                <a key={label} href={href} className="group flex items-center gap-3">
+                <a
+                  key={label}
+                  href={withBase(href)}
+                  className="group flex items-center gap-3"
+                >
                   {inner}
                 </a>
               ) : (
@@ -201,7 +206,7 @@ export default function Footer() {
           </p>
 
           <a
-            href="#/"
+            href={withBase(href.home)}
             className="group order-1 inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-white/60 transition-colors hover:border-white/25 hover:text-white sm:order-2"
           >
             Back to top

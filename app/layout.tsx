@@ -30,7 +30,7 @@ export const metadata: Metadata = {
     images: ["/images/hero-1.jpg"],
   },
   twitter: { card: "summary_large_image" },
-  icons: { icon: "/favicon.svg" },
+  icons: { icon: `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/favicon.svg` },
 };
 
 export const viewport: Viewport = {

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Check, ChevronRight, Minus, Plus, RotateCcw, ShieldCheck, Truck } from "lucide-react";
-import { lkr, type Category, type Product } from "@/data/seed";
+import type { Category, Product } from "@/data/seed";
+import { lkr } from "@/lib/format";
 import { useCart } from "@/components/context/CartContext";
 import { href } from "@/lib/nav";
 import { ShopProductCard } from "@/components/pages/ShopPage";

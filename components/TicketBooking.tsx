@@ -10,7 +10,7 @@ import {
   Plus,
   X,
 } from "lucide-react";
-import { lkr } from "@/data/seed";
+import { lkr } from "@/lib/format";
 import type { CollegeEvent, Tier } from "@/data/seed";
 import { fullDate } from "@/lib/dates";
 
@@ -111,7 +111,7 @@ export default function TicketBooking({
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch("/api/bookings", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/bookings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -124,6 +124,11 @@ export default function TicketBooking({
             .map((t) => ({ id: t.id, qty: qty[t.id] })),
         }),
       });
+      if (!res.headers.get("content-type")?.includes("application/json")) {
+        throw new Error(
+          "Ticket booking needs the live store server. This is a read-only preview."
+        );
+      }
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Could not complete the booking.");
       setRef(data.booking.reference);

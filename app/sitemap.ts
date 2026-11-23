@@ -1,4 +1,7 @@
 import type { MetadataRoute } from "next";
+
+// Static export friendly (needs an explicit dynamic setting under output: export).
+export const dynamic = "force-static";
 import { getProducts } from "@/lib/store";
 
 const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://the-thomian-store.vercel.app";

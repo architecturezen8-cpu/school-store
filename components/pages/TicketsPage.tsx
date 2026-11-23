@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ArrowRight, Clock, Users } from "lucide-react";
-import { lkr } from "@/data/seed";
+import { lkr } from "@/lib/format";
 import type { CollegeEvent } from "@/data/seed";
 import { dayNumber, fullDate, monthShort, weekdayShort } from "@/lib/dates";
 import TicketBooking from "@/components/TicketBooking";

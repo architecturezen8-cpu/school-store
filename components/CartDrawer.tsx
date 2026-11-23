@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import { ArrowRight, Minus, Plus, ShoppingBag, Trash2, X } from "lucide-react";
 import { useCart } from "@/components/context/CartContext";
-import { lkr } from "@/data/seed";
+import { lkr } from "@/lib/format";
 import CheckoutForm from "@/components/CheckoutForm";
 import Link from "next/link";
+import { href } from "@/lib/links";
 
 const FREE_SHIPPING = 5000;
 
@@ -167,7 +168,7 @@ export default function CartDrawer() {
               Crests, scarves &amp; tickets await — go on, be a proud Thomian.
             </p>
             <Link
-              href="/shop"
+              href={href.shop}
               onClick={() => setOpen(false)}
               className="mt-7 rounded-full bg-accent px-7 py-3.5 text-[11px] font-bold uppercase tracking-[0.25em] text-ink transition hover:shadow-[0_0_40px_rgba(255,255,255,0.10)]"
             >

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Check, Loader2, PackageSearch, X } from "lucide-react";
-import { lkr } from "@/data/seed";
+import { lkr } from "@/lib/format";
 
 type Order = {
   reference: string;
@@ -11,6 +11,10 @@ type Order = {
   createdAt: string;
   items: { name: string; qty: number; price: number }[];
 };
+
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+const STATIC_NOTE =
+  "Order tracking needs the live store server. This is a read-only preview of the catalogue.";
 
 const ORDER_STEPS = ["pending", "paid", "packed", "shipped", "delivered"] as const;
 const STEP_LABEL: Record<string, string> = {
@@ -110,13 +114,20 @@ export default function TrackOrderModal({
               setBusy(true);
               try {
                 const res = await fetch(
-                  `/api/orders/${encodeURIComponent(orderId.trim().toUpperCase())}?email=${encodeURIComponent(email.trim())}`
+                  `${basePath}/api/orders/${encodeURIComponent(orderId.trim().toUpperCase())}?email=${encodeURIComponent(email.trim())}`,
+                  { headers: { accept: "application/json" } }
                 );
+                // A static host answers unknown paths with its HTML 404 page;
+                // tell the user the store is in preview mode instead of leaking
+                // a JSON parse error.
+                const isJson = res.headers.get("content-type")?.includes("application/json");
+                if (!isJson) throw new Error(STATIC_NOTE);
                 const data = await res.json();
                 if (!res.ok) throw new Error(data?.error ?? "Order not found.");
                 setOrder(data.order);
               } catch (err) {
-                setError((err as Error).message);
+                const message = (err as Error).message;
+                setError(/not valid JSON|Failed to fetch|Unexpected token/i.test(message) ? STATIC_NOTE : message);
               } finally {
                 setBusy(false);
               }

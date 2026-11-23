@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ChevronDown, Search, ShoppingBag } from "lucide-react";
 import CrestLogo from "@/components/CrestLogo";
 import { useCart } from "@/components/context/CartContext";
+import { href, ILink, withBase } from "@/lib/nav";
 
 type NavChild = { label: string; href: string; note: string };
 type NavLink = {
@@ -14,13 +15,13 @@ type NavLink = {
 };
 
 const navLinks: NavLink[] = [
-  { label: "Home", href: "#/" },
+  { label: "Home", href: href.home },
   {
     label: "Shop",
-    href: "#/shop",
+    href: href.shop,
     children: [
-      { label: "Merchandise", href: "#/shop", note: "Browse everything the store sells" },
-      { label: "Event Tickets", href: "#/tickets", note: "Big Match, Prize Day & the Ball" },
+      { label: "Merchandise", href: href.shop, note: "Browse everything the store sells" },
+      { label: "Event Tickets", href: href.tickets, note: "Big Match, Prize Day & the Ball" },
     ],
   },
   { label: "Contact", href: "#contact" },
@@ -30,7 +31,7 @@ const navLinks: NavLink[] = [
 /** Horizontal crest + wordmark lockup (mobile & tablet) */
 function BrandLockup() {
   return (
-    <a href="#/" className="flex items-center gap-3" aria-label="Home">
+    <a href={withBase(href.home)} className="flex items-center gap-3" aria-label="Home">
       <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white shadow-[0_8px_26px_rgba(0,0,0,0.45)]">
         <CrestLogo className="h-7 w-7 text-ink" />
       </span>
@@ -193,7 +194,7 @@ export default function Navbar({
                             <div className="overflow-hidden">
                               <div className="pb-2">
                                 {link.children.map((c) => (
-                                  <a
+                                  <ILink
                                     key={c.label}
                                     href={c.href}
                                     onClick={() => setMenuOpen(false)}
@@ -203,7 +204,7 @@ export default function Navbar({
                                     <span className="text-[13.5px] tracking-wide">
                                       {c.label}
                                     </span>
-                                  </a>
+                                  </ILink>
                                 ))}
                               </div>
                             </div>
@@ -220,8 +221,8 @@ export default function Navbar({
                           {link.label}
                         </button>
                       ) : (
-                        <a
-                          href={link.href}
+                        <ILink
+                          href={link.href ?? "#"}
                           onClick={() => setMenuOpen(false)}
                           className={`flex items-center justify-between py-3.5 font-display text-[18px] font-medium transition-colors ${
                             active === "home" && link.label === "Home"
@@ -230,7 +231,7 @@ export default function Navbar({
                           }`}
                         >
                           {link.label}
-                        </a>
+                        </ILink>
                       )}
                     </li>
                   ))}
@@ -319,8 +320,8 @@ function DesktopBar({
           {navLinks.map((link) =>
             link.children ? (
               <div key={link.label} className="group relative">
-                <a
-                  href={link.href}
+                <ILink
+                  href={link.href ?? "#"}
                   className="flex items-center gap-1.5 py-2 text-[12px] font-semibold uppercase tracking-[0.18em] text-white/55 transition-colors duration-300 hover:text-white"
                 >
                   {link.label}
@@ -328,13 +329,13 @@ function DesktopBar({
                     size={13}
                     className="transition-transform duration-300 group-hover:rotate-180"
                   />
-                </a>
+                </ILink>
 
                 {/* dropdown — opens under the link, left aligned */}
                 <div className="invisible absolute left-0 top-full z-50 w-64 translate-y-2 pt-3 opacity-0 transition-all duration-300 ease-out group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
                   <div className="overflow-hidden rounded-xl bg-navy-900 shadow-[0_24px_60px_rgba(0,0,0,0.6)]">
                     {link.children.map((child) => (
-                      <a
+                      <ILink
                         key={child.label}
                         href={child.href}
                         className="flex items-center gap-3 border-b border-white/5 px-5 py-3.5 transition-colors duration-300 last:border-b-0 hover:bg-navy-800"
@@ -348,7 +349,7 @@ function DesktopBar({
                             {child.note}
                           </span>
                         </span>
-                      </a>
+                      </ILink>
                     ))}
                   </div>
                 </div>
@@ -362,9 +363,9 @@ function DesktopBar({
                 {link.label}
               </button>
             ) : (
-              <a
+              <ILink
                 key={link.label}
-                href={link.href}
+                href={link.href ?? "#"}
                 className={`group relative py-2 text-[12px] font-semibold uppercase tracking-[0.18em] transition-colors duration-300 ${
                   active === "home" && link.label === "Home"
                     ? "text-gold"
@@ -379,14 +380,14 @@ function DesktopBar({
                       : "scale-x-0 bg-white group-hover:scale-x-100"
                   }`}
                 />
-              </a>
+              </ILink>
             )
           )}
         </nav>
 
         {/* center logo */}
         <a
-          href="#/"
+          href={withBase(href.home)}
           className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
           aria-label="Home"
         >

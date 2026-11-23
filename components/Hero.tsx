@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { ArrowRight } from "lucide-react";
-import { heroSlides } from "@/data/seed";
+import { heroSlides } from "@/lib/hero";
 
 export default function Hero() {
   const [index, setIndex] = useState(0);

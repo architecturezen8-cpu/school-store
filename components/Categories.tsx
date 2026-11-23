@@ -1,5 +1,6 @@
 import { ArrowUpRight } from "lucide-react";
 import type { Category } from "@/data/seed";
+import { href, withBase } from "@/lib/links";
 import Reveal from "@/components/Reveal";
 import SectionHead from "@/components/SectionHead";
 
@@ -36,7 +37,7 @@ export default function Categories({ categories }: { categories: Category[] }) {
               }
             >
               <a
-                href={`#/shop/${c.slug}`}
+                href={withBase(href.shopCategory(c.slug))}
                 className={`group bento bento-lift flex h-full flex-col justify-end ${
                   i === 0 ? "min-h-[420px] md:min-h-0" : "min-h-[260px]"
                 }`}

@@ -3,7 +3,6 @@ import {
   products as seedProducts,
   reviews as seedReviews,
   events as seedEvents,
-  heroSlides,
   searchChips,
   homeCategorySlugs,
   lkr,
@@ -12,6 +11,7 @@ import {
   type Tier,
   type CollegeEvent,
 } from "@/data/seed";
+import { asset } from "./assets";
 import { hasDatabase, query } from "./db";
 
 /* ------------------------------------------------------------------ *
@@ -51,11 +51,13 @@ type ProductRow = {
   is_new: boolean;
 };
 
+// Asset URLs are stored root-relative; see lib/assets.ts for the base-path rule.
+
 const toCategory = (r: CategoryRow): Category => ({
   slug: r.slug,
   title: r.title,
   desc: r.description,
-  image: r.image,
+  image: asset(r.image),
   count: r.blurb,
 });
 
@@ -63,7 +65,7 @@ const toProduct = (r: ProductRow): Product => ({
   slug: r.slug,
   name: r.name,
   price: Number(r.price),
-  image: r.image,
+  image: asset(r.image),
   tag: r.tag ?? undefined,
   category: r.category,
   rating: Number(r.rating),
@@ -71,11 +73,21 @@ const toProduct = (r: ProductRow): Product => ({
   description: r.description,
   details: Array.isArray(r.details) ? r.details : [],
   options: r.options ?? undefined,
-  gallery: Array.isArray(r.gallery) && r.gallery.length ? r.gallery : undefined,
+  gallery:
+    Array.isArray(r.gallery) && r.gallery.length ? r.gallery.map(asset) : undefined,
   colours: Array.isArray(r.colours) && r.colours.length ? r.colours : undefined,
   isFeatured: r.is_featured,
   isNew: r.is_new,
 });
+
+/** Applies the base-path prefix to every image field of a seed record. */
+function withAsset<T extends { image: string; gallery?: string[] }>(item: T): T {
+  return {
+    ...item,
+    image: asset(item.image),
+    ...(item.gallery ? { gallery: item.gallery.map(asset) } : {}),
+  };
+}
 
 async function safe<T>(run: () => Promise<T>, fallback: T): Promise<T> {
   if (!hasDatabase()) return fallback;
@@ -93,8 +105,8 @@ export async function getCategories(): Promise<Category[]> {
     const rows = await query<CategoryRow>(
       "select slug, title, description, image, blurb from categories order by position, title"
     );
-    return rows.length ? rows.map(toCategory) : seedCategories;
-  }, seedCategories);
+    return rows.length ? rows.map(toCategory) : seedCategories.map(withAsset);
+  }, seedCategories.map(withAsset));
 }
 
 export async function getHomeCategories(): Promise<Category[]> {
@@ -103,7 +115,9 @@ export async function getHomeCategories(): Promise<Category[]> {
   const picked = homeCategorySlugs
     .map((slug) => byslug.get(slug))
     .filter((c): c is Category => Boolean(c));
-  return picked.length ? picked : (seedCategories.slice(0, 4) as Category[]);
+  return picked.length
+    ? picked
+    : (seedCategories.slice(0, 4).map(withAsset) as Category[]);
 }
 
 /* ---------- products -------------------------------------------------------- */
@@ -115,8 +129,8 @@ export async function getProducts(): Promise<Product[]> {
     const rows = await query<ProductRow>(
       `select ${productColumns} from products where active order by created_at, name`
     );
-    return rows.length ? rows.map(toProduct) : seedProducts;
-  }, seedProducts);
+    return rows.length ? rows.map(toProduct) : seedProducts.map(withAsset);
+  }, seedProducts.map(withAsset));
 }
 
 export async function getProductsByCategory(slug: string): Promise<Product[]> {
@@ -130,8 +144,13 @@ export async function getProduct(slug: string): Promise<Product | undefined> {
       `select ${productColumns} from products where slug = $1 and active`,
       [slug]
     );
-    return rows[0] ? toProduct(rows[0]) : seedProducts.find((p) => p.slug === slug);
-  }, seedProducts.find((p) => p.slug === slug));
+    if (rows[0]) return toProduct(rows[0]);
+    const seed = seedProducts.find((p) => p.slug === slug);
+    return seed ? withAsset(seed) : undefined;
+  }, (() => {
+    const seed = seedProducts.find((p) => p.slug === slug);
+    return seed ? withAsset(seed) : undefined;
+  })());
 }
 
 export async function getRelatedProducts(slug: string, limit = 4): Promise<Product[]> {
@@ -196,7 +215,7 @@ export async function getEvents(): Promise<CollegeEvent[]> {
         "select id, event, name, price, perks, note from ticket_tiers order by event, position"
       ),
     ]);
-    if (!rows.length) return seedEvents;
+    if (!rows.length) return seedEvents.map(withAsset);
 
     const bySlug = new Map<string, Tier[]>();
     for (const t of tiers) {
@@ -221,16 +240,16 @@ export async function getEvents(): Promise<CollegeEvent[]> {
         city: r.city,
         date: new Date(r.starts_at),
         doors: r.doors,
-        image: r.image,
+        image: asset(r.image),
         tag: r.tag ?? undefined,
         featured: r.featured,
         tiers: bySlug.get(r.slug) ?? [],
       }))
       .filter((e) => e.tiers.length > 0);
-  }, seedEvents);
+  }, seedEvents.map(withAsset));
 }
 
 /* ---------- misc ------------------------------------------------------------ */
-export { heroSlides, searchChips, lkr };
+export { searchChips, lkr };
 export const lowestPrice = (e: CollegeEvent) =>
   e.tiers.reduce((min, t) => Math.min(min, t.price), Number.POSITIVE_INFINITY);

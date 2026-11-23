@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { href } from "@/lib/links";
 
 export default function NotFound() {
   return (
@@ -10,13 +11,13 @@ export default function NotFound() {
       </p>
       <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
         <Link
-          href="/shop"
+          href={href.shop}
           className="rounded-full bg-accent px-7 py-3.5 text-[11px] font-bold uppercase tracking-[0.24em] text-ink"
         >
           Browse the store
         </Link>
         <Link
-          href="/"
+          href={href.home}
           className="rounded-full border border-white/15 px-7 py-3.5 text-[11px] font-bold uppercase tracking-[0.24em] text-white/70"
         >
           Back home

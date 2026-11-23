@@ -21,16 +21,8 @@ import { useMemo, type AnchorHTMLAttributes, type ReactNode } from "react";
  *  canonical path, and legacy hashes are rewritten in LegacyHashRedirect.
  * ------------------------------------------------------------------ */
 
-export const href = {
-  home: "/",
-  shop: "/shop",
-  tickets: "/tickets",
-  shopCategory: (slug: string) => `/shop?category=${slug}`,
-  product: (slug: string) => `/product/${slug}`,
-} as const;
-
-/** True for in-page anchors (#contact, #community) that are not routes. */
-export const isAnchor = (to: string) => to.startsWith("#") && !to.startsWith("#/");
+export { href, isAnchor, withBase } from "./links";
+import { isAnchor, withBase, href } from "./links";
 
 /**
  * `<ILink>` = `<Link>` that also accepts the legacy `#/…` hrefs and plain

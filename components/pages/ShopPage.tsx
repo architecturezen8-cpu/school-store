@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, Eye, Heart, Star } from "lucide-react";
-import { lkr, getCategoryName, type Category, type Product } from "@/data/seed";
+import { getCategoryName, type Category, type Product } from "@/data/seed";
+import { lkr } from "@/lib/format";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { href, openSearch } from "@/lib/nav";
 import QuickView from "@/components/QuickView";
 import Reveal from "@/components/Reveal";
@@ -197,12 +199,18 @@ export default function ShopPage({
   products: Product[];
   categories: Category[];
 }) {
+  const router = useRouter();
   const [active, setActive] = useState<string | undefined>(category);
+  useEffect(() => setActive(category), [category]);
   const [sort, setSort] = useState<SortId>("featured");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [quick, setQuick] = useState<Product | null>(null);
 
-  useMemo(() => setActive(category), [category]);
+  // Category clicks navigate to /shop/<slug> so the filter is a real URL.
+  const go = (slug?: string) => {
+    setActive(slug);
+    router.push(slug ? href.shopCategory(slug) : href.shop, { scroll: false });
+  };
 
   const visible = useMemo(() => {
     const list = active
@@ -311,7 +319,7 @@ export default function ShopPage({
                     label="All Items"
                     count={products.length}
                     active={!active}
-                    onClick={() => setActive(undefined)}
+                    onClick={() => go(undefined)}
                   />
                   {categories.map((c) => (
                     <FilterRow
@@ -319,7 +327,7 @@ export default function ShopPage({
                       label={c.title}
                       count={products.filter((p) => p.category === c.slug).length}
                       active={active === c.slug}
-                      onClick={() => setActive(c.slug)}
+                      onClick={() => go(c.slug)}
                     />
                   ))}
                 </div>
@@ -332,14 +340,14 @@ export default function ShopPage({
                 <FilterPill
                   label="All"
                   active={!active}
-                  onClick={() => setActive(undefined)}
+                  onClick={() => go(undefined)}
                 />
                 {categories.map((c) => (
                   <FilterPill
                     key={c.slug}
                     label={c.title}
                     active={active === c.slug}
-                    onClick={() => setActive(c.slug)}
+                    onClick={() => go(c.slug)}
                   />
                 ))}
               </div>

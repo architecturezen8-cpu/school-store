@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ArrowRight, Check, Loader2, X } from "lucide-react";
 import { useCart } from "@/components/context/CartContext";
-import { lkr } from "@/data/seed";
+import { lkr } from "@/lib/format";
 
 type Result = {
   reference: string;
@@ -26,6 +26,7 @@ export default function CheckoutForm({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<Result | null>(null);
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 
   const delivery = subtotal >= 5000 || subtotal === 0 ? 0 : 400;
   const total = subtotal + delivery;
@@ -41,7 +42,7 @@ export default function CheckoutForm({ onClose }: { onClose: () => void }) {
 
     setBusy(true);
     try {
-      const res = await fetch("/api/orders", {
+      const res = await fetch(`${basePath}/api/orders`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -52,6 +53,11 @@ export default function CheckoutForm({ onClose }: { onClose: () => void }) {
           items: items.map((i) => ({ slug: i.slug, qty: i.qty, variant: i.variant ?? "" })),
         }),
       });
+      if (!res.headers.get("content-type")?.includes("application/json")) {
+        throw new Error(
+          "Checkout needs the live store server. This is a read-only preview of the catalogue."
+        );
+      }
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Could not place the order.");
       setDone(data.order);

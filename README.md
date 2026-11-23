@@ -1,88 +1,98 @@
 # The Thomian Store
 
-The official e-commerce front end for **St. Thomas' College Matale** — est. 1873 · *Animo et Fide*.
+The official store for **St. Thomas' College Matale** — est. 1873 · *Animo et Fide*.
 
-A single-page store built with React, Vite and Tailwind CSS v4, covering the full shopping flow from browsing to a confirmed ticket booking.
+Next.js 16 (App Router) · React 19 · Tailwind CSS v4 · Postgres.
 
 ---
 
-## Pages
+## Routes
 
-| Route | Description |
-|---|---|
-| `#/` | Home — cinematic hero, collections, featured products, motto, community reviews |
-| `#/shop` | Full catalogue with category filter + sorting |
-| `#/shop/:category` | A single collection |
-| `#/product/:slug` | Product detail — gallery, options, reviews |
-| `#/tickets` | Event listings with live countdown and booking |
+| Route | What it is |
+| --- | --- |
+| `/` | Home — cinematic hero, collections, featured products, motto, reviews |
+| `/shop` | Full catalogue with category filter + sorting |
+| `/shop/[category]` | A single collection (e.g. `/shop/badges`) |
+| `/product/[slug]` | Product detail — gallery, options, reviews |
+| `/tickets` | Events, live countdowns and ticket booking |
+| `/api/orders` | `POST` place an order |
+| `/api/orders/[reference]` | `GET` track an order (needs `?email=`) |
+| `/api/bookings` | `POST` reserve event tickets |
 
-Routing is hash-based (`src/lib/router.ts`) so the production build works from any static host without server rewrites.
+Old `#/shop`, `#/product/…` links still land on the right page.
 
-## Features
-
-**Catalogue** — 5 selling categories (Badges, Uniforms, Event Clothings, Exam Writing Papers, Batch Shirts), 17 products with pricing, ratings and detail bullets.
-
-**Shop** — category filter with item counts, sort by Featured / New Arrivals / Price (high–low, low–high) / Top Rated. Collapsible filter panel on mobile.
-
-**Product cards** — shared across shop, home featured and related products. Hover reveals a white *View Product* bar and a quick-view button.
-
-**Quick view** — a portal-rendered modal with image carousel, colour swatches, size picker, quantity stepper, add-to-bag and buy-now.
-
-**Product pages** — 4-image gallery with thumbnails, size and colour selection, quantity control, an expandable customer review form that posts live.
-
-**Tickets** — featured event spotlight with a live countdown, upcoming events as cards, and a three-step booking flow (tickets → details → confirmed) that issues an e-ticket with a booking reference and barcode.
-
-**Cart** — slide-out drawer with a free-shipping progress meter, quantity controls and subtotal. Search overlay with instant results. Order tracking modal.
-
-**Navigation** — desktop bar with a centred crest, a Shop dropdown; mobile uses a full-height drawer that expands in place with the hamburger morphing into a close icon.
-
-## Stack
-
-- **React 19** + TypeScript
-- **Vite 7** — single-file production build
-- **Tailwind CSS v4** — dark navy/black/white palette, `#FFD444` gold as a sparing accent
-- **Inter** (body) and **Poppins** (headings)
-- **lucide-react** for icons
-
-## Getting started
+## Local setup
 
 ```bash
 npm install
-npm run dev      # local dev server
-npm run build    # production build → dist/
+npm run dev                    # http://localhost:3000
 ```
 
-## Connecting a database
+That is genuinely all: with no `DATABASE_URL` the app uses **PGlite** (Postgres
+compiled to WASM, data in `.pglite/`), creates the schema and seeds the
+catalogue on the first request. `npm run db:reset:embedded` wipes it.
 
-The API layer lives in `src/lib/api.ts`. Set the base URL and the store will fetch live data instead of the local seed file:
+To use a real Postgres instead:
 
-```ts
-export const API_BASE_URL = "https://your-api.example.com/v1";
+```bash
+cp .env.example .env.local     # set DATABASE_URL
+npm run db:reset               # migrate + seed
 ```
 
-Expected endpoints:
+`STORE_BACKEND=none` switches to read-only seed data (no database at all).
+
+## Three ways to run it
+
+| Where | Database | Command |
+| --- | --- | --- |
+| Local / StackBlitz / CodeSandbox | PGlite (embedded, zero setup) | `npm run dev` |
+| Local with Postgres | your server | `DATABASE_URL=… npm run dev` |
+| Vercel | hosted Postgres | `npm run build` |
+
+## Database
+
+`db/schema.sql` — categories, products, reviews, events, ticket_tiers, orders,
+order_items, order_events, bookings, booking_items. Works on any Postgres 13+
+(Neon, Supabase, Vercel Postgres, RDS, local).
+
+```bash
+npm run db:migrate   # apply db/schema.sql (idempotent)
+npm run db:seed      # upsert catalogue from data/seed.ts
+```
+
+Money is stored as whole LKR integers. Order totals, the delivery fee and ticket
+availability are all computed **server-side** — the browser only ever sends
+`{ slug, qty }`.
+
+## Project layout
 
 ```
-GET  /categories
-GET  /products?category=<slug>
-GET  /products/:slug
-POST /orders
+app/                 routes (App Router) + API handlers
+  layout.tsx         page shell, metadata, cart provider, chrome
+  globals.css        Tailwind v4 theme + component primitives
+components/          UI (client components) — navbar, footer, shop, checkout…
+  context/           cart state
+data/seed.ts         catalogue + events, also the DB seed source
+db/schema.sql        Postgres schema
+lib/                 db (postgres | PGlite), data access, orders, bookings, routing
+public/images/       product & hero photos
+scripts/             db-migrate.mjs, db-seed.mjs, pglite-reset.mjs, build-pages.mjs
 ```
 
-Until a URL is set the site renders local seed data from `src/data.ts`, so nothing breaks.
+## StackBlitz
 
-The matching MySQL schema is in **`database/schema.sql`**. Run it once — it drops any previous tables and rebuilds `categories`, `products`, `product_options`, `customers`, `orders`, `order_items` and `reviews`, seeding the five collections.
+See `STACKBLITZ.md` — import the repo, wait for `npm install`, done. `npm run dev`
+uses webpack because Turbopack's native binary cannot run in a WebContainer, and
+Tailwind falls back to its WASM engine there.
 
-## Project structure
+## Deploy (Vercel)
 
-```
-src/
-  components/   reusable UI (navbar, cards, modals, footer)
-  pages/        Shop, Product, Tickets
-  lib/          router, API client
-  context/      cart state
-  data/         seed catalogue
-  assets/       imagery
-database/
-  schema.sql    MySQL schema + seed
-```
+1. Import the repo in Vercel; the branch with `next.config.ts` is enough — no build tweaks.
+2. Add environment variables: `DATABASE_URL` and `NEXT_PUBLIC_SITE_URL`
+   (e.g. `https://the-thomian-store.vercel.app`).
+3. Point the database at your Postgres, then run `npm run db:migrate && npm run db:seed`
+   locally against that `DATABASE_URL` (or from the Vercel CLI).
+
+Server features that need a running server — order tracking, checkout,
+bookings, on-demand rendering — work on Vercel. `NEXT_STATIC_EXPORT=1` produces a
+static `out/` instead, but then the API routes are not deployed.

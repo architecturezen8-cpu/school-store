@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUpRight, Plus, Search, X } from "lucide-react";
-import { lkr, searchChips, type Product } from "@/data/seed";
+import { searchChips, type Product } from "@/data/seed";
+import { lkr } from "@/lib/format";
 import { useCart } from "@/components/context/CartContext";
+import { href, withBase } from "@/lib/nav";
 
 export default function SearchOverlay({
   open,
@@ -107,7 +109,7 @@ export default function SearchOverlay({
             </p>
             <div className="mt-4 divide-y divide-white/5">
               {results.map((p) => (
-                <a key={p.slug} href={`#/product/${p.slug}`} onClick={onClose} className="flex items-center gap-4 py-4">
+                <a key={p.slug} href={withBase(href.product(p.slug))} onClick={onClose} className="flex items-center gap-4 py-4">
                   <img
                     src={p.image}
                     alt={p.name}
