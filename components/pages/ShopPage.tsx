@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { href, openSearch } from "@/lib/nav";
 import QuickView from "@/components/QuickView";
+import ProductImage from "@/components/ProductImage";
 import Reveal from "@/components/Reveal";
 
 /* ------------------------------------------------------------------ */
@@ -122,10 +123,10 @@ export function ShopProductCard({
           aria-label={`View ${product.name}`}
         />
         <div className="relative aspect-[4/5] overflow-hidden rounded-2xl bg-navy-900">
-          <img
+          <ProductImage
             src={product.image}
             alt={product.name}
-            className="h-full w-full object-cover transition-transform duration-[1100ms] ease-out group-hover:scale-[1.04]"
+            className="transition-transform duration-[1100ms] ease-out group-hover:scale-[1.04]"
           />
           <div className="absolute inset-0 bg-ink/0 transition-colors duration-500 group-hover:bg-ink/20" />
 

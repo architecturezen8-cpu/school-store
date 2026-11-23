@@ -96,6 +96,19 @@ export const onOpenSearch = (handler: () => void) => {
   return () => window.removeEventListener(SEARCH_EVENT, handler);
 };
 
+/**
+ *  Same pattern for order tracking: the footer's "Track my order" link and any
+ *  page-level prompt ask the navbar's modal to open, without a shared store.
+ */
+const TRACK_EVENT = "thomian:open-track";
+
+export const openTrack = () => window.dispatchEvent(new CustomEvent(TRACK_EVENT));
+
+export const onOpenTrack = (handler: () => void) => {
+  window.addEventListener(TRACK_EVENT, handler);
+  return () => window.removeEventListener(TRACK_EVENT, handler);
+};
+
 export function useNavigate() {
   const router = useRouter();
   return (to: string) => {

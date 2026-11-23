@@ -6,6 +6,7 @@ import { Check, ChevronLeft, ChevronRight, Minus, Plus, X } from "lucide-react";
 import { lkr, getCategoryName, type Product } from "@/data/seed";
 import { useCart } from "@/components/context/CartContext";
 import { href, withBase } from "@/lib/nav";
+import ProductImage from "@/components/ProductImage";
 
 const SWATCHES: Record<string, string> = {
   Navy: "#0f1a33",
@@ -88,11 +89,7 @@ export default function QuickView({
         {/* ---------------- image ---------------- */}
         <div className="relative bg-navy-950">
           <div className="aspect-square w-full overflow-hidden md:aspect-auto md:h-full">
-            <img
-              src={gallery[active]}
-              alt={product.name}
-              className="h-full w-full object-cover"
-            />
+            <ProductImage src={gallery[active]} alt={product.name} />
           </div>
 
           {gallery.length > 1 && (

@@ -1,13 +1,30 @@
-type CrestProps = { className?: string };
+type CrestProps = {
+  className?: string;
+  /**
+   * Show the crest to assistive tech as an image. Leave this off when the crest
+   * sits inside a link or button that already carries a text label — otherwise
+   * the link's accessible name ("Home") would not contain its visible text
+   * (the SVG's "1873 / STC / MATALE / ANIMO ET FIDE"), which fails
+   * WCAG 2.5.3 / axe `label-content-name-mismatch`.
+   */
+  decorative?: boolean;
+  alt?: string;
+};
 
-export default function CrestLogo({ className = "h-8 w-8" }: CrestProps) {
+export default function CrestLogo({
+  className = "h-8 w-8",
+  decorative = false,
+  alt = "St. Thomas' College Matale crest",
+}: CrestProps) {
   return (
     <svg
       viewBox="0 0 100 112"
       fill="none"
       className={className}
-      role="img"
-      aria-label="St. Thomas' College Matale crest"
+      role={decorative ? "presentation" : "img"}
+      {...(decorative
+        ? { "aria-hidden": true as const, focusable: "false" as const }
+        : { "aria-label": alt })}
     >
       <path
         d="M50 4 L92 18 V58 C92 80 74 98 50 108 C26 98 8 80 8 58 V18 Z"

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ArrowRight, Minus, Plus, ShoppingBag, Trash2, X } from "lucide-react";
 import { useCart } from "@/components/context/CartContext";
+import ProductImage from "@/components/ProductImage";
 import { lkr } from "@/lib/format";
 import CheckoutForm from "@/components/CheckoutForm";
 import Link from "next/link";
@@ -91,11 +92,9 @@ export default function CartDrawer() {
               <ul className="divide-y divide-white/5">
                 {items.map((item) => (
                   <li key={item.slug} className="flex gap-4 py-5">
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      className="h-20 w-20 rounded-2xl border border-white/10 object-cover"
-                    />
+                    <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-white/10">
+                      <ProductImage src={item.image} alt={item.name} />
+                    </div>
                     <div className="flex min-w-0 flex-1 flex-col">
                       <div className="flex items-start justify-between gap-2">
                         <p className="font-display text-lg leading-snug text-white">

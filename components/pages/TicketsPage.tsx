@@ -106,10 +106,13 @@ function EventCard({
 
         {/* body */}
         <div className="flex flex-1 flex-col p-6">
-          <h3 className="font-display text-[1.35rem] font-semibold leading-tight tracking-tight text-white">
+          {/* min-h keeps the money row on one baseline across the grid: a
+              two-line title ("Inter-House Athletics Meet") otherwise pushes its
+              BOOK button below the other three cards. */}
+          <h3 className="min-h-[1.05em] font-display text-[1.35rem] font-semibold leading-tight tracking-tight text-white md:min-h-[2.1em]">
             {event.title}
           </h3>
-          <p className="mt-2 line-clamp-2 text-[13px] leading-relaxed text-white/65">
+          <p className="mt-2 line-clamp-2 min-h-[2.6em] text-[13px] leading-relaxed text-white/65">
             {event.subtitle}
           </p>
 
@@ -126,7 +129,7 @@ function EventCard({
           </div>
 
           {/* footer row */}
-          <div className="mt-6 flex items-center justify-between gap-3 pt-1">
+          <div className="mt-auto flex items-center justify-between gap-3 pt-6">
             <div>
               <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/50">
                 From
