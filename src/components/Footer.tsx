@@ -200,13 +200,9 @@ export default function Footer() {
             © {new Date().getFullYear()} St. Thomas’ College Matale · All rights reserved
           </p>
 
-          <p className="order-1 font-display text-[11px] tracking-[0.32em] text-white/60 sm:order-2">
-            ANIMO ET FIDE
-          </p>
-
           <a
             href="#/"
-            className="group order-3 inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-white/60 transition-colors hover:border-white/25 hover:text-white"
+            className="group order-1 inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-white/60 transition-colors hover:border-white/25 hover:text-white sm:order-2"
           >
             Back to top
             <ArrowUp
