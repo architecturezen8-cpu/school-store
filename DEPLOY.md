@@ -51,3 +51,16 @@ npm run db:seed         # catalogue, reviews, events
 `NEXT_STATIC_EXPORT=1` builds a static `out/` for previews, but the API routes do
 not exist there — checkout and tracking will report that the database is not
 configured.
+
+---
+
+## GitHub Pages (preview only)
+
+`npm run build:pages` exports a static build into `docs/` (base path
+`/school-store`). The root `index.html` forwards to `docs/index.html`, so a Pages
+site pointed at **any branch, folder `/`** serves the store.
+
+What a static export cannot do: checkout, order tracking and ticket booking need
+the API routes. In the Pages preview those flows show "this is a read-only
+preview" instead of failing silently. Use the Vercel deployment (or a StackBlitz
+workspace) to exercise them.
