@@ -11,19 +11,25 @@ configured is configured with one connection string.
 Supabase dashboard → your project **school shop** → **Connect** → **Session
 pooler** → port **5432**.
 
-It looks like this (the password is the one you set when the project was
-created):
+The dashboard offers you `postgres` in that dialog. **Replace the username** with
+the app's own role and keep the rest:
 
 ```
-postgresql://postgres.pkhonlhtzdnbbutruens:YOUR-PASSWORD@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres
+postgresql://thomian_app.pkhonlhtzdnbbutruens:YOUR-PASSWORD@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres
 ```
 
 Use the **Session pooler**, not "Direct connection": the direct host
 (`db.<ref>.supabase.co`) is IPv6-only, and on many home/school networks that
 resolves but never connects.
 
-If you have forgotten the password: **Settings → Database → Reset database
-password**, then paste the new one into the URL.
+Forgotten the password? Don't reset `postgres` — see *Why not the `postgres`
+role?* under step 2. Set a new one on the app role instead, from the SQL Editor:
+
+```sql
+alter role thomian_app with password 'your-new-password';
+```
+
+Then paste it into the URL above.
 
 ## 2. Point the app at it
 
@@ -34,11 +40,43 @@ cp .env.example .env.local
 Then in `.env.local`:
 
 ```bash
-DATABASE_URL="postgresql://postgres.pkhonlhtzdnbbutruens:YOUR-PASSWORD@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres"
+DATABASE_URL="postgresql://thomian_app.pkhonlhtzdnbbutruens:YOUR-PASSWORD@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres"
 ```
+
+For the project this repo was built against, log in as the dedicated
+**`thomian_app`** role (see below) rather than `postgres`. The username in the
+pooler URL is `<role>.<project-ref>`.
 
 No other keys are needed — the app does not use the Supabase JS client, anon
 keys, or Row Level Security policies.
+
+### Why not the `postgres` role?
+
+Supabase's `postgres` role has `CREATEROLE` but is **not** a superuser, and since
+PostgreSQL 16 an unprivileged role cannot change the password of a privileged
+one. So both of these fail:
+
+```
+alter user postgres with password '…';
+→ ERROR 42501: permission denied to alter role
+   DETAIL: Only superusers can alter privileged roles.
+```
+
+and the dashboard's **Reset database password** button needs the database to be
+restarted, which is why it can appear to do nothing.
+
+The dedicated role sidesteps all of it — it is a normal role, so its own owner
+can set its password at any time with no superuser involved:
+
+```sql
+alter role thomian_app with password 'your-new-password';
+```
+
+It was created as: `login`, **not** superuser, **not** `createrole`, and
+`bypassrls` (required — Row Level Security is enabled on every table with no
+policies, so without it the storefront would read zero products). It holds
+`select/insert/update/delete` on the 10 store tables and `usage/select` on the
+sequences, plus matching default privileges for any table added later.
 
 ## 3. Check it actually connected
 
