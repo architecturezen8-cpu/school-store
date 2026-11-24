@@ -5,6 +5,7 @@ import { isAdmin } from "@/lib/admin/auth";
 import { hasDatabase } from "@/lib/db";
 import { listTemplates } from "@/lib/tickets/templates";
 import { getEvents } from "@/lib/store";
+import { safeDecode } from "@/lib/safe-decode";
 import { uploadTemplateAction, toggleTemplateAction, deleteTemplateAction } from "../actions";
 import { ArrowLeft, Check, ImageUp, Trash2 } from "lucide-react";
 
@@ -43,12 +44,12 @@ export default async function TemplatesPage({
 
       {ok && (
         <p className="mt-6 flex items-center gap-2 rounded-xl border border-emerald-400/40 bg-emerald-500/10 p-3 text-sm text-emerald-200">
-          <Check className="h-4 w-4" /> Saved “{decodeURIComponent(ok)}”. New bookings use it.
+          <Check className="h-4 w-4" /> Saved “{safeDecode(ok)}”. New bookings use it.
         </p>
       )}
       {error && (
         <p className="mt-6 rounded-xl border border-red-400/40 bg-red-500/10 p-3 text-sm text-red-200">
-          {decodeURIComponent(error)}
+          {safeDecode(error)}
         </p>
       )}
 

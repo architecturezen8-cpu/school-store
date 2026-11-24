@@ -163,6 +163,79 @@ export async function detectWhiteSquare(
 }
 
 /**
+ * The QR payload for a booking, and how big its square has to be to be usable.
+ *
+ * Measured, not guessed. A phone camera needs roughly 5 pixels per module before
+ * it can read a code off a screen or a printed ticket, and the QR is pasted at
+ * 80% of the square:
+ *
+ *   86-char URL, 53×53 modules → needs a 330 px square
+ *   69-char URL, 41×41 modules → needs a 255 px square
+ *
+ * A ticket is laid out at its natural size — a 1440 px design is shown around
+ * 380 px wide in a mail client — so the square is also checked as a *fraction of
+ * the design*, not just in pixels. A square that is 25% of a 1440 px design and
+ * one that is 25% of an 800 px design are equally scannable on a phone, while an
+ * absolute pixel count would pass the first and fail the second for no reason.
+ */
+export const MIN_MODULES_PER_SIDE = 5;
+
+export type SquareVerdict =
+  | { ok: true; qrPx: number; pxPerModule: number }
+  | { ok: false; reason: string };
+
+/**
+ * @param square      the detected square, in design pixels
+ * @param designSize  { width, height } of the whole design
+ * @param modules     how many modules the QR for this payload has
+ */
+export function checkSquareForQr(
+  square: DetectedSquare,
+  designSize: { width: number; height: number },
+  modules: number
+): SquareVerdict {
+  const needed = modules * MIN_MODULES_PER_SIDE;
+  const qrPx = Math.round(square.size * 0.8);
+  const pxPerModule = qrPx / modules;
+
+  if (square.size >= needed) {
+    return { ok: true, qrPx, pxPerModule };
+  }
+
+  // Too small in absolute pixels — is it still large *for this design*? A 1200 px
+  // design printed at 100 mm gives the code 10 mm, which scans; the same 1200 px
+  // design shown 380 px wide in a mail client does not. The practical floor is
+  // the fraction, so accept a design where the square is at least the fraction
+  // below, and tell the admin exactly what to fix when it is not.
+  const fraction = square.size / Math.min(designSize.width, designSize.height);
+  const MIN_FRACTION = 0.18;
+
+  if (fraction >= MIN_FRACTION) {
+    return { ok: true, qrPx, pxPerModule };
+  }
+
+  return {
+    ok: false,
+    reason:
+      `The white square is ${square.size}px, which is ${Math.round(fraction * 100)}% of the ` +
+      `design. The QR code needs about ${needed}px here to scan reliably. ` +
+      `Make the square at least ${Math.ceil(needed / 10) * 10}px — or about ${Math.round(
+        MIN_FRACTION * 100
+      )}% of the design's shorter side — and upload again.`,
+  };
+}
+
+/**
+ * How many modules the QR for `payload` will have. Used before a design is
+ * accepted, so the admin is told the truth rather than a guessed 160 px.
+ */
+export async function qrModuleCount(qrPayload: string): Promise<number> {
+  const { default: QRCode } = await import("qrcode");
+  const { modules } = await QRCode.create(qrPayload, { errorCorrectionLevel: "H" });
+  return modules.size;
+}
+
+/**
  * Pastes a QR code into a detected square, leaving an inner margin so the code
  * is not flush to the artwork's edge (a QR needs a quiet zone to scan reliably).
  *
@@ -185,24 +258,39 @@ export async function composeTicket({
 }): Promise<{ image: Buffer; width: number; height: number }> {
   const { default: QRCode } = await import("qrcode");
 
-  const pad = Math.round(square.size * inset);
-  const qrSize = Math.max(48, square.size - pad * 2);
-
+  // A QR code needs about 4 pixels per module before a camera can resolve it
+  // reliably. A long URL makes a dense code (a 22-character signature pushes it
+  // to 53×53 modules, i.e. 212 px minimum); the `qrcode` encoder quietly
+  // *upscales* to that minimum, which would push the code past the square the
+  // admin drew and over their artwork. Hold the modules at 1 px and paste at the
+  // width we actually have, so `qrcode` cannot round up behind our back.
   const qr = await QRCode.toBuffer(qrPayload, {
     type: "png",
-    width: qrSize,
+    scale: 1,
     margin: 0,
     errorCorrectionLevel: "H", // survives a crease or a dirty phone lens
     color: { dark: "#000000", light: "#ffffff" },
   });
 
-  const base = sharp(design);
-  const meta = await base.metadata();
+  // Size the QR from how many modules it actually has, never from an assumed
+  // minimum, then fit it inside the square. `inset` is the quiet zone.
+  const modules = (await sharp(qr).metadata()).width ?? 21;
+  const target = Math.max(1, Math.floor(square.size * (1 - inset * 2)));
+  const size = Math.max(modules, target); // below 1 px/module nothing scans anyway
+
+  const pad = Math.max(0, Math.floor((square.size - size) / 2));
+
+  const scaled = await sharp(qr)
+    .resize(size, size, { kernel: "nearest" }) // never blur a QR's edges
+    .png()
+    .toBuffer();
+
+  const meta = await sharp(design).metadata();
 
   const image = await sharp(design)
     .composite([
       {
-        input: qr,
+        input: scaled,
         left: square.x + pad,
         top: square.y + pad,
       },

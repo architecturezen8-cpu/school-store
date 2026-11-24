@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { safeDecode } from "../safe-decode";
 
 /**
  * Ticket QR payloads.
@@ -45,12 +46,24 @@ export function requireTicketSecret(): string {
   return key;
 }
 
+/**
+ * How much of the HMAC goes into the QR.
+ *
+ * Length here is a straight trade with the size of the printed code: every extra
+ * character pushes the QR up a version, and a denser code needs a physically
+ * bigger square before a phone camera can resolve it. 12 base64url characters
+ * carry 72 bits of an HMAC-SHA256 — guessing one is not a realistic attack — and
+ * keep the whole payload to 41 modules. Measured: 41 modules scan from a ~205 px
+ * square, where 53 modules (22 characters) needed ~330 px.
+ */
+const SIGNATURE_LENGTH = 12;
+
 /** Short, URL-safe signature for a booking's ticket token. */
 export function signTicket(token: string): string {
   return createHmac("sha256", ticketSecret())
     .update(`ticket:${token}`)
     .digest("base64url")
-    .slice(0, 22);
+    .slice(0, SIGNATURE_LENGTH);
 }
 
 /** Constant-time check, so a wrong signature cannot be found by timing. */
@@ -62,10 +75,16 @@ export function verifyTicketSignature(token: string, signature: string): boolean
   return timingSafeEqual(a, b);
 }
 
-/** Absolute URL a phone should open after scanning. */
+/**
+ * Absolute URL a phone should open after scanning.
+ *
+ * Deliberately short: `/t/<22 chars>/<12 chars>` instead of
+ * `/t/<token>?s=<signature>`. Six characters fewer keeps the QR one version
+ * smaller, which is what decides whether a 200 px square scans.
+ */
 export function ticketUrl(token: string, signature: string): string {
   const base = (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000").replace(/\/$/, "");
-  return `${base}/t/${encodeURIComponent(token)}?s=${encodeURIComponent(signature)}`;
+  return `${base}/t/${encodeURIComponent(token)}/${encodeURIComponent(signature)}`;
 }
 
 /** The text put inside the QR code. */
@@ -76,6 +95,11 @@ export function qrPayload(token: string, signature: string): string {
 /**
  * Accepts either a full URL (what the QR holds) or a bare token, and pulls out
  * the token + signature. Returns null when there is nothing usable.
+ *
+ * Three shapes are understood, because older tickets exist in inboxes:
+ *   /t/<token>/<signature>      current
+ *   /t/<token>?s=<signature>    previous
+ *   <token> or <token>?s=<…>    typed by hand at the gate
  */
 export function parseTicketPayload(raw: string): { token: string; signature: string } | null {
   const text = raw.trim();
@@ -86,14 +110,24 @@ export function parseTicketPayload(raw: string): { token: string; signature: str
     const [token, query] = text.split("?");
     const signature = new URLSearchParams(query ?? "").get("s") ?? "";
     if (!token) return null;
-    return { token: decodeURIComponent(token), signature };
+    return { token: safeDecode(token), signature };
   }
 
   try {
     const url = new URL(text);
-    // /t/<token>
+    const parts = url.pathname.split("/").filter(Boolean);
+
+    // /t/<token>/<signature> — current shape.
+    if (parts[0] === "t" && parts.length === 3) {
+      return {
+        token: safeDecode(parts[1]),
+        signature: safeDecode(parts[2]),
+      };
+    }
+
+    // /t/<token>?s=<signature> — tickets issued before the path changed.
     const match = url.pathname.match(/\/t\/([^/]+)\/?$/);
-    const token = match ? decodeURIComponent(match[1]) : "";
+    const token = match ? safeDecode(match[1]) : "";
     if (!token) return null;
     return { token, signature: url.searchParams.get("s") ?? "" };
   } catch {

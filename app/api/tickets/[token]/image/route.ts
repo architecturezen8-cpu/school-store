@@ -5,6 +5,7 @@ import { getTicketByToken } from "@/lib/bookings";
 import { getTemplateForEvent } from "@/lib/tickets/templates";
 import { composeTicket, detectWhiteSquare } from "@/lib/tickets/detect";
 import { qrPayload, verifyTicketSignature } from "@/lib/tickets/sign";
+import { safeDecode } from "@/lib/safe-decode";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,11 +27,11 @@ export async function GET(
   const { token } = await params;
   const signature = new URL(req.url).searchParams.get("s") ?? "";
 
-  if (!signature || !verifyTicketSignature(decodeURIComponent(token), signature)) {
+  if (!signature || !verifyTicketSignature(safeDecode(token), signature)) {
     return NextResponse.json({ error: "Invalid ticket signature." }, { status: 403 });
   }
 
-  const ticket = await getTicketByToken(decodeURIComponent(token));
+  const ticket = await getTicketByToken(safeDecode(token));
   if (!ticket) {
     return NextResponse.json({ error: "Ticket not found." }, { status: 404 });
   }
