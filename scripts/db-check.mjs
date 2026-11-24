@@ -27,15 +27,77 @@ if (!url) {
   process.exit(1);
 }
 
-// Show the target without leaking the password.
-let shown;
-try {
-  const u = new URL(url);
-  shown = `${u.hostname}:${u.port || 5432}${u.pathname}`;
-} catch {
-  shown = "(unparseable connection string)";
+/* ---------- validate the string before trusting it ------------------------ *
+ * `pg` accepts a mangled string and quietly falls back to the defaults
+ * (host "base", user "user"), so the failure surfaces later as
+ * "getaddrinfo ENOTFOUND base" — which looks like a network problem when it is
+ * really a typo in the URL. Check it properly here and say so.
+ */
+const SCHEME = /^postgres(ql)?:\/\//;
+let host = "";
+let port = "";
+let user = "";
+let problems = [];
+
+function decodeScheme() {
+  if (!SCHEME.test(url)) {
+    problems.push(
+      "missing the postgresql:// prefix — the value must start with postgresql://"
+    );
+    return false;
+  }
+  const authority = url.slice(url.indexOf("//") + 2).split("/")[0].split("?")[0];
+  const at = authority.lastIndexOf("@");
+  if (at < 0) {
+    const res = new URL(url); // will throw below if genuinely broken
+    host = res.hostname;
+    problems.push("no user:password@ section — the username is missing");
+    return true;
+  }
+  const userinfo = authority.slice(0, at);
+  const hostport = authority.slice(at + 1);
+  user = userinfo.split(":")[0];
+  host = hostport.split(":")[0];
+  port = hostport.split(":")[1] || "5432";
+  if (userinfo.includes("@")) {
+    problems.push(
+      "the password contains an @ — that character splits the URL. " +
+        "Use a password without @ : / # or spaces (or percent-encode it)."
+    );
+  }
+  return true;
 }
-ok(`DATABASE_URL is set → ${shown} (real Postgres)`);
+
+if (!decodeScheme()) {
+  bad("DATABASE_URL does not look like a connection string.");
+  line(`  got: ${JSON.stringify(url.slice(0, 40))}${url.length > 40 ? "…" : ""}`);
+  line();
+  line("  It must look exactly like this (one line, no spaces):");
+  line("  postgresql://USER:PASSWORD@HOST:5432/postgres");
+  line();
+  line("  Note the // straight after postgresql: — without it the driver silently");
+  line("  falls back to a host called \"base\" and reports ENOTFOUND.");
+  line();
+  process.exit(1);
+}
+
+// Show the target without leaking the password.
+ok(`DATABASE_URL is set → ${host}:${port} (real Postgres)`);
+line(`  user: ${user || "(none)"}`);
+
+if (problems.length) {
+  for (const p of problems) bad(p);
+  line();
+  process.exit(1);
+}
+
+if (user.includes(".") && !user.startsWith("postgres.") && /^[a-z_]+\.[a-z]{20}$/.test(user)) {
+  // e.g. thomian_app.<project-ref> — correct for the pooler
+} else if (!user.includes(".")) {
+  line("  ! No <role>.<project-ref> in the username. The session pooler needs it");
+  line("    (e.g. thomian_app.pkhonlhtzdnbbutruens). See SUPABASE.md.");
+}
+
 if (url.includes("db.") && url.includes(".supabase.co")) {
   line("  ! This is the direct connection host. It is IPv6-only and fails on");
   line("    many networks — prefer the Session pooler (see SUPABASE.md).");

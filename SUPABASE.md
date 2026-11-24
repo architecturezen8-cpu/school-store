@@ -50,6 +50,29 @@ pooler URL is `<role>.<project-ref>`.
 No other keys are needed — the app does not use the Supabase JS client, anon
 keys, or Row Level Security policies.
 
+### If you see `getaddrinfo ENOTFOUND base`
+
+That error means the driver could not find a host called **`base`** — which is
+its default when it cannot parse the string at all. It is a typo in
+`DATABASE_URL`, not a network problem. The two usual causes:
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| `ENOTFOUND base` | the `postgresql://` prefix is missing | the value must start with `postgresql://` — exactly `postgresql://`, not `postgres:` |
+| `ENOTFOUND base` | the password contains `@` | an `@` splits the URL in two; use a password without `@ : / # ? ` or a space |
+| `unparseable connection string` | the password contains `#`, `?` or `/` | same — change the password |
+
+`npm run db:check` now names the exact problem instead of letting the driver fall
+back to `base`, so run that first. Setting a clean password avoids the whole
+class of failure:
+
+```sql
+alter role thomian_app with password 'Matale1873Store';
+```
+
+Letters and digits only. Then update `.env.local` to match, and re-run
+`npm run db:check`.
+
 ### Why not the `postgres` role?
 
 Supabase's `postgres` role has `CREATEROLE` but is **not** a superuser, and since
