@@ -62,6 +62,45 @@ its default when it cannot parse the string at all. It is a typo in
 | `ENOTFOUND base` | the password contains `@` | an `@` splits the URL in two; use a password without `@ : / # ? ` or a space |
 | `unparseable connection string` | the password contains `#`, `?` or `/` | same — change the password |
 
+### Percent-encoding a password (when you must keep the symbols)
+
+A password containing `@ : / # ?` can still be used — encode those characters in
+the URL only. The database stores the raw password; the URL carries the encoded
+form, and the driver decodes it before authenticating.
+
+```
+password:  Matale@1873Store
+in the URL: Matale%401873Store
+```
+
+| character | in the URL |
+| --- | --- |
+| `@` | `%40` |
+| `:` | `%3A` |
+| `/` | `%2F` |
+| `#` | `%23` |
+| `?` | `%3F` |
+| space | `%20` |
+
+Full example:
+
+```
+DATABASE_URL="postgresql://thomian_app.pkhonlhtzdnbbutruens:Matale%401873Store@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres"
+```
+
+Only the password part is encoded — leave the `@` that separates the password
+from the host exactly as it is. Verified end to end against a real PostgreSQL
+with a role whose password contains `@`: the encoded URL logs in, reads all 12
+ticket tiers and writes an order.
+
+Encode with one command instead of by hand:
+
+```bash
+node -e "console.log(encodeURIComponent(process.argv[1]))" 'Matale@1873Store'
+```
+
+---
+
 `npm run db:check` now names the exact problem instead of letting the driver fall
 back to `base`, so run that first. Setting a clean password avoids the whole
 class of failure:

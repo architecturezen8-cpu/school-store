@@ -61,9 +61,12 @@ function decodeScheme() {
   port = hostport.split(":")[1] || "5432";
   if (userinfo.includes("@")) {
     problems.push(
-      "the password contains an @ — that character splits the URL. " +
-        "Use a password without @ : / # or spaces (or percent-encode it)."
+      "the password contains a raw @ — that character splits the URL. " +
+        "Percent-encode it as %40 (see SUPABASE.md), or use a password without " +
+        "@ : / # ? or spaces."
     );
+  } else if (/%[0-9A-Fa-f]{2}/.test(userinfo)) {
+    line("  · the password is percent-encoded — decoding it before login");
   }
   return true;
 }
