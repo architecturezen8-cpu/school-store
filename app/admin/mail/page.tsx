@@ -5,6 +5,7 @@ import { isAdmin } from "@/lib/admin/auth";
 import { hasDatabase } from "@/lib/db";
 import { DEFAULT_MAIL_TEMPLATE, renderTemplate } from "@/lib/tickets/email";
 import { getMailTemplate } from "@/lib/tickets/mail-settings";
+import { safeDecode } from "@/lib/safe-decode";
 import { saveMailTemplateAction, sendTestMailAction } from "../actions";
 import { ArrowLeft, Check, Mail, Send } from "lucide-react";
 
@@ -66,12 +67,12 @@ export default async function MailPage({
       {ok && (
         <p className="mt-5 flex items-center gap-2 rounded-xl border border-emerald-400/40 bg-emerald-500/10 p-3 text-sm text-emerald-200">
           <Check className="h-4 w-4" />{" "}
-          {ok === "1" ? "Saved. New tickets use this wording." : decodeURIComponent(ok)}
+          {ok === "1" ? "Saved. New tickets use this wording." : safeDecode(ok)}
         </p>
       )}
       {error && (
         <p className="mt-5 rounded-xl border border-red-400/40 bg-red-500/10 p-3 text-sm text-red-200">
-          {decodeURIComponent(error)}
+          {safeDecode(error)}
         </p>
       )}
       {!configured && (

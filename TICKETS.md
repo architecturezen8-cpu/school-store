@@ -47,11 +47,19 @@ the SQL in `db/schema.sql` through the Supabase SQL editor), sign in at
 Any image, any aspect ratio, PNG/JPEG/WebP up to 8 MB:
 
 - Draw a **plain white square** where the QR belongs — solid `#ffffff`, nothing
-  on top of it, equal width and height, at least 160 px.
+  on top of it, equal width and height.
 - That is the whole instruction. The app finds the square itself; there is no
   coordinate form to fill in.
+- **How big?** The upload tells you if it is too small, and why. The rule is not
+  a fixed pixel count: a QR needs about 5 pixels per module, so a 45-module code
+  needs a ~230 px square *in the design's own pixels*, or at least ~18% of the
+  design's shorter side. A 1440 px design with a 320 px square is comfortable;
+  the same square in a 400 px image is not, because the design gets scaled down
+  to fit an email.
 - The QR is pasted using about **80%** of the square, so there is a small white
   margin around it — that margin is what makes the QR reliable when printed.
+- The QR itself is a short link — `/t/<token>/<signature>` — because every
+  character costs QR versions, and more versions means a bigger square.
 - If the square cannot be found, the upload is refused and says why, instead of
   quietly producing tickets with no QR on them.
 
@@ -68,6 +76,12 @@ sending an empty message.
 The same page can send a **test email** to your own address — using a real
 booking, so the design and the QR are real too. Do that before the first
 customer buys.
+
+The mail leads with a **close-up of the QR at 220 px**, embedded in the message
+itself (so it shows even when a mail client blocks remote images), then the full
+design below it. A QR that is 18% of a wide design is only about 100 px once the
+mail scales the artwork down — large enough to scan only if the reader zooms.
+The close-up is what people actually scan at the gate.
 
 Resend is used when `RESEND_API_KEY` is set; otherwise plain SMTP. With neither,
 bookings still succeed, the mail is logged to the server console, and the
@@ -114,9 +128,16 @@ and restart.
 **"That design has no white square"** — the upload was refused on purpose. Check
 it is a solid white square, not off-white or a photo of one.
 
+**"The white square is only 83px … make it at least 230px"** — the message names
+the size that design needs. Either enlarge the square in the artwork, or upload
+the design at a larger pixel size. The percentage in the message is the one to
+aim for if you would rather not think in pixels.
+
 **A ticket says "not valid"** — the link was truncated, or `TICKET_SECRET`
-changed after the ticket was issued. Existing tickets do not survive a secret
-change.
+changed after the ticket was issued. Changing the secret invalidates every
+ticket already sent, so set it once and keep it. Tickets issued before the link
+was shortened still work — both `/t/<token>?s=…` and `/t/<token>/<signature>`
+are accepted.
 
 **The gate says "invalid"** for a real ticket — the QR was scanned from a
 screenshot that lost its signature. Paste the link, or type the reference.

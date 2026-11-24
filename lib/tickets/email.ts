@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import sharp from "sharp";
 import path from "node:path";
 import nodemailer, { type Transporter } from "nodemailer";
 import { signTicket, ticketUrl, ticketImageUrl } from "./sign";
@@ -65,7 +66,43 @@ export function renderTemplate(text: string, values: Record<string, string>): st
  *  Rendering the ticket image for an email.
  * ------------------------------------------------------------------ */
 
-async function ticketImage(ticket: Ticket, signature: string): Promise<Buffer | null> {
+/**
+ * Just the QR, cropped out of the ticket artwork.
+ *
+ * The artwork is shown at 552 px wide in the mail, so a QR that is 18% of a
+ * 1440 px design lands on the screen about 100 px across — large enough for a
+ * camera only if the reader zooms. A crop of the same QR, shown at 220 px, is
+ * what people actually scan; the full artwork stays below it for the design.
+ */
+async function qrCloseUp(
+  ticketImage: Buffer,
+  square: { x: number; y: number; size: number }
+): Promise<Buffer | null> {
+  try {
+    return await sharp(ticketImage)
+      .extract({
+        left: Math.max(0, square.x),
+        top: Math.max(0, square.y),
+        width: square.size,
+        height: square.size,
+      })
+      .png()
+      .toBuffer();
+  } catch {
+    return null;
+  }
+}
+
+export type TicketRender = {
+  /** The full artwork with the QR pasted in — what gets attached. */
+  image: Buffer;
+  /** The same QR, cropped, for the top of the mail. Null if it could not be cut. */
+  qr: Buffer | null;
+  width: number;
+  height: number;
+};
+
+async function ticketImage(ticket: Ticket, signature: string): Promise<TicketRender | null> {
   const template = await getTemplateForEvent(ticket.event);
   const payload = ticketUrl(ticket.token, signature);
 
@@ -73,18 +110,19 @@ async function ticketImage(ticket: Ticket, signature: string): Promise<Buffer | 
     const file = path.join(process.cwd(), "public", template.file.replace(/^\//, ""));
     try {
       const design = await readFile(file);
-      const { image } = await composeTicket({
+      const square = {
+        x: template.qrX,
+        y: template.qrY,
+        size: template.qrSize,
+        confidence: 1,
+      };
+      const { image, width, height } = await composeTicket({
         design,
         qrPayload: payload,
-        square: {
-          x: template.qrX,
-          y: template.qrY,
-          size: template.qrSize,
-          confidence: 1,
-        },
+        square,
         format: "png",
       });
-      return image;
+      return { image, qr: await qrCloseUp(image, square), width, height };
     } catch {
       // fall through to the generated ticket
     }
@@ -129,16 +167,19 @@ export async function sendTicketEmail(
   const heading = renderTemplate(mail.heading, values);
   const footer = renderTemplate(mail.footer, values);
 
-  const image = await ticketImage(ticket, signature);
+  const render = await ticketImage(ticket, signature);
+  const image = render?.image ?? null;
 
   const html = ticketHtml({
     heading,
     body,
     footer,
     url,
-    imageUrl,
-    // The mail client loads the image from the store, so a broken attachment
-    // does not leave a hole in the message.
+    // The close-up travels *inside* the mail (cid:), so it renders even when the
+    // reader's client blocks remote images — which is exactly the image the
+    // customer has to show at the gate.
+    qrSrc: render?.qr ? "cid:ticket-qr" : imageUrl,
+    artworkSrc: imageUrl,
     hasImage: true,
   });
 
@@ -158,14 +199,26 @@ export async function sendTicketEmail(
           subject,
           html,
           text: body,
-          attachments: image
-            ? [
-                {
-                  filename: `${ticket.reference}.png`,
-                  content: image.toString("base64"),
-                },
-              ]
-            : [],
+          attachments: [
+            ...(image
+              ? [
+                  {
+                    filename: `${ticket.reference}.png`,
+                    content: image.toString("base64"),
+                  },
+                ]
+              : []),
+            ...(render?.qr
+              ? [
+                  {
+                    filename: "ticket-qr.png",
+                    content: render.qr.toString("base64"),
+                    inline: true,
+                    contentId: "ticket-qr",
+                  },
+                ]
+              : []),
+          ],
         }),
       });
 
@@ -199,9 +252,18 @@ export async function sendTicketEmail(
         subject,
         text: body,
         html,
-        attachments: image
-          ? [{ filename: `${ticket.reference}.png`, content: image }]
-          : [],
+        attachments: [
+          ...(image ? [{ filename: `${ticket.reference}.png`, content: image }] : []),
+          ...(render?.qr
+            ? [
+                {
+                  filename: "ticket-qr.png",
+                  content: render.qr,
+                  cid: "ticket-qr",
+                },
+              ]
+            : []),
+        ],
       });
       return { sent: true, provider: "smtp", id: info.messageId ?? "" };
     } catch (err) {
@@ -235,19 +297,21 @@ function escapeHtml(s: string): string {
  * A table-based layout with inline styles: email clients still ignore most of
  * what a modern stylesheet does, so this is deliberately old-fashioned.
  */
-function ticketHtml({
+export function ticketHtml({
   heading,
   body,
   footer,
   url,
-  imageUrl,
+  qrSrc,
+  artworkSrc,
   hasImage,
 }: {
   heading: string;
   body: string;
   footer: string;
   url: string;
-  imageUrl: string;
+  qrSrc: string;
+  artworkSrc: string;
   hasImage: boolean;
 }): string {
   const paragraphs = body
@@ -266,7 +330,11 @@ function ticketHtml({
    </td></tr>
    ${
      hasImage
-       ? `<tr><td style="padding:24px"><img src="${escapeHtml(imageUrl)}" alt="Your ticket" width="552" style="width:100%;max-width:552px;border-radius:10px;border:1px solid #e5e7eb;display:block"></td></tr>`
+       ? `<tr><td align="center" style="padding:24px 24px 0">
+       <img src="${escapeHtml(qrSrc)}" alt="Your ticket QR code" width="220" height="220" style="width:220px;height:220px;display:block;border:1px solid #e5e7eb;border-radius:10px;background:#ffffff">
+       <div style="font-size:12px;color:#6b7280;padding-top:10px">Show this at the gate</div>
+     </td></tr>
+     <tr><td style="padding:18px 24px 0"><img src="${escapeHtml(artworkSrc)}" alt="Your ticket" width="552" style="width:100%;max-width:552px;border-radius:10px;border:1px solid #e5e7eb;display:block"></td></tr>`
        : ""
    }
    <tr><td style="padding:0 24px 8px;font-size:15px;color:#333">${paragraphs}</td></tr>

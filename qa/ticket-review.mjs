@@ -28,7 +28,7 @@ const say = (m) => {
 };
 
 const sign = (token) =>
-  createHmac("sha256", SECRET).update(`ticket:${token}`).digest("base64url").slice(0, 22);
+  createHmac("sha256", SECRET).update(`ticket:${token}`).digest("base64url").slice(0, 12);
 
 async function step(name, fn) {
   try {
@@ -105,14 +105,14 @@ await step("ticket QR decodes with jsqr", async () => {
   const raw = await sharp(`${OUT}/ticket.png`).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const out = jsQR(new Uint8ClampedArray(raw.data), raw.info.width, raw.info.height);
   if (!out) throw new Error("no QR found in the composed ticket");
-  const want = `/t/${token}?s=${sig}`;
+  const want = `/t/${token}/${sig}`;
   if (!out.data.includes(want)) throw new Error(`QR carried "${out.data}" not "${want}"`);
   return out.data;
 });
 
 // ------------------------------------------------------------------ ticket page
 await step("/t/<token> with a bad signature", async () => {
-  const res = await page.goto(`${BASE}/t/${token}?s=wrongwrongwrongwrongww`, {
+  const res = await page.goto(`${BASE}/t/${token}/wrongsignature`, {
     waitUntil: "domcontentloaded",
   });
   const text = (await page.locator("body").innerText()).replace(/\s+/g, " ");
@@ -121,7 +121,7 @@ await step("/t/<token> with a bad signature", async () => {
 });
 
 await step("/t/<token> signed", async () => {
-  const res = await page.goto(`${BASE}/t/${token}?s=${sig}`, { waitUntil: "networkidle" });
+  const res = await page.goto(`${BASE}/t/${token}/${sig}`, { waitUntil: "networkidle" });
   const text = (await page.locator("body").innerText()).replace(/\s+/g, " ");
   const imgs = await page.locator("img").count();
   const shown = /Nimal Perera|BM-|Big Match/.test(text);
@@ -183,7 +183,7 @@ for (const path of ["/admin/templates", "/admin/mail", "/admin/bookings"]) {
 
 // ------------------------------------------------------------------ gate admits (API, as the logged-in admin)
 await step("gate: first scan admits", async () => {
-  const res = await page.request.post(BASE + "/api/gate", { data: { scan: `${BASE}/t/${token}?s=${sig}`, by: "Gate 1" } });
+  const res = await page.request.post(BASE + "/api/gate", { data: { scan: `${BASE}/t/${token}/${sig}`, by: "Gate 1" } });
   const body = await res.json();
   if (body.status !== "admitted") throw new Error(JSON.stringify(body).slice(0, 220));
   return `admitted → ${body.ticket.name} / ${body.ticket.reference}`;
@@ -204,7 +204,7 @@ await step("gate: forged token is invalid", async () => {
 });
 
 await step("/t/<token> after admission shows the used banner", async () => {
-  await page.goto(`${BASE}/t/${token}?s=${sig}`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/t/${token}/${sig}`, { waitUntil: "networkidle" });
   const text = (await page.locator("body").innerText()).replace(/\s+/g, " ");
   if (!/already|used|admitted/i.test(text)) throw new Error("no used banner: " + text.slice(0, 120));
   return `"${text.slice(text.indexOf("ADMISSION") + 130, text.indexOf("ADMISSION") + 300)}"`;
@@ -219,7 +219,7 @@ await step("gate: undo restores the ticket", async () => {
 });
 
 await step("/t/<token> after undo is valid again", async () => {
-  await page.goto(`${BASE}/t/${token}?s=${sig}`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/t/${token}/${sig}`, { waitUntil: "networkidle" });
   const text = (await page.locator("body").innerText()).replace(/\s+/g, " ");
   if (/already admitted/i.test(text)) throw new Error("still marked used after undo");
   return "valid again";

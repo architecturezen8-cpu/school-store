@@ -5,6 +5,7 @@ import { isAdmin } from "@/lib/admin/auth";
 import { hasDatabase } from "@/lib/db";
 import { listBookings } from "@/lib/bookings";
 import { lkr } from "@/lib/format";
+import { safeDecode } from "@/lib/safe-decode";
 import { resendTicketAction } from "../actions";
 import { ArrowLeft, Check, Mail } from "lucide-react";
 
@@ -38,12 +39,12 @@ export default async function BookingsPage({
 
       {ok && (
         <p className="mt-4 flex items-center gap-2 rounded-xl border border-emerald-400/40 bg-emerald-500/10 p-3 text-sm text-emerald-200">
-          <Check className="h-4 w-4" /> Ticket re-sent for {decodeURIComponent(ok)}.
+          <Check className="h-4 w-4" /> Ticket re-sent for {safeDecode(ok)}.
         </p>
       )}
       {error && (
         <p className="mt-4 rounded-xl border border-red-400/40 bg-red-500/10 p-3 text-sm text-red-200">
-          {decodeURIComponent(error)}
+          {safeDecode(error)}
         </p>
       )}
 

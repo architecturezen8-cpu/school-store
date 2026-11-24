@@ -95,7 +95,16 @@ async function pglite(): Promise<PGliteLike> {
         global.__pgliteReady = true;
       }
       return db;
-    })();
+    })().catch((err) => {
+      // A failed start must not be cached. The rejected promise used to sit in
+      // `global.__pglite` for the life of the process, so one bad start — a
+      // deleted `.pglite/`, a half-written file — turned every later request
+      // into "PGlite failed to initialize properly" until the server was
+      // restarted by hand. Clearing it lets the next request try again.
+      global.__pglite = undefined;
+      global.__pgliteReady = false;
+      throw err;
+    });
   }
   return global.__pglite;
 }

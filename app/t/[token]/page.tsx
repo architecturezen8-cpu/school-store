@@ -6,6 +6,7 @@ import { verifyTicketSignature } from "@/lib/tickets/sign";
 import { fullDate } from "@/lib/dates";
 import { lkr } from "@/lib/format";
 import { asset } from "@/lib/assets";
+import { safeDecode } from "@/lib/safe-decode";
 
 /**
  * The page a customer's camera opens after scanning their ticket.
@@ -35,18 +36,21 @@ export default async function TicketPage({
   params,
   searchParams,
 }: {
-  params: Promise<{ token: string }>;
+  params: Promise<{ token: string; signature?: string | string[] }>;
   searchParams: Promise<{ s?: string }>;
 }) {
-  const { token } = await params;
+  const { token, signature: pathSignature } = await params;
   const { s } = await searchParams;
+  // The QR carries /t/<token>/<signature>; tickets issued earlier used ?s=.
+  // Next hands a single dynamic segment over as a plain string, not an array.
+  const signature = (Array.isArray(pathSignature) ? pathSignature[0] : pathSignature) ?? s;
 
   if (!hasDatabase()) notFound();
 
-  const ticket = await getTicketByToken(decodeURIComponent(token));
+  const ticket = await getTicketByToken(safeDecode(token));
   if (!ticket) notFound();
 
-  const signed = Boolean(s) && verifyTicketSignature(ticket.token, s!);
+  const signed = Boolean(signature) && verifyTicketSignature(ticket.token, signature!);
   if (!signed) {
     return (
       <section className="mx-auto max-w-lg px-6 pb-24 pt-32 text-center md:pt-40">
@@ -80,7 +84,9 @@ export default async function TicketPage({
           email carried, including any artwork changes made after purchase. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={asset(`/api/tickets/${encodeURIComponent(ticket.token)}/image?s=${encodeURIComponent(s!)}`)}
+        src={asset(
+          `/api/tickets/${encodeURIComponent(ticket.token)}/image?s=${encodeURIComponent(signature!)}`
+        )}
         alt={`Ticket for ${ticket.eventTitle}`}
         className="mt-8 w-full rounded-2xl border border-white/10 shadow-2xl"
       />

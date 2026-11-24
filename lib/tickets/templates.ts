@@ -3,7 +3,8 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import sharp from "sharp";
 import { query } from "../db";
-import { detectWhiteSquare } from "./detect";
+import { checkSquareForQr, detectWhiteSquare, qrModuleCount } from "./detect";
+import { qrPayload, signTicket } from "./sign";
 
 /**
  * Ticket designs uploaded by the admin.
@@ -152,11 +153,19 @@ export async function uploadTemplate({
         "No white square found in the design. Add a solid white square where the QR code should go — it can be any size, as long as its width and height match.",
     };
   }
-  if (square.size < 160) {
-    return {
-      ok: false,
-      error: `The white square is only ${square.size}px. Make it at least 160px so the QR code is scannable.`,
-    };
+  // The QR this design will carry: a sample payload of the same length and
+  // alphabet as a real one, so the module count — and therefore the size the
+  // square has to be — is exact rather than a guess.
+  const modules = await qrModuleCount(
+    qrPayload("SAMPLE01TOKEN0SAMPLE01", signTicket("SAMPLE01TOKEN0SAMPLE01"))
+  );
+  const verdict = checkSquareForQr(
+    square,
+    { width: meta.width!, height: meta.height! }, // both checked above
+    modules
+  );
+  if (!verdict.ok) {
+    return { ok: false, error: verdict.reason };
   }
 
   const id = randomUUID();
