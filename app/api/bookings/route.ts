@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createBooking } from "@/lib/bookings";
+import { createBooking, getTicketByToken } from "@/lib/bookings";
 import { hasDatabase } from "@/lib/db";
+import { sendTicketEmail } from "@/lib/tickets/email";
+import { signTicket } from "@/lib/tickets/sign";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,7 +42,30 @@ export async function POST(req: Request) {
 
   try {
     const booking = await createBooking(parsed.data);
-    return NextResponse.json({ booking }, { status: 201 });
+
+    // The booking is committed at this point: a mail problem must never turn a
+    // successful reservation into an error the customer sees, so the delivery
+    // result is reported alongside it instead.
+    let email: { sent: boolean; reason?: string } = { sent: false, reason: "failed" };
+    try {
+      const ticket = await getTicketByToken(booking.token);
+      if (ticket) {
+        const result = await sendTicketEmail(ticket);
+        email = result.sent
+          ? { sent: true }
+          : { sent: false, reason: result.reason };
+      }
+    } catch (err) {
+      console.error("[api/bookings] ticket email failed:", (err as Error).message);
+      email = { sent: false, reason: "failed" };
+    }
+
+    // The signature is what makes the confirmation screen's QR the same ticket
+    // that was emailed, so the customer can be admitted from either.
+    return NextResponse.json(
+      { booking: { ...booking, signature: signTicket(booking.token) }, email },
+      { status: 201 }
+    );
   } catch (err) {
     const message = (err as Error).message;
     const status = /sold out|Unknown/i.test(message) ? 409 : 500;

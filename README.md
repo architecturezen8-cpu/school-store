@@ -39,6 +39,11 @@ cp .env.example .env.local     # set DATABASE_URL
 npm run db:reset               # migrate + seed
 ```
 
+Supabase specifically: **see [SUPABASE.md](SUPABASE.md)** — copy the session
+pooler connection string into `DATABASE_URL` and the app reads your real
+database. The schema and seed are already applied to the project this repo was
+built against.
+
 `STORE_BACKEND=none` switches to read-only seed data (no database at all).
 
 ## Three ways to run it

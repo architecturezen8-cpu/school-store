@@ -1,7 +1,53 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300..900&family=Poppins:wght@400;500;600;700;800&display=swap");
+/* Fonts live in public/fonts and are served from this origin — see the
+   @font-face rules below. The previous `@import` of fonts.googleapis.com was a
+   render-blocking third-party request, so first paint waited on a network that
+   is slow, filtered, or (in some environments) unreachable. */
 @import "tailwindcss";
 @source "../components";
 @source "../app";
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../public/fonts/inter-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Poppins";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../public/fonts/poppins-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Poppins";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../public/fonts/poppins-500.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Poppins";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("../public/fonts/poppins-600.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Poppins";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../public/fonts/poppins-700.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Poppins";
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url("../public/fonts/poppins-800.woff2") format("woff2");
+}
 
 @theme {
   /* ---- palette: black, navy, white + a single premium gold accent ---- */

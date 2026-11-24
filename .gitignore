@@ -49,3 +49,13 @@ next-env.d.ts
 # embedded PGlite database (re-created + re-seeded on demand)
 .pglite/
 tsconfig.tsbuildinfo
+
+# session working notes / packaged hand-off (not part of the app)
+FINAL-SITE.md
+HANDOFF.md
+PUSH-ME.md
+final-site.tar.gz
+realign.sh
+
+# admin-uploaded ticket artwork (lives in the database's storage dir on deploy)
+public/uploads/

@@ -1,5 +1,6 @@
+import { randomBytes } from "node:crypto";
 import { z } from "zod";
-import { transaction } from "./db";
+import { query, transaction } from "./db";
 
 /* ------------------------------------------------------------------ *
  *  Ticket bookings — the seat count and the price are decided here,
@@ -24,6 +25,27 @@ export type Booking = {
   event: string;
   total: number;
   tiers: { id: string; name: string; price: number; qty: number }[];
+  /** Opaque secret inside the QR; the reference alone is not enough to admit. */
+  token: string;
+};
+
+/** One admission ticket, as the ticket page and the gate scanner see it. */
+export type Ticket = {
+  reference: string;
+  token: string;
+  event: string;
+  eventTitle: string;
+  eventDate: string;
+  venue: string;
+  city: string;
+  doors: string;
+  image: string;
+  name: string;
+  email: string;
+  total: number;
+  tiers: { id: string; name: string; price: number; qty: number }[];
+  admittedAt: string | null;
+  admittedBy: string;
 };
 
 const MAX_PER_TIER = 8;
@@ -32,6 +54,11 @@ function reference() {
   const stamp = Date.now().toString(36).toUpperCase().slice(-6);
   const rand = Math.random().toString(36).toUpperCase().slice(2, 5);
   return `BM-${stamp}${rand}`;
+}
+
+/** 128 bits of randomness — impossible to guess a neighbouring ticket. */
+function ticketToken() {
+  return randomBytes(16).toString("base64url");
 }
 
 export async function createBooking(input: BookingInput): Promise<Booking> {
@@ -67,10 +94,11 @@ export async function createBooking(input: BookingInput): Promise<Booking> {
     }
 
     const ref = reference();
+    const token = ticketToken();
     const { rows } = await c.query<{ id: string }>(
-      `insert into bookings (reference, event, name, email, phone, total)
-       values ($1, $2, $3, $4, $5, $6) returning id`,
-      [ref, parsed.event, parsed.name, parsed.email, parsed.phone, total]
+      `insert into bookings (reference, event, name, email, phone, total, ticket_token)
+       values ($1, $2, $3, $4, $5, $6, $7) returning id`,
+      [ref, parsed.event, parsed.name, parsed.email, parsed.phone, total, token]
     );
 
     for (const wanted of parsed.tiers) {
@@ -89,10 +117,204 @@ export async function createBooking(input: BookingInput): Promise<Booking> {
       reference: ref,
       event: parsed.event,
       total,
+      token,
       tiers: parsed.tiers.map((w) => {
         const t = tiers.find((x) => x.id === w.id)!;
         return { id: t.id, name: t.name, price: Number(t.price), qty: w.qty };
       }),
     };
   });
+}
+
+/* ------------------------------------------------------------------ *
+ *  Reading a ticket, and admitting it at the gate.
+ * ------------------------------------------------------------------ */
+
+type TicketRow = {
+  reference: string;
+  ticket_token: string;
+  event: string;
+  name: string;
+  email: string;
+  total: number;
+  admitted_at: string | null;
+  admitted_by: string;
+  title: string;
+  starts_at: string;
+  venue: string;
+  city: string;
+  doors: string;
+  image: string;
+};
+
+const ticketSelect = `
+  select b.id, b.reference, b.ticket_token, b.event, b.name, b.email, b.total,
+         b.admitted_at, b.admitted_by,
+         e.title, e.starts_at, e.venue, e.city, e.doors, e.image
+    from bookings b
+    join events e on e.slug = b.event`;
+
+async function tiersFor(bookingIds: string[]): Promise<Map<string, Ticket["tiers"]>> {
+  const out = new Map<string, Ticket["tiers"]>();
+  if (!bookingIds.length) return out;
+  const rows = await query<{
+    booking: string;
+    id: string;
+    name: string;
+    price: number;
+    qty: number;
+  }>(
+    `select bi.booking, t.id, t.name, t.price, bi.qty
+       from booking_items bi
+       join ticket_tiers t on t.id = bi.tier
+      where bi.booking = any($1)`,
+    [bookingIds]
+  );
+  for (const r of rows) {
+    const list = out.get(r.booking) ?? [];
+    list.push({ id: r.id, name: r.name, price: Number(r.price), qty: Number(r.qty) });
+    out.set(r.booking, list);
+  }
+  return out;
+}
+
+function toTicket(row: TicketRow, tiers: Ticket["tiers"]): Ticket {
+  return {
+    reference: row.reference,
+    token: row.ticket_token,
+    event: row.event,
+    eventTitle: row.title,
+    eventDate: row.starts_at,
+    venue: row.venue,
+    city: row.city,
+    doors: row.doors,
+    image: row.image,
+    name: row.name,
+    email: row.email,
+    total: Number(row.total),
+    tiers,
+    admittedAt: row.admitted_at,
+    admittedBy: row.admitted_by,
+  };
+}
+
+/** Looks a ticket up by its opaque token. null when it does not exist. */
+export async function getTicketByToken(token: string): Promise<Ticket | null> {
+  const rows = await query<TicketRow & { id: string }>(
+    `${ticketSelect} where b.ticket_token = $1`,
+    [token]
+  );
+  const row = rows[0];
+  if (!row) return null;
+  const tiers = (await tiersFor([row.id])).get(row.id) ?? [];
+  return toTicket(row, tiers);
+}
+
+/**
+ * Look a ticket up by the reference printed on it.
+ *
+ * The reference is not a secret, so this is only for staff: it is how a ticket
+ * with a creased or unreadable QR gets admitted at the gate by typing the code
+ * off the card. Anyone else must present the signed QR.
+ */
+export async function getTicketByReference(
+  reference: string
+): Promise<Ticket | null> {
+  const rows = await query<TicketRow & { id: string }>(
+    `${ticketSelect} where upper(b.reference) = upper($1)`,
+    [reference.trim()]
+  );
+  const row = rows[0];
+  if (!row) return null;
+  const tiers = (await tiersFor([row.id])).get(row.id) ?? [];
+  return toTicket(row, tiers);
+}
+
+/** Either the token from the QR, or the reference a volunteer types in. */
+export async function findTicketForGate(scan: string): Promise<Ticket | null> {
+  return (await getTicketByToken(scan)) ?? (await getTicketByReference(scan));
+}
+
+export type AdmitResult =
+  | { status: "admitted"; ticket: Ticket }
+  | { status: "already"; ticket: Ticket }
+  | { status: "not-found" };
+
+/**
+ * Marks a ticket as admitted. Idempotent in the sense that a second scan is
+ * reported rather than silently overwriting the first — the gate needs to know
+ * whether it is the first person through with this ticket.
+ *
+ * The guard lives in the UPDATE (`where admitted_at is null`), so two scanners
+ * racing on the same QR cannot both report a fresh admission.
+ */
+export async function admitTicket(
+  token: string,
+  by: string
+): Promise<AdmitResult> {
+  const before = await getTicketByToken(token);
+  if (!before) return { status: "not-found" };
+
+  const rows = await query<{ admitted_at: string }>(
+    `update bookings
+        set admitted_at = now(), admitted_by = $2
+      where ticket_token = $1 and admitted_at is null
+      returning admitted_at`,
+    [token, by.slice(0, 80)]
+  );
+
+  if (!rows[0]) {
+    // Nothing updated: either it was already admitted, or the event is cancelled.
+    const now = await getTicketByToken(token);
+    return now ? { status: "already", ticket: now } : { status: "not-found" };
+  }
+
+  const ticket = await getTicketByToken(token);
+  return ticket ? { status: "admitted", ticket } : { status: "not-found" };
+}
+
+/** Undo an admission — a mis-scan at the gate should be fixable. */
+export async function reopenTicket(token: string): Promise<boolean> {
+  const rows = await query<{ reference: string }>(
+    `update bookings set admitted_at = null, admitted_by = ''
+      where ticket_token = $1 returning reference`,
+    [token]
+  );
+  return Boolean(rows[0]);
+}
+
+/** Recent bookings for the admin panel. */
+export async function listBookings(limit = 100) {
+  const rows = await query<{
+    reference: string;
+    ticket_token: string;
+    event: string;
+    title: string;
+    name: string;
+    email: string;
+    total: number;
+    status: string;
+    created_at: string;
+    admitted_at: string | null;
+  }>(
+    `select b.reference, b.ticket_token, b.event, e.title, b.name, b.email, b.total,
+            b.status, b.created_at, b.admitted_at
+       from bookings b
+       join events e on e.slug = b.event
+      order by b.created_at desc
+      limit $1`,
+    [limit]
+  );
+  return rows.map((r) => ({
+    reference: r.reference,
+    token: r.ticket_token,
+    event: r.event,
+    eventTitle: r.title,
+    name: r.name,
+    email: r.email,
+    total: Number(r.total),
+    status: r.status,
+    createdAt: r.created_at,
+    admittedAt: r.admitted_at,
+  }));
 }

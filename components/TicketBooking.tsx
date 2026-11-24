@@ -29,6 +29,8 @@ export default function TicketBooking({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [ref, setRef] = useState("");
+  const [ticket, setTicket] = useState<{ token: string; signature: string } | null>(null);
+  const [emailSent, setEmailSent] = useState(false);
   const [tried, setTried] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -132,6 +134,11 @@ export default function TicketBooking({
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Could not complete the booking.");
       setRef(data.booking.reference);
+      setTicket({
+        token: data.booking.token,
+        signature: data.booking.signature ?? "",
+      });
+      setEmailSent(Boolean(data.email?.sent));
       setStep(3);
     } catch (err) {
       setError((err as Error).message);
@@ -140,7 +147,12 @@ export default function TicketBooking({
     }
   }
 
-  const bars = ref.split("").map((c) => (c.charCodeAt(0) % 4) + 1);
+  /** The real ticket artwork, rendered by the server with this booking's QR. */
+  const ticketImage = ticket
+    ? `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/tickets/${encodeURIComponent(
+        ticket.token
+      )}/image?s=${encodeURIComponent(ticket.signature)}`
+    : null;
 
   return createPortal(
     <div
@@ -403,7 +415,9 @@ export default function TicketBooking({
               <div>
                 <p className="font-display text-xl font-semibold">Booked.</p>
                 <p className="text-[13px] text-white/60">
-                  Sent to {email || "your email"}
+                  {emailSent
+                    ? `Sent to ${email || "your email"}`
+                    : `Booked for ${email || "your email"} — the ticket is below`}
                 </p>
               </div>
             </div>
@@ -458,29 +472,29 @@ export default function TicketBooking({
                 <span className="absolute -right-3 -top-3 h-6 w-6 rounded-full bg-ink" />
               </div>
 
-              <div className="flex items-center justify-between gap-4 px-6 py-5">
-                <div>
-                  <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-ink/40">
-                    Booking reference
-                  </p>
-                  <p className="mt-1 font-display text-lg font-bold tracking-[0.08em]">
-                    {ref}
-                  </p>
-                  <p className="mt-1 text-[11px] text-ink/55">
-                    {total === 0 ? "Free admission" : `Total paid · ${lkr(total)}`}
-                  </p>
-                </div>
-                <div className="flex h-11 items-end gap-[2px]">
-                  {bars.map((w, i) => (
-                    <span
-                      key={i}
-                      style={{ width: `${w}px` }}
-                      className="h-full bg-ink/85"
-                    />
-                  ))}
-                </div>
+              <div className="px-6 py-5">
+                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-ink/40">
+                  Booking reference
+                </p>
+                <p className="mt-1 font-display text-lg font-bold tracking-[0.08em]">
+                  {ref}
+                </p>
+                <p className="mt-1 text-[11px] text-ink/55">
+                  {total === 0 ? "Free admission" : `Total paid · ${lkr(total)}`}
+                </p>
               </div>
             </div>
+
+            {/* The artwork the customer was emailed, QR and all. Shown whole so
+                the QR is the size the design intended, not a cropped corner. */}
+            {ticketImage && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={ticketImage}
+                alt={`Admission ticket for ${ref} — this is also in your email`}
+                className="mt-4 w-full rounded-2xl border border-white/10"
+              />
+            )}
 
             <button
               onClick={onClose}
