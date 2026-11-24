@@ -7,6 +7,15 @@
 import { open } from "./browser.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3000";
+
+/** Screenshots must never abort a flow — see qa/browser.mjs shot(). */
+async function snap(page, path) {
+  try {
+    await page.screenshot({ path, timeout: 5000 });
+  } catch {
+    /* environment can wedge its compositor; the checks below still matter */
+  }
+}
 const { browser, page, errors } = await open({ width: 1440, height: 950 });
 const step = (n, msg) => console.log(`\n[${n}] ${msg}`);
 
@@ -19,7 +28,7 @@ console.log("size buttons:", sizeButtons);
 await page.getByRole("button", { name: /^(M)$/ }).first().click();
 await page.getByRole("button", { name: /add to bag/i }).first().click();
 await page.waitForTimeout(900);
-await page.screenshot({ path: "/tmp/qa/e2e-1-added.png" });
+await snap(page, "/tmp/qa/e2e-1-added.png");
 const bagBadge = await page.locator('button[aria-label="Open shopping bag"]').innerText().catch(() => "");
 console.log("bag badge text:", JSON.stringify(bagBadge));
 
@@ -27,7 +36,7 @@ console.log("bag badge text:", JSON.stringify(bagBadge));
 step(2, "bag drawer");
 await page.locator('button[aria-label="Open shopping bag"]').click();
 await page.waitForTimeout(800);
-await page.screenshot({ path: "/tmp/qa/e2e-2-bag.png" });
+await snap(page, "/tmp/qa/e2e-2-bag.png");
 const bagText = await page.locator("body").innerText();
 console.log("bag shows hoodie:", /Crest Hoodie/.test(bagText), "| subtotal:", /4,500/.test(bagText));
 
@@ -35,7 +44,7 @@ console.log("bag shows hoodie:", /Crest Hoodie/.test(bagText), "| subtotal:", /4
 step(3, "checkout");
 await page.getByRole("button", { name: /checkout|proceed/i }).first().click();
 await page.waitForTimeout(1200);
-await page.screenshot({ path: "/tmp/qa/e2e-3-checkout.png" });
+await snap(page, "/tmp/qa/e2e-3-checkout.png");
 const fields = await page.evaluate(() =>
   [...document.querySelectorAll("input, select, textarea")].map(
     (el) => `${el.tagName.toLowerCase()}[name=${el.getAttribute("name")}] type=${el.getAttribute("type")}`
@@ -48,12 +57,12 @@ await page.getByPlaceholder(/email/i).fill("nimal@example.com");
 await page.getByPlaceholder(/phone/i).fill("0771234567");
 await page.getByPlaceholder(/address/i).fill("12 Temple Road, Matale");
 await page.waitForTimeout(300);
-await page.screenshot({ path: "/tmp/qa/e2e-3b-filled.png" });
+await snap(page, "/tmp/qa/e2e-3b-filled.png");
 
 const placeOrder = page.getByRole("button", { name: /place order|pay|complete|confirm/i }).first();
 await placeOrder.click();
 await page.waitForTimeout(3000);
-await page.screenshot({ path: "/tmp/qa/e2e-4-placed.png" });
+await snap(page, "/tmp/qa/e2e-4-placed.png");
 const placedText = await page.locator("body").innerText();
 const ref = placedText.match(/STC-\d{5}/)?.[0];
 console.log("order reference:", ref ?? "NOT FOUND");
@@ -68,7 +77,7 @@ if (ref) {
   await page.locator('input[type="email"]').last().fill("nimal@example.com");
   await page.getByRole("button", { name: /track/i }).last().click();
   await page.waitForTimeout(2500);
-  await page.screenshot({ path: "/tmp/qa/e2e-5-tracked.png" });
+  await snap(page, "/tmp/qa/e2e-5-tracked.png");
   const tracked = await page.locator("body").innerText();
   console.log("tracked ok:", tracked.includes(ref), "| has timeline:", /placed|confirmed|processing/i.test(tracked));
 }
@@ -76,11 +85,22 @@ if (ref) {
 /* ---------- 5. search ---------- */
 step(5, "search");
 await page.goto(BASE + "/shop", { waitUntil: "networkidle" });
-await page.locator('button[aria-label="Search the store"]:visible').click();
+// Dispatched inside the page: Playwright's actionability checks (stable,
+// receives events) can stall for a long time when the page is animating under
+// software rendering, which says nothing about whether the button works.
+const openedSearch = await page.evaluate(() => {
+  const btn = [...document.querySelectorAll('button[aria-label="Search the store"]')].find(
+    (b) => b.offsetParent !== null
+  );
+  if (!btn) return false;
+  btn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  return true;
+});
+if (!openedSearch) console.log("search button not found");
 await page.waitForTimeout(600);
 await page.keyboard.type("hoodie");
 await page.waitForTimeout(1200);
-await page.screenshot({ path: "/tmp/qa/e2e-6-search.png" });
+await snap(page, "/tmp/qa/e2e-6-search.png");
 const searchText = await page.locator("body").innerText();
 console.log("search found hoodie:", /Crest Hoodie/i.test(searchText));
 
@@ -89,7 +109,7 @@ step(6, "ticket booking");
 await page.goto(BASE + "/tickets", { waitUntil: "networkidle" });
 await page.getByRole("button", { name: /book|select|choose/i }).first().click();
 await page.waitForTimeout(1500);
-await page.screenshot({ path: "/tmp/qa/e2e-7-booking.png" });
+await snap(page, "/tmp/qa/e2e-7-booking.png");
 const bookingText = await page.locator("body").innerText();
 console.log("booking dialog:", /book|ticket|seat|quantity/i.test(bookingText));
 

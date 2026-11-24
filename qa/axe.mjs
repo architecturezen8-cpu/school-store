@@ -7,9 +7,10 @@ const QA_MODULES = process.env.QA_MODULES ?? "/tmp/qaenv/node_modules";
 const require_ = createRequire(QA_MODULES + "/");
 const axeSrc = fs.readFileSync(require_.resolve("axe-core/axe.min.js"), "utf8");
 const { browser, page } = await open({ width: 1440, height: 900 });
+const BASE = process.env.BASE ?? "http://localhost:3000";
 const routes = ["/", "/shop", "/shop/badges", "/product/crest-hoodie", "/tickets"];
 for (const r of routes) {
-  await page.goto("http://localhost:3000" + r, { waitUntil: "networkidle" });
+  await page.goto(BASE + r, { waitUntil: "networkidle" });
   await page.addScriptTag({ content: axeSrc });
   const res = await page.evaluate(async () => {
     const r = await axe.run(document, { resultTypes: ["violations"] });

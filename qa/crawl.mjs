@@ -16,7 +16,8 @@ const ROUTES = [
   ["uniforms", "/shop/uniforms"],
   ["product", "/product/crest-hoodie"],
   ["tickets", "/tickets"],
-  ["contact", "/contact"],
+  // Footer/nav "Contact" is an in-page anchor (#contact), so there is no
+  // /contact route to crawl — this used to report a false 404.
 ];
 
 const { browser, page, errors } = await open({ width: WIDTH, height: 900 });
