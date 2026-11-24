@@ -25,7 +25,11 @@ const nextConfig = {
 
   // PGlite ships WASM plus a node-fs data dir; bundling it breaks its internal
   // path resolution, so let Node require it directly.
-  serverExternalPackages: ["@electric-sql/pglite"],
+  serverExternalPackages: ["@electric-sql/pglite", "sharp"],
+
+  // Ticket artwork is uploaded through a Server Action; the default 1 MB cap is
+  // too small for a designed ticket.
+  experimental: { serverActions: { bodySizeLimit: "9mb" } },
 
   ...(basePath ? { basePath, assetPrefix: basePath } : {}),
   ...(isStatic ? { output: "export", images: { unoptimized: true } } : {}),

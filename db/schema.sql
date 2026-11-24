@@ -156,3 +156,76 @@ drop trigger if exists orders_touch_updated_at on orders;
 create trigger orders_touch_updated_at
   before update on orders
   for each row execute function set_updated_at();
+
+-- ---------- ticket templates ------------------------------------------------
+-- An admin uploads a ticket design with a plain white square in it. When a
+-- booking is confirmed the store detects that square inside the source image and
+-- pastes each attendee's QR code into it (see lib/tickets/compose.ts).
+
+create table if not exists ticket_templates (
+  id         uuid primary key default gen_random_uuid(),
+  slug       text not null unique,
+  -- One template can cover a single event or be the default for all of them.
+  -- `event` null = fallback used when an event has no template of its own.
+  event      text references events (slug) on delete cascade,
+  name       text not null,
+  -- The uploaded design, kept under public/uploads/templates/ as <id>.<ext>
+  file       text not null,
+  width      integer not null check (width > 0),
+  height     integer not null check (height > 0),
+  -- Where the white square was found, in pixels of the source image.
+  qr_x       integer not null,
+  qr_y       integer not null,
+  qr_size    integer not null check (qr_size > 0),
+  -- Optional font for the recipient's name/seat line; empty = default
+  font       text not null default '',
+  is_active  boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists ticket_templates_event_idx on ticket_templates (event) where is_active;
+
+-- ---------- the ticket email -----------------------------------------------
+-- One row. Each column overrides the message built into lib/tickets/email.ts;
+-- an empty column means "use the default", so the admin can reset a field by
+-- clearing it instead of retyping the original.
+
+create table if not exists mail_templates (
+  id         integer primary key check (id = 1),
+  subject    text not null default '',
+  heading    text not null default '',
+  body       text not null default '',
+  footer     text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+drop trigger if exists mail_templates_touch_updated_at on mail_templates;
+create trigger mail_templates_touch_updated_at
+  before update on mail_templates
+  for each row execute function set_updated_at();
+
+-- ---------- ticket scans ---------------------------------------------------
+-- Every booking gets one admission ticket. Its QR carries the reference plus a
+-- signature, so a phone that scans it can show the details without trusting the
+-- URL, and the gate can mark it admitted. `admitted_ref` stops the double entry
+-- in the same statement that sets the timestamp.
+
+alter table bookings
+  add column if not exists ticket_token  text,
+  add column if not exists admitted_at   timestamptz,
+  add column if not exists admitted_by   text not null default '';
+
+-- Existing rows (there should be none) get a token from the reference, which is
+-- already unique and unguessable enough; new rows generate one in lib/bookings.
+update bookings set ticket_token = reference where ticket_token is null;
+create unique index if not exists bookings_ticket_token_idx on bookings (ticket_token);
+
+alter table bookings
+  add column if not exists updated_at timestamptz not null default now();
+
+drop trigger if exists bookings_touch_updated_at on bookings;
+create trigger bookings_touch_updated_at
+  before update on bookings
+  for each row execute function set_updated_at();

@@ -56,3 +56,6 @@ HANDOFF.md
 PUSH-ME.md
 final-site.tar.gz
 realign.sh
+
+# admin-uploaded ticket artwork (lives in the database's storage dir on deploy)
+public/uploads/
