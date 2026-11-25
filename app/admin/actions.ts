@@ -11,6 +11,15 @@ import {
 import { getTicketByReference, getTicketByToken, listBookings } from "@/lib/bookings";
 import { sendTicketEmail } from "@/lib/tickets/email";
 import { friendlyError } from "@/lib/errors";
+import { query } from "@/lib/db";
+import {
+  deleteEvent,
+  saveEvent,
+  setFeatured,
+  unsetFeatured,
+  type EventDraft,
+} from "@/lib/events";
+import { uploadImage } from "@/lib/uploads";
 
 /**
  * Admin server actions.
@@ -193,4 +202,169 @@ function slugify(s: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 60);
+}
+
+/* ---------- events -------------------------------------------------- */
+
+/**
+ * The editor sends the whole draft as JSON.
+ *
+ * Repeated rows (rules, photos, links, tiers) are lists of unknown length; a
+ * form built from indexed fields would need a parser and would quietly drop a row
+ * the moment the client added one. One JSON body is checked again here, on the
+ * server, because the browser's copy of the draft is not evidence of anything.
+ */
+export async function saveEventAction(payload: string) {
+  await requireAdmin();
+
+  let parsed: { draft: EventDraft; mode: "create" | "update" };
+  try {
+    parsed = JSON.parse(payload) as { draft: EventDraft; mode: "create" | "update" };
+  } catch {
+    return { ok: false as const, error: "The form could not be read. Reload and try again." };
+  }
+
+  const mode = parsed.mode === "create" ? "create" : "update";
+  const result = await saveEvent(parsed.draft, mode);
+  if (!result.ok) return { ok: false as const, error: result.error };
+
+  revalidatePath("/admin/events");
+  revalidatePath("/tickets");
+  revalidatePath(`/events/${result.slug}`);
+  return { ok: true as const, slug: result.slug };
+}
+
+/** One photograph at a time, so a multi-megabyte file never rides inside the form. */
+export async function uploadEventImageAction(formData: FormData) {
+  await requireAdmin();
+  const file = formData.get("image");
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false as const, error: "Choose an image first." };
+  }
+  const result = await uploadImage(file);
+  if (!result.ok) return { ok: false as const, error: result.error };
+  return { ok: true as const, url: result.url };
+}
+
+/**
+ * Toggle an event in the /tickets spotlight. `on` is explicit rather than a
+ * toggle, so a double-click cannot leave the page in the state nobody wanted.
+ */
+export async function featureEventAction(slug: string, on: boolean) {
+  await requireAdmin();
+  try {
+    if (on) await setFeatured(slug);
+    else await unsetFeatured(slug);
+  } catch (err) {
+    return { ok: false as const, error: friendlyError(err) };
+  }
+  revalidatePath("/tickets");
+  revalidatePath("/admin/events");
+  revalidatePath(`/events/${slug}`);
+  return { ok: true as const };
+}
+
+export async function deleteEventAction(slug: string) {
+  await requireAdmin();
+  const result = await deleteEvent(slug);
+  if (!result.ok) return { ok: false as const, error: result.error };
+  revalidatePath("/admin/events");
+  revalidatePath("/tickets");
+  return { ok: true as const };
+}
+
+/** Publishes or hides an event from the list, without opening the editor. */
+export async function toggleEventPublishedAction(formData: FormData) {
+  await requireAdmin();
+  const slug = String(formData.get("slug") ?? "");
+  const published = String(formData.get("published") ?? "") === "true";
+  if (!slug) redirect("/admin/events?error=noslug");
+  try {
+    await query("update events set published = $2 where slug = $1", [slug, published]);
+  } catch (err) {
+    redirect(`/admin/events?error=${encodeURIComponent(friendlyError(err))}`);
+  }
+  revalidatePath("/admin/events");
+  revalidatePath("/tickets");
+  redirect(`/admin/events?ok=${encodeURIComponent(published ? "published" : "hidden")}`);
+}
+
+/** The list page's spotlight switch. Several events can be on at once. */
+export async function toggleEventFeaturedAction(formData: FormData) {
+  await requireAdmin();
+  const slug = String(formData.get("slug") ?? "").trim();
+  const featured = String(formData.get("featured") ?? "") === "true";
+  if (!slug) redirect("/admin/events?error=missing");
+
+  try {
+    if (featured) await setFeatured(slug);
+    else await unsetFeatured(slug);
+  } catch (err) {
+    redirect(`/admin/events?error=${encodeURIComponent(friendlyError(err))}`);
+  }
+
+  revalidatePath("/admin/events");
+  revalidatePath("/tickets");
+  revalidatePath(`/events/${slug}`);
+  redirect(
+    `/admin/events?ok=${encodeURIComponent(
+      featured ? "Added to the ticket page spotlight." : "Removed from the spotlight."
+    )}`
+  );
+}
+
+/* ------------- ticket artwork, edited from inside the event -------------
+   These return a result instead of redirecting, because the event editor calls
+   them from a client component and has to show the refusal in place. */
+
+export async function uploadEventDesignAction(formData: FormData) {
+  await requireAdmin();
+  const file = formData.get("design");
+  const name = String(formData.get("name") ?? "").trim();
+  const event = String(formData.get("event") ?? "").trim() || null;
+
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false as const, error: "Choose an image file first." };
+  }
+  if (!name) return { ok: false as const, error: "Give the design a name." };
+
+  try {
+    const result = await uploadTemplate({
+      file,
+      name,
+      event,
+      slug: slugify(name),
+    });
+    if (!result.ok) return { ok: false as const, error: result.error };
+    revalidatePath("/admin/events");
+    revalidatePath("/admin/templates");
+    if (event) revalidatePath(`/admin/events/${event}`);
+    return { ok: true as const };
+  } catch (err) {
+    return { ok: false as const, error: friendlyError(err) };
+  }
+}
+
+export async function setEventDesignActiveAction(id: string, active: boolean) {
+  await requireAdmin();
+  try {
+    await setTemplateActive(id, active);
+  } catch (err) {
+    return { ok: false as const, error: friendlyError(err) };
+  }
+  revalidatePath("/admin/events");
+  revalidatePath("/admin/templates");
+  return { ok: true as const };
+}
+
+export async function deleteEventDesignAction(id: string) {
+  await requireAdmin();
+  try {
+    await deleteTemplate(id);
+  } catch (err) {
+    return { ok: false as const, error: friendlyError(err) };
+  }
+  revalidatePath("/admin/events");
+  revalidatePath("/admin/templates");
+  return { ok: true as const };
 }

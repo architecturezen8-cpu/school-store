@@ -229,3 +229,30 @@ drop trigger if exists bookings_touch_updated_at on bookings;
 create trigger bookings_touch_updated_at
   before update on bookings
   for each row execute function set_updated_at();
+
+-- ---------- event pages ------------------------------------------------------
+-- An event used to be six columns and a picture: enough for a card, not enough
+-- for a page. These are the parts an admin writes — the hero copy, the story,
+-- the rules, the gallery and the links — plus the two switches that decide
+-- whether the event is on sale and whether it is the big one on /tickets.
+--
+-- Everything is additive and `if not exists`, so running this against a database
+-- that already has events is safe and keeps the existing rows.
+
+alter table events
+  add column if not exists tagline       text not null default '',
+  add column if not exists story         text not null default '',
+  add column if not exists rules         jsonb not null default '[]'::jsonb,
+  add column if not exists gallery       jsonb not null default '[]'::jsonb,
+  add column if not exists links         jsonb not null default '[]'::jsonb,
+  add column if not exists hero_image    text not null default '',
+  add column if not exists hero_kicker   text not null default '',
+  add column if not exists doors_open_at timestamptz,
+  add column if not exists ends_at       timestamptz,
+  add column if not exists position      integer not null default 0;
+
+-- A spots line ("1,200 seats · 4 ticket types") is derived, not stored.
+
+drop index if exists events_featured_idx;
+create index if not exists events_featured_idx on events (featured) where published;
+create index if not exists events_position_idx on events (position, starts_at);

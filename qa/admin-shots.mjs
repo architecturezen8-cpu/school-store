@@ -29,6 +29,9 @@ await page.waitForTimeout(600);
 const routes = [
   ["/admin", "admin-overview"],
   ["/admin/bookings", "admin-bookings"],
+  ["/admin/events", "admin-events"],
+  ["/admin/events/the-big-match", "admin-event-edit"],
+  ["/admin/events/new", "admin-event-new"],
   ["/admin/templates", "admin-templates"],
   ["/admin/mail", "admin-mail"],
   ["/admin/gate", "admin-gate"],

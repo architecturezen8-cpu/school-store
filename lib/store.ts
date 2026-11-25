@@ -12,6 +12,7 @@ import {
   type CollegeEvent,
 } from "@/data/seed";
 import { asset } from "./assets";
+import type { EventImage, EventLink, EventRule } from "@/data/seed";
 import { hasDatabase, query } from "./db";
 import { errorMessage } from "./errors";
 
@@ -82,11 +83,21 @@ const toProduct = (r: ProductRow): Product => ({
 });
 
 /** Applies the base-path prefix to every image field of a seed record. */
-function withAsset<T extends { image: string; gallery?: string[] }>(item: T): T {
+function withAsset<T extends { image: string }>(item: T): T {
+  const gallery = (item as { gallery?: unknown }).gallery;
   return {
     ...item,
     image: asset(item.image),
-    ...(item.gallery ? { gallery: item.gallery.map(asset) } : {}),
+    // A product's gallery is a list of URLs; an event's is a list of
+    // `{url, caption}`. Both need the same prefix, so handle both shapes here
+    // rather than making every caller remember which one it holds.
+    ...(Array.isArray(gallery)
+      ? {
+          gallery: gallery.map((g) =>
+            typeof g === "string" ? asset(g) : { ...g, url: asset((g as { url: string }).url) }
+          ),
+        }
+      : {}),
   };
 }
 
@@ -194,7 +205,55 @@ type EventRow = {
   image: string;
   tag: string | null;
   featured: boolean;
+  /* the page content — see db/schema.sql */
+  tagline: string | null;
+  story: string | null;
+  rules: unknown;
+  gallery: unknown;
+  links: unknown;
+  hero_image: string | null;
+  hero_kicker: string | null;
+  ends_at: string | null;
+  position: number | null;
 };
+
+/**
+ * Postgres hands `jsonb` back as already-parsed values, so these only have to
+ * guard against a column that is null, a string (a hand-edited row) or the
+ * wrong shape — never against valid JSON text.
+ */
+function asRules(value: unknown): EventRule[] {
+  const raw = typeof value === "string" ? safeJson(value) : value;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((r) => ({ title: String(r?.title ?? "").trim(), body: String(r?.body ?? "").trim() }))
+    .filter((r) => r.title || r.body);
+}
+
+function asGallery(value: unknown): EventImage[] {
+  const raw = typeof value === "string" ? safeJson(value) : value;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((g) => ({ url: String(g?.url ?? "").trim(), caption: String(g?.caption ?? "").trim() }))
+    .filter((g) => g.url)
+    .map((g) => (g.caption ? g : { url: g.url }));
+}
+
+function asLinks(value: unknown): EventLink[] {
+  const raw = typeof value === "string" ? safeJson(value) : value;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((l) => ({ label: String(l?.label ?? "").trim(), url: String(l?.url ?? "").trim() }))
+    .filter((l) => l.label && l.url);
+}
+
+function safeJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return [];
+  }
+}
 type TierRow = {
   id: string;
   event: string;
@@ -209,8 +268,10 @@ export async function getEvents(): Promise<CollegeEvent[]> {
     const [rows, tiers] = await Promise.all([
       query<EventRow>(
         `select slug, title, subtitle, description, venue, city, starts_at, doors,
-                image, tag, featured
-           from events where published order by starts_at`
+                image, tag, featured,
+                tagline, story, rules, gallery, links,
+                hero_image, hero_kicker, ends_at, position
+           from events where published order by position, starts_at`
       ),
       query<TierRow>(
         "select id, event, name, price, perks, note from ticket_tiers order by event, position"
@@ -245,9 +306,24 @@ export async function getEvents(): Promise<CollegeEvent[]> {
         tag: r.tag ?? undefined,
         featured: r.featured,
         tiers: bySlug.get(r.slug) ?? [],
+        heroKicker: r.hero_kicker || undefined,
+        tagline: r.tagline || undefined,
+        heroImage: r.hero_image ? asset(r.hero_image) : undefined,
+        story: r.story || undefined,
+        rules: asRules(r.rules),
+        gallery: asGallery(r.gallery).map((g) => ({ ...g, url: asset(g.url) })),
+        links: asLinks(r.links),
+        endsAt: r.ends_at ? new Date(r.ends_at) : undefined,
+        position: r.position ?? 0,
       }))
       .filter((e) => e.tiers.length > 0);
   }, seedEvents.map(withAsset));
+}
+
+/** One published event, for its own page. undefined = no such event on sale. */
+export async function getEvent(slug: string): Promise<CollegeEvent | undefined> {
+  const all = await getEvents();
+  return all.find((e) => e.slug === slug);
 }
 
 /* ---------- misc ------------------------------------------------------------ */

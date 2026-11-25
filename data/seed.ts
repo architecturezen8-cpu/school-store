@@ -463,10 +463,21 @@ export type Tier = {
   note?: string;
 };
 
+/** A numbered rule or a line of small print on an event page. */
+export type EventRule = { title: string; body: string };
+
+/** A photograph in the event's gallery. `caption` is optional, as on a poster. */
+export type EventImage = { url: string; caption?: string };
+
+/** A link out of the event page — an announcement, a map, a sponsor. */
+export type EventLink = { label: string; url: string };
+
 export type CollegeEvent = {
   slug: string;
   title: string;
+  /** The one-line teaser under the title on a card. */
   subtitle: string;
+  /** The paragraph in the hero. */
   description: string;
   venue: string;
   city: string;
@@ -476,6 +487,30 @@ export type CollegeEvent = {
   tag?: string;
   featured?: boolean;
   tiers: Tier[];
+
+  /* ---- the event page ---------------------------------------------------
+   * Everything below is optional so an event that has never been opened in the
+   * admin still renders: the page falls back to the card copy, which is the
+   * material the store has always had.
+   */
+  /** "Round 71 · One day only" — the small line above the hero title. */
+  heroKicker?: string;
+  /** One sentence of summary, for the "In short" card beside the story. */
+  tagline?: string;
+  /** The hero photograph; falls back to `image`. */
+  heroImage?: string;
+  /** A second, longer paragraph: the story of the day. Blank lines break paragraphs. */
+  story?: string;
+  /** Numbered rules. */
+  rules?: EventRule[];
+  /** Gallery photographs, shown under the story. */
+  gallery?: EventImage[];
+  /** Outbound links — the schedule, a map, the old boys' association. */
+  links?: EventLink[];
+  /** Shown with the countdown. */
+  endsAt?: Date;
+  /** Ordering in the admin; lower comes first. */
+  position?: number;
 };
 
 /** Dates are generated relative to today so the countdown never expires. */
@@ -495,6 +530,55 @@ export const events: CollegeEvent[] = [
     image: hero1,
     tag: "Flagship Event",
     featured: true,
+    position: 0,
+    heroKicker: "Round 71 · One day only",
+    heroImage: hero1,
+    tagline:
+      "The 71st encounter: cricket from eight in the morning until the light goes, with the stands full and the band playing through the interval.",
+    story: `Every January the college grounds fill before eight o'clock. Old boys who left twenty years ago stand in the same spot on the eastern bank. The band tunes up behind the pavilion. The whole town comes.
+
+The cricket is the reason, but it is not the whole reason. The Big Match is the one day the school is everybody's — the juniors selling programmes at the gate, the parents in the tent, the 1998 batch pretending they can still field.
+
+The match is played over one day, with an interval at half past twelve. Gates open at eight. Bring a hat, and bring someone who has never been.`,
+    rules: [
+      {
+        title: "One ticket, one entry",
+        body: "Your QR is scanned once at the gate. A screenshot of someone else's ticket will be refused.",
+      },
+      {
+        title: "No glass bottles",
+        body: "Anything in glass goes into a cup at the gate — this is a ground full of barefoot children.",
+      },
+      {
+        title: "Seating is first come",
+        body: "Grandstand and shaded seats are not numbered. The gates open an hour before play for a reason.",
+      },
+      {
+        title: "Under-12s free with an adult",
+        body: "No ticket needed at the gate, but they must be with a ticket holder.",
+      },
+      {
+        title: "No flares or fireworks",
+        body: "The band is loud enough. Anything burning is taken at the gate and not returned.",
+      },
+      {
+        title: "Rain",
+        body: "Play may be interrupted; tickets are not refunded for weather, but the ground stays open.",
+      },
+    ],
+    gallery: [
+      { url: hero1, caption: "The eastern bank, ten minutes before the first ball" },
+      { url: hero2, caption: "The band at the interval" },
+      { url: hero3, caption: "The pavilion, 2025" },
+    ],
+    links: [
+      { label: "Match schedule & teams", url: "/tickets" },
+      {
+        label: "The college on the map",
+        url: "https://maps.google.com/?q=St+Thomas+College+Matale",
+      },
+      { label: "Old Boys' Association", url: "https://stcmoba.lk" },
+    ],
     tiers: [
       {
         id: "standard",
@@ -535,6 +619,31 @@ export const events: CollegeEvent[] = [
     doors: "Doors open 7:00 PM",
     image: catTickets,
     tag: "Formal",
+        position: 1,
+    heroImage: hero2,
+    tagline: "An evening in the college calendar, and one worth dressing for.",
+    story: `The evening begins with the guard of honour and does not really end until the last table leaves.
+
+Dinner is served at eight. The band plays two sets. The photographs are taken on the steps at half past nine, which is the only part anyone is ever late for.
+
+Tickets are per person and include the full evening.`,
+    rules: [
+      { title: "Smart dress", body: "The college tie, or a jacket. No shorts after seven." },
+      {
+        title: "Table seating",
+        body: "Tables seat ten. Say who you are sitting with when you book and we will do our best.",
+      },
+      {
+        title: "Photographs",
+        body: "The official photographer is on the steps from half past nine.",
+      },
+    ],
+    links: [
+      {
+        label: "The college on the map",
+        url: "https://maps.google.com/?q=St+Thomas+College+Matale",
+      },
+    ],
     tiers: [
       {
         id: "single",
@@ -568,6 +677,34 @@ export const events: CollegeEvent[] = [
     date: inDays(24),
     doors: "Seating from 8:30 AM",
     image: hero2,
+    position: 2,
+    heroImage: hero2,
+    tagline: "The college honours its scholars and sportsmen for the year, in the hall where it has always been done.",
+    story: `Prize Day is the formal one. The hall is full by half past eight, the staff are in gowns, and the list of names is read out from the stage in the order it has been read for a hundred years.
+
+Each prize winner is given two seats on the floor. The rest of the hall is open to parents and old boys, and it fills quickly.
+
+The ceremony runs about two hours, with tea on the lawn afterwards.`,
+    rules: [
+      {
+        title: "Two seats per prize winner",
+        body: "Booked together. Extra seats are on the balcony, first come.",
+      },
+      {
+        title: "Be seated by 8:45",
+        body: "The procession enters at nine and the doors close behind it.",
+      },
+      {
+        title: "Photographs after, not during",
+        body: "The photographer is on the lawn from eleven. No phones in the aisle.",
+      },
+    ],
+    links: [
+      {
+        label: "The college on the map",
+        url: "https://maps.google.com/?q=St+Thomas+College+Matale",
+      },
+    ],
     tiers: [
       {
         id: "general",
@@ -595,6 +732,34 @@ export const events: CollegeEvent[] = [
     doors: "From 7:30 AM",
     image: hero3,
     tag: "Free Entry",
+    position: 3,
+    heroImage: hero3,
+    tagline: "The college remembers the men who founded it, in the chapel, on the morning of the anniversary.",
+    story: `Founders' Day begins in the chapel at seven, before the heat. The choir sings, the warden speaks, and the roll of the school's founders is read.
+
+It is the quietest morning in the college calendar. Old boys come back for it more than for anything else.
+
+Breakfast is served in the hall afterwards, and everyone is welcome, whether they booked or not — the ticket is for the chapel, which has limited seats.`,
+    rules: [
+      {
+        title: "Chapel seating",
+        body: "Seats are limited and unreserved; the ticket reserves you a place, not a particular pew.",
+      },
+      {
+        title: "Silence in the chapel",
+        body: "Phones off. The service is recorded for the college archive.",
+      },
+      {
+        title: "Breakfast is open",
+        body: "No ticket needed for the hall afterwards.",
+      },
+    ],
+    links: [
+      {
+        label: "The college on the map",
+        url: "https://maps.google.com/?q=St+Thomas+College+Matale",
+      },
+    ],
     tiers: [
       {
         id: "free",
@@ -621,6 +786,34 @@ export const events: CollegeEvent[] = [
     date: inDays(31),
     doors: "Gates open 7:00 AM",
     image: catUniform,
+    position: 4,
+    heroImage: hero3,
+    tagline: "Six houses, one track, and a whole day of the loudest cheering the grounds hear all year.",
+    story: `The athletics meet is the one day the houses compete in everything at once — track, field, relays and the tug of war that ends the afternoon.
+
+The stands are divided by house colour, which makes for a wall of noise from the first whistle. Parents and old boys are welcome on the western bank.
+
+Gates open at eight. The programme is printed on the day and sold at the gate.`,
+    rules: [
+      {
+        title: "Stand behind the rope",
+        body: "The track is live all day. Crossing it during an event stops the race.",
+      },
+      {
+        title: "House colours",
+        body: "Wear yours. The stands are judged as much as the track.",
+      },
+      {
+        title: "Water",
+        body: "Free water points are at both ends of the stand. Bring a bottle, not glass.",
+      },
+    ],
+    links: [
+      {
+        label: "The college on the map",
+        url: "https://maps.google.com/?q=St+Thomas+College+Matale",
+      },
+    ],
     tiers: [
       {
         id: "entrance",

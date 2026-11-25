@@ -31,12 +31,12 @@ export const metadata: Metadata = {
 export default async function TemplatesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; ok?: string }>;
+  searchParams: Promise<{ error?: string; ok?: string; event?: string }>;
 }) {
   if (!(await isAdmin())) redirect("/admin?next=/admin/templates");
   if (!hasDatabase()) redirect("/admin?error=database");
 
-  const { error, ok } = await searchParams;
+  const { error, ok, event: forEvent } = await searchParams;
   const problem = databaseProblem();
   // The design list is the one read here that has no seed fallback, so a dead
   // database would otherwise mean an empty page with no explanation.
@@ -70,14 +70,21 @@ export default async function TemplatesPage({
       <div className="grid gap-3 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
         {/* ---------------- upload ---------------- */}
         <div className="space-y-3">
-          <Panel title="Upload a design">
+          <Panel
+            title="Upload a design"
+            description={
+              forEvent
+                ? `Uploading for ${events.find((e) => e.slug === forEvent)?.title ?? forEvent}.`
+                : undefined
+            }
+          >
             <form action={uploadTemplateAction} className="space-y-4">
               <Field label="Design name">
                 <input name="name" required placeholder="Big Match 2027" className={inputClass} />
               </Field>
 
               <Field label="Event" hint="blank = all events">
-                <select name="event" defaultValue="" className={selectClass}>
+                <select name="event" defaultValue={forEvent ?? ""} className={selectClass}>
                   <option value="">All events (default)</option>
                   {events.map((e) => (
                     <option key={e.slug} value={e.slug}>
