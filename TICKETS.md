@@ -71,8 +71,8 @@ tied to a single event, or left as the default for every event.
 ### The email
 
 **One design, not a gallery.** Every customer gets the same mail: the crest in a
-white circle, the date and the event on a gold band, the message, one code per
-seat, a three-column details row and one wide button. There is no "pick a
+white circle, the event's photograph as the header, the date and event on a gold
+band, the message, a three-column details row and one wide button. There is no "pick a
 design" step, because a school sending one kind of ticket does not need one.
 
 **One email per sale, one attached ticket per seat.** Buying four tickets sends
@@ -86,10 +86,18 @@ The message body has no grid of codes. A wall of QR squares is not a ticket, and
 the artwork already carries the code where the design put it; the body says how
 many files are attached and points at them.
 
-**The hero is the event's photograph, washed into the navy.** A `background-image`
-on the header cell under a fixed navy gradient, so the crest and the school name
-still read at 4.5:1 whatever the picture is. Outlook, which drops CSS
-backgrounds, keeps the flat navy and loses only the decoration.
+**The hero is the event's photograph, and it is a real image.** The photograph is
+read on the server, cropped to a 600 × 270 banner (1200 × 540 for retina), washed
+into the navy with sharp — fully opaque navy at the top and bottom edge, so the
+band joins the masthead and the gold tile with no seam — and attached as
+`cid:hero-banner`.
+
+It used to be a CSS `background-image` pointing at an absolute URL, which is why
+the admin preview showed the photograph and the inbox did not: a browser renders
+CSS, and Gmail and Outlook strip backgrounds and block remote images in plenty of
+contexts. A `<img>` on a `cid:` is part of the message, so it arrives. The crest
+and the school name now sit on the navy above the photograph rather than on top
+of it, so no word ever depends on a picture that may be missing.
 
 **The crest is inlined, not linked.** A remote `src` is a broken-image icon the
 moment the reader's client cannot fetch it — the host has moved on, the file is
@@ -129,24 +137,23 @@ typed by hand would eventually put the wrong number in front of a customer.
 
 The message, top to bottom:
 
-1. **Cover** — the event photo under a flat dark wash, with `EST. 1873`,
-   `ST. THOMAS' COLLEGE`, `MATALE · SRI LANKA`, a gold rule, the date, the event
-   name and the message. Outlook ignores the photo and keeps the wash, so
-   nothing depends on the photograph for contrast.
-2. **Your entry code** — the QR at 220 px, drawn from the ticket's own link and
-   embedded in the message (so it shows even when a mail client blocks remote
-   images). A QR that is 18 % of a wide design is only about 100 px once the mail
-   scales the artwork down; the close-up is what people actually scan.
-3. **The ticket** — the admin's uploaded artwork at up to 552 px, with the QR in
-   its white square. Also attached as a PNG, and the whole thing is a link.
-4. **Reference · Seats · Paid** — three cells with hairline dividers, then a
-   monospace line: `▮ PAYMENT DONE · LKR 3,500 · REF BM-ABC123`.
-5. **One wide gold button** — to the ticket page.
-6. **Footer** — the admin's small print, then the compliance line.
+1. **Masthead** — the crest in a white circle, `ST. THOMAS' COLLEGE`,
+   `MATALE · SRI LANKA`, on the navy.
+2. **Header photograph** — the event's hero photo, washed into the navy, inline.
+3. **Gold band** — the date, the event name and (for a multi-seat sale) how many
+   tickets are in the message.
+4. **The message** — the admin's wording.
+5. **Your tickets** — one panel saying how many files are attached. No grid of
+   codes: the artwork carries the code, and one code per person travels as one
+   attached PNG.
+6. **Reference · Seats · Paid** — three cells with hairline dividers.
+7. **One wide gold button** — to the ticket page.
+8. **Footer** — the admin's small print, then the compliance line.
 
 The preview on `/admin/mail` is the real message, not a mock-up: it is rendered
-by `buildTicketMail()` — the same function that sends — inside an iframe, with
-the inline QR swapped for its public URL. The test send goes through the same
+by `buildBookingMail()` — the same function that sends — inside an iframe, with
+the inline parts (the header photograph, the crest) swapped for `data:` URIs so
+the frame shows the bytes that were actually attached. The test send goes through the same
 `sendTicketEmail()`, to the address the admin types instead of the buyer's.
 
 Resend is used when `RESEND_API_KEY` is set; otherwise plain SMTP. With neither,
@@ -186,9 +193,10 @@ finished panel live in `docs/screens/` — `admin-overview.png`, `admin-bookings
 - At the gate, sign in and open `/admin/gate` (or `/gate`) on a phone. The camera uses the browser's
   `BarcodeDetector` where it exists; where it does not (iOS Safari, Firefox), the
   box takes a pasted link or a typed reference.
-- **One admission per booking.** The first scan admits and records who scanned
-  it; a second scan says *already admitted* and shows the original time, so a
-  shared screenshot is obvious at the turnstile.
+- **One admission per ticket.** Each seat has its own code, so ten tickets admit
+  ten people. The scan records who was admitted and when; scanning the same
+  ticket again says *already admitted* and shows the original time, so a shared
+  screenshot is obvious at the turnstile.
 - A mis-scan can be undone from the gate screen; the ticket becomes valid again.
 - A QR with a wrong signature is refused before the database is touched. A typed
   reference is accepted because only a signed-in admin can reach `/gate`.
