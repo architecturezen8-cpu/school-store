@@ -119,16 +119,19 @@ Resend is used when `RESEND_API_KEY` is set; otherwise plain SMTP. With neither,
 bookings still succeed, the mail is logged to the server console, and the
 confirmation screen says the ticket is below instead of claiming it was emailed.
 
+![The ticket email](docs/screens/ticket-email.png)
+
 ### The admin is a separate app
 
 `/admin` does not render inside the store. It has its own layout
 (`app/admin/layout.tsx`), its own sidebar and its own palette — flat navy fills,
 one gold accent, **no gradients and no glassmorphism anywhere** — and
 `components/SiteChrome.tsx` bails out before drawing the navbar, footer, bag or
-search overlay. The sidebar carries the school crest at the top, the sections in
+search overlay. The sidebar (below) carries the school crest at the top, the sections in
 the middle (Overview, Bookings, Ticket designs, Ticket email, Gate scanner) and
 the signed-in profile with sign-out at the bottom. Below `lg` it becomes a top
-bar with a menu button. Every admin route is `noindex`.
+bar with a menu button. Every admin route is `noindex`. Screenshots of the
+finished panel live in `docs/screens/`.
 
 ## 3. Selling and scanning
 
