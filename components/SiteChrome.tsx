@@ -7,6 +7,7 @@ import SearchOverlay from "@/components/SearchOverlay";
 import CartDrawer from "@/components/CartDrawer";
 import TrackOrderModal from "@/components/TrackOrderModal";
 import { onOpenSearch, onOpenTrack, useRouteName } from "@/lib/nav";
+import { usePathname } from "next/navigation";
 import type { Product } from "@/data/seed";
 
 /**
@@ -27,10 +28,18 @@ export default function SiteChrome({
   const [searchOpen, setSearchOpen] = useState(false);
   const [trackOpen, setTrackOpen] = useState(false);
   const routeName = useRouteName();
+  const pathname = usePathname();
+
+  // The admin is a separate app: no navbar, no footer, no bag. Bailing out
+  // before the hooks below would break the rules of hooks, so the early return
+  // comes after them — the overlays simply never mount on /admin.
+  const isAdmin = pathname?.startsWith("/admin") ?? false;
 
   // Pages open the search overlay through this event — see lib/nav.tsx.
   useEffect(() => onOpenSearch(() => setSearchOpen(true)), []);
   useEffect(() => onOpenTrack(() => setTrackOpen(true)), []);
+
+  if (isAdmin) return <>{children}</>;
 
   return (
     <div className="relative min-h-screen overflow-x-clip bg-ink font-sans text-white">

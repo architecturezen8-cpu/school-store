@@ -283,24 +283,61 @@ export async function reopenTicket(token: string): Promise<boolean> {
   return Boolean(rows[0]);
 }
 
-/** Recent bookings for the admin panel. */
-export async function listBookings(limit = 100) {
+/** What a bookings table needs, without a query per row. */
+export type BookingRow = {
+  reference: string;
+  token: string;
+  event: string;
+  eventTitle: string;
+  eventDate: string;
+  venue: string;
+  city: string;
+  name: string;
+  email: string;
+  total: number;
+  seats: number;
+  /** "Grandstand Seat × 2, Stand × 1" — ready to print. */
+  seatsText: string;
+  status: string;
+  createdAt: string;
+  admittedAt: string | null;
+};
+
+/**
+ * Recent bookings for the admin panel.
+ *
+ * The tier breakdown is aggregated in SQL rather than looped per booking: the
+ * bookings page lists hundreds of rows, and N+1 queries there would make the
+ * panel feel broken.
+ */
+export async function listBookings(limit = 100): Promise<BookingRow[]> {
   const rows = await query<{
     reference: string;
     ticket_token: string;
     event: string;
     title: string;
+    starts_at: string;
+    venue: string;
+    city: string;
     name: string;
     email: string;
     total: number;
     status: string;
     created_at: string;
     admitted_at: string | null;
+    seats: number | string;
+    seats_text: string | null;
   }>(
-    `select b.reference, b.ticket_token, b.event, e.title, b.name, b.email, b.total,
-            b.status, b.created_at, b.admitted_at
+    `select b.reference, b.ticket_token, b.event, e.title, e.starts_at, e.venue, e.city,
+            b.name, b.email, b.total, b.status, b.created_at, b.admitted_at,
+            coalesce(sum(bi.qty), 0) as seats,
+            string_agg(t.name || ' × ' || bi.qty, ', ' order by t.name) as seats_text
        from bookings b
        join events e on e.slug = b.event
+       left join booking_items bi on bi.booking = b.id
+       left join ticket_tiers t on t.id = bi.tier
+      group by b.id, b.reference, b.ticket_token, b.event, e.title, e.starts_at,
+               e.venue, e.city, b.name, b.email, b.total, b.status, b.created_at, b.admitted_at
       order by b.created_at desc
       limit $1`,
     [limit]
@@ -310,9 +347,14 @@ export async function listBookings(limit = 100) {
     token: r.ticket_token,
     event: r.event,
     eventTitle: r.title,
+    eventDate: r.starts_at,
+    venue: r.venue,
+    city: r.city,
     name: r.name,
     email: r.email,
     total: Number(r.total),
+    seats: Number(r.seats ?? 0),
+    seatsText: r.seats_text ?? "",
     status: r.status,
     createdAt: r.created_at,
     admittedAt: r.admitted_at,
