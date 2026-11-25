@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import sharp from "sharp";
 import { isAdmin } from "@/lib/admin/auth";
 import { listBookings, getTicketByToken, ticketsForBooking } from "@/lib/bookings";
 import { databaseDown } from "@/lib/db";
 import { buildBookingMail, sampleTicket } from "@/lib/tickets/email";
+import { listAllEvents } from "@/lib/events";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -79,6 +83,36 @@ export async function GET(req: Request) {
     return uri ? `src="${uri}"` : whole;
   });
 
+  // The hero wash uses the event photograph as a CSS background, and the photo
+  // lives at an absolute URL. In an inbox that is fine; in this frame it is a
+  // request the preview cannot make, so the wash would show as flat navy and the
+  // admin would think the design was not applied. Rewrite it to the artwork the
+  // preview already has in hand.
+  const heroSrc = await heroPreviewDataUri(preview.event);
+  if (heroSrc) {
+    html = html.replace(
+      /background-image:url\('[^']*'\)/g,
+      `background-image:url('${heroSrc}')`
+    );
+  }
+
+  // The attached ticket is not part of the HTML — a mail client shows it as a
+  // file under the message. The frame has no such area, so append the same PNG
+  // at the end, labelled, which is what the admin needs to check: that the design
+  // arrived with the code in it.
+  if (mail.artwork) {
+    const dataUri = `data:image/png;base64,${mail.artwork.toString("base64")}`;
+    html = html.replace(
+      "</table>\n</body>",
+      `</table>
+       <div style="max-width:600px;margin:0 auto;padding:18px 12px 0">
+         <div style="color:#8b9ab5;font-size:10px;letter-spacing:3px;text-transform:uppercase;padding-bottom:10px;text-align:center">Also attached as a file</div>
+         <img src="${dataUri}" alt="The attached ticket" style="display:block;width:100%;height:auto;border:1px solid #1d2740">
+       </div>
+      </body>`
+    );
+  }
+
   html = html
     .replace(
       "<html lang=\"en\">",
@@ -100,4 +134,31 @@ export async function GET(req: Request) {
       "x-robots-tag": "noindex",
     },
   });
+}
+
+/**
+ * The event's hero photograph as a `data:` URI, for the preview frame.
+ *
+ * Read from disk rather than fetched: the stored value is a public path, and a
+ * round trip to our own server to render a picture we can open directly is the
+ * kind of thing that works on a laptop and falls over in a container with no
+ * outbound network.
+ */
+async function heroPreviewDataUri(eventSlug: string): Promise<string> {
+  try {
+    const events = await listAllEvents();
+    const event = events.find((e) => e.slug === eventSlug);
+    const src = event?.heroImage || event?.image || "";
+    if (!src) return "";
+    if (/^https?:\/\//i.test(src)) return src;
+
+    const raw = await readFile(path.join(process.cwd(), "public", src.replace(/^\//, "")));
+    const small = await sharp(raw)
+      .resize({ width: 900, withoutEnlargement: true })
+      .jpeg({ quality: 70 })
+      .toBuffer();
+    return `data:image/jpeg;base64,${small.toString("base64")}`;
+  } catch {
+    return "";
+  }
 }

@@ -54,10 +54,25 @@ export async function buildTicketReceipt(
   const first = tickets[0];
 
   const pdf = await PDFDocument.create();
-  const page = pdf.addPage([PAGE.width, PAGE.height]);
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
   const serif = await pdf.embedFont(StandardFonts.TimesRoman);
+
+  /**
+   * New pages, and the one below the content.
+   *
+   * The receipt used to be a single `addPage()` with a ticket list that ran off
+   * the bottom — which is what a 16-seat booking did to it: rows 12 onwards were
+   * drawn past the paper edge and simply were not there. Tickets flow now, and a
+   * second page continues with the same header rather than a blank one.
+   */
+  let page = pdf.addPage([PAGE.width, PAGE.height]);
+  const newPage = () => {
+    page = pdf.addPage([PAGE.width, PAGE.height]);
+    return page;
+  };
+  // Start high enough that the header does not sit under a page number later.
+  const top = () => PAGE.height - MARGIN;
 
   pdf.setTitle(`Receipt ${first.reference} — St. Thomas' College Matale`);
   pdf.setAuthor("The Thomian Store");
@@ -228,7 +243,24 @@ export async function buildTicketReceipt(
   );
   y -= 18;
 
-  for (const t of tickets) {
+  // The footer needs room on the last page, so a row is only drawn if it fits
+  // above it.
+  const footerRoom = MARGIN + 70;
+  const rowHeight = 26;
+
+  for (const [i, t] of tickets.entries()) {
+    if (y - rowHeight < footerRoom) {
+      // Page break: a fresh page, and the table header repeated so the reader
+      // does not lose the columns.
+      newPage();
+      y = top();
+      page.drawText(
+        `ADMISSION — continued (${i + 1}–${tickets.length} of ${tickets.length})`,
+        { x: MARGIN, y, size: 7, font: bold, color: MUTED }
+      );
+      y -= 18;
+    }
+
     // A tinted bar per ticket, so four of them read as four things rather than
     // one paragraph of codes.
     page.drawRectangle({
@@ -254,7 +286,7 @@ export async function buildTicketReceipt(
       font: bold,
       color: t.admittedAt ? MUTED : INK,
     });
-    y -= 26;
+    y -= rowHeight;
   }
 
   /* ---------- footer ---------- */
@@ -273,6 +305,39 @@ export async function buildTicketReceipt(
     `Ticket links: ${ticketUrl(first.token, signTicket(first.token))}`,
     { x: MARGIN, y: footerY - 11, size: 6.5, font: regular, color: MUTED, maxWidth: PAGE.width - MARGIN * 2 }
   );
+
+  /* ---------- page numbers ---------- */
+  // Only when there is more than one page: "Page 1 of 1" on a one-page receipt
+  // is noise.
+  const pages = pdf.getPages();
+  if (pages.length > 1) {
+    pages.forEach((p, i) => {
+      const label = `Page ${i + 1} of ${pages.length}`;
+      p.drawText(label, {
+        x: PAGE.width - MARGIN - regular.widthOfTextAtSize(label, 7),
+        y: MARGIN + 14,
+        size: 7,
+        font: regular,
+        color: MUTED,
+      });
+      // A hairline so the folio reads as a folio, not as stray text.
+      p.drawLine({
+        start: { x: MARGIN, y: MARGIN + 26 },
+        end: { x: PAGE.width - MARGIN, y: MARGIN + 26 },
+        thickness: 0.5,
+        color: LINE,
+      });
+      // The reference on every page, so a page that gets separated still says
+      // which receipt it belongs to.
+      p.drawText(`Receipt ${first.reference}`, {
+        x: MARGIN,
+        y: MARGIN + 14,
+        size: 7,
+        font: regular,
+        color: MUTED,
+      });
+    });
+  }
 
   return pdf.save();
 }

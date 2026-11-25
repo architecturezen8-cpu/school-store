@@ -126,16 +126,26 @@ export async function uploadLogo(file: File): Promise<UploadedImage> {
   let output: Buffer;
   try {
     const bytes = Buffer.from(await file.arrayBuffer());
+    // Transparency is kept.
+    //
+    // This used to flatten the upload onto white and pad it on white, which
+    // produced a square white plate around every transparent crest — and inside
+    // the white circle that plate is invisible on a white-background circle but
+    // obvious against the navy hero of the email, exactly as reported. The file
+    // now keeps its alpha and is padded on transparent, so the only white the
+    // mark sits on is the circle the site draws behind it.
+    //
+    // JPEG and WebP-without-alpha have no transparency to lose, so they are
+    // unchanged in practice: they are already opaque.
     output = await sharp(bytes)
       .rotate()
       .resize({
         width: LOGO_EDGE,
         height: LOGO_EDGE,
         fit: "contain",
-        background: { r: 255, g: 255, b: 255, alpha: 1 },
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
       })
-      .flatten({ background: "#ffffff" })
-      .png({ compressionLevel: 9 })
+      .png({ compressionLevel: 9, palette: false })
       .toBuffer();
   } catch {
     return { ok: false, error: "That file is not a readable image." };
