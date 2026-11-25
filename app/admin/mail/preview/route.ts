@@ -1,12 +1,8 @@
 import { NextResponse } from "next/server";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-import sharp from "sharp";
 import { isAdmin } from "@/lib/admin/auth";
 import { listBookings, getTicketByToken, ticketsForBooking } from "@/lib/bookings";
 import { databaseDown } from "@/lib/db";
 import { buildBookingMail, sampleTicket } from "@/lib/tickets/email";
-import { listAllEvents } from "@/lib/events";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,9 +14,10 @@ export const dynamic = "force-dynamic";
  *
  * The admin preview used to be a hand-built mock-up that drifted from the real
  * message the moment either changed. This returns `buildBookingMail().html`
- * instead, with one substitution: every inline code (`cid:ticket-qr-N`) becomes
- * a `data:` URI, because `<img src="cid:…">` renders as nothing outside a mail
- * client — which is exactly why the preview arrived with empty images.
+ * instead, with one substitution: every inline image (`cid:hero-banner`, the
+ * crest) becomes a `data:` URI, because `<img src="cid:…">` renders as nothing
+ * outside a mail client — which is exactly why the preview arrived with empty
+ * images.
  *
  * The response is the document itself, not a file — the frame in
  * /admin/mail just points at this URL, so "refresh" means "refresh the mail".
@@ -67,13 +64,14 @@ export async function GET(req: Request) {
     : [];
   const mail = await buildBookingMail(sale.length ? sale : [preview]);
 
-  // Every code in the message is inline (`cid:ticket-qr-N`), which renders as
-  // nothing outside a mail client. Swap each one for the same PNG as a data:
-  // URI, taken from the buffer that was actually attached, so the frame shows
-  // the real codes and never a broken-image icon.
-  const dataUris = new Map<string, string>(
-    mail.codes.map((c) => [c.cid, `data:image/png;base64,${c.buffer.toString("base64")}`])
-  );
+  // The header photograph and the crest are inline (`cid:…`), which renders as
+  // nothing outside a mail client. Swap each for the same bytes as a data: URI,
+  // taken from the part that was actually attached, so the frame shows exactly
+  // what the inbox will and never a broken-image icon.
+  const dataUris = new Map<string, string>();
+  if (mail.hero) {
+    dataUris.set("hero-banner", `data:image/jpeg;base64,${mail.hero.toString("base64")}`);
+  }
   if (mail.logo) {
     dataUris.set("brand-logo", `data:image/png;base64,${mail.logo.toString("base64")}`);
   }
@@ -82,19 +80,6 @@ export async function GET(req: Request) {
     const uri = dataUris.get(cid);
     return uri ? `src="${uri}"` : whole;
   });
-
-  // The hero wash uses the event photograph as a CSS background, and the photo
-  // lives at an absolute URL. In an inbox that is fine; in this frame it is a
-  // request the preview cannot make, so the wash would show as flat navy and the
-  // admin would think the design was not applied. Rewrite it to the artwork the
-  // preview already has in hand.
-  const heroSrc = await heroPreviewDataUri(preview.event);
-  if (heroSrc) {
-    html = html.replace(
-      /background-image:url\('[^']*'\)/g,
-      `background-image:url('${heroSrc}')`
-    );
-  }
 
   // The attached tickets are not part of the HTML — a mail client shows them as
   // files under the message. The frame has no such area, so append them at the
@@ -147,31 +132,4 @@ export async function GET(req: Request) {
       "x-robots-tag": "noindex",
     },
   });
-}
-
-/**
- * The event's hero photograph as a `data:` URI, for the preview frame.
- *
- * Read from disk rather than fetched: the stored value is a public path, and a
- * round trip to our own server to render a picture we can open directly is the
- * kind of thing that works on a laptop and falls over in a container with no
- * outbound network.
- */
-async function heroPreviewDataUri(eventSlug: string): Promise<string> {
-  try {
-    const events = await listAllEvents();
-    const event = events.find((e) => e.slug === eventSlug);
-    const src = event?.heroImage || event?.image || "";
-    if (!src) return "";
-    if (/^https?:\/\//i.test(src)) return src;
-
-    const raw = await readFile(path.join(process.cwd(), "public", src.replace(/^\//, "")));
-    const small = await sharp(raw)
-      .resize({ width: 900, withoutEnlargement: true })
-      .jpeg({ quality: 70 })
-      .toBuffer();
-    return `data:image/jpeg;base64,${small.toString("base64")}`;
-  } catch {
-    return "";
-  }
 }
