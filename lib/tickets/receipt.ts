@@ -20,9 +20,13 @@ import { ticketUrl, signTicket } from "./sign";
  *
  *   · the crest, then the school, then "Receipt"
  *   · the booking: reference, buyer, date, event, venue
- *   · one line per ticket type with quantity and amount, then the total
- *   · each ticket's reference and code, so the gate can match the paper to the QR
+ *   · one line per ticket type with quantity and amount
+ *   · how many tickets were bought, then the total paid
  *   · a footer that says what the document is and where it came from
+ *
+ * The receipt deliberately has no list of codes. A code per head belongs on the
+ * ticket the person carries; on the proof of payment it is sixteen lines of
+ * noise that push the total onto a page of its own.
  */
 
 const PAGE = { width: 595, height: 842 }; // A4 at 72 dpi
@@ -58,21 +62,10 @@ export async function buildTicketReceipt(
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
   const serif = await pdf.embedFont(StandardFonts.TimesRoman);
 
-  /**
-   * New pages, and the one below the content.
-   *
-   * The receipt used to be a single `addPage()` with a ticket list that ran off
-   * the bottom — which is what a 16-seat booking did to it: rows 12 onwards were
-   * drawn past the paper edge and simply were not there. Tickets flow now, and a
-   * second page continues with the same header rather than a blank one.
-   */
-  let page = pdf.addPage([PAGE.width, PAGE.height]);
-  const newPage = () => {
-    page = pdf.addPage([PAGE.width, PAGE.height]);
-    return page;
-  };
-  // Start high enough that the header does not sit under a page number later.
-  const top = () => PAGE.height - MARGIN;
+  // A receipt is one page. It used to flow because it listed every seat; with
+  // the count and the total instead, there is nothing here that can run off the
+  // paper, so the page is fixed and a stray second page cannot appear.
+  const page = pdf.addPage([PAGE.width, PAGE.height]);
 
   pdf.setTitle(`Receipt ${first.reference} — St. Thomas' College Matale`);
   pdf.setAuthor("The Thomian Store");
@@ -187,7 +180,7 @@ export async function buildTicketReceipt(
     const w = bold.widthOfTextAtSize(label, 7);
     page.drawText(label, { x: align === "right" ? x - w : x, y, size: 7, font: bold, color: MUTED });
   };
-  header("TICKETS", MARGIN);
+  header("ITEMS", MARGIN);
   header("QTY", colQty + 40, "right");
   header("AMOUNT", colAmount, "right");
 
@@ -218,12 +211,45 @@ export async function buildTicketReceipt(
     y -= 26;
   }
 
+  /* ---------- how many tickets, then the total ---------- */
+  // The order the buyer asked for, twice: the items first, then how many
+  // tickets were bought and what they paid — under the items, not above them,
+  // and not as a page of one-line-per-seat rows.
+  //
+  // A per-seat list used to sit here (16 rows of "Ticket 4 of 16 · Code …").
+  // It was the wrong document: this is proof of payment, the school's books do
+  // not need a code per head, and sixteen rows pushed the whole thing onto a
+  // second page where the thing the bursar looks for — the total — was on page
+  // one and the tail was on page two. The count is what matters here; the codes
+  // live on the tickets themselves.
+  const totalQty = first.tiers.reduce((n, t) => n + t.qty, 0);
+
   y -= 2;
-  page.drawLine({ start: { x: colQty - 20, y }, end: { x: right, y }, thickness: 0.7, color: LINE });
-  y -= 19;
+  page.drawLine({ start: { x: MARGIN, y }, end: { x: right, y }, thickness: 0.7, color: LINE });
+  y -= 20;
+
+  // How many tickets, right-aligned with the money so the block reads as one
+  // column of figures rather than a label stranded in the middle of the page.
+  page.drawText("TICKETS", { x: MARGIN, y, size: 8, font: bold, color: MUTED });
+  const qtyLabel = String(totalQty);
+  page.drawText(qtyLabel, {
+    x: colAmount - bold.widthOfTextAtSize(qtyLabel, 12),
+    y: y - 2,
+    size: 12,
+    font: bold,
+    color: INK,
+  });
+  page.drawText(
+    totalQty === 1 ? "one person, admitted once" : "one person each, admitted once",
+    { x: MARGIN, y: y - 12, size: 7.5, font: regular, color: MUTED }
+  );
+
+  y -= 30;
+  page.drawLine({ start: { x: MARGIN, y }, end: { x: right, y }, thickness: 0.7, color: LINE });
+  y -= 22;
 
   const totalLabel = "TOTAL PAID";
-  page.drawText(totalLabel, { x: colQty - 20, y, size: 8, font: bold, color: MUTED });
+  page.drawText(totalLabel, { x: MARGIN, y, size: 8, font: bold, color: MUTED });
   const total = lkr(first.total);
   page.drawText(total, {
     x: colAmount - bold.widthOfTextAtSize(total, 16),
@@ -232,83 +258,6 @@ export async function buildTicketReceipt(
     font: bold,
     color: INK,
   });
-
-  /* ---------- the tickets on this booking ---------- */
-  // Straight after the money, and on the same page whenever it fits.
-  //
-  // The order was already right — items, total, then admission — but the gap
-  // above the section was large enough that a five-seat booking pushed it onto
-  // page two, so a receipt whose item table ended two thirds of the way down the
-  // page still appeared to have nothing after it. The heading now sits close
-  // under the total, and rows are drawn from here while they fit.
-  y -= 40;
-  const headingY = y;
-  const rowHeight = 23;
-  // Leave the last page room for its footer; a row that would land on top of it
-  // starts a new page instead.
-  const footerRoom = MARGIN + 74;
-  // How many rows fit after this heading on this page, for the "of N" note.
-  const firstPageRows = Math.max(0, Math.floor((headingY - 18 - footerRoom) / rowHeight));
-  const continuesOnNext = tickets.length > firstPageRows;
-
-  page.drawText(
-    tickets.length > 1
-      ? `ADMISSION — ${tickets.length} TICKETS, ONE PERSON EACH`
-      : "ADMISSION — ONE TICKET, ONE PERSON",
-    { x: MARGIN, y, size: 7, font: bold, color: MUTED }
-  );
-  if (continuesOnNext) {
-    const note = `${firstPageRows} here, ${tickets.length - firstPageRows} overleaf`;
-    page.drawText(note, {
-      x: PAGE.width - MARGIN - regular.widthOfTextAtSize(note, 7),
-      y,
-      size: 7,
-      font: regular,
-      color: MUTED,
-    });
-  }
-  y -= 18;
-
-  for (const [i, t] of tickets.entries()) {
-    if (y - rowHeight < footerRoom) {
-      // Page break: a fresh page, and the table header repeated so the reader
-      // does not lose the columns.
-      newPage();
-      y = top();
-      page.drawText(
-        `ADMISSION — continued (${i + 1}–${tickets.length} of ${tickets.length})`,
-        { x: MARGIN, y, size: 7, font: bold, color: MUTED }
-      );
-      y -= 18;
-    }
-
-    // A tinted bar per ticket, so four of them read as four things rather than
-    // one paragraph of codes.
-    page.drawRectangle({
-      x: MARGIN,
-      y: y - 5,
-      width: PAGE.width - MARGIN * 2,
-      height: 20,
-      color: rgb(0.96, 0.97, 0.98),
-    });
-    page.drawText(`Ticket ${t.seq} of ${t.of}`, { x: MARGIN + 8, y: y + 1, size: 9, font: bold, color: INK });
-    page.drawText(`Code ${t.token.slice(0, 10)}…`, {
-      x: MARGIN + 110,
-      y: y + 1,
-      size: 8,
-      font: regular,
-      color: MUTED,
-    });
-    const status = t.admittedAt ? "Admitted" : "Valid";
-    page.drawText(status, {
-      x: right - 8 - bold.widthOfTextAtSize(status, 8),
-      y: y + 1,
-      size: 8,
-      font: bold,
-      color: t.admittedAt ? MUTED : INK,
-    });
-    y -= rowHeight;
-  }
 
   /* ---------- footer ---------- */
   const footerY = MARGIN + 46;
@@ -319,7 +268,7 @@ export async function buildTicketReceipt(
     color: LINE,
   });
   page.drawText(
-    "This is a receipt for tickets bought at The Thomian Store. Each ticket above admits one person, once.",
+    "This is a receipt for tickets bought at The Thomian Store. Every ticket in this booking admits one person, once.",
     { x: MARGIN, y: footerY, size: 7.5, font: regular, color: MUTED, maxWidth: PAGE.width - MARGIN * 2 }
   );
   page.drawText(

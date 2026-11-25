@@ -1,6 +1,6 @@
 import sharp from "sharp";
 import nodemailer, { type Transporter } from "nodemailer";
-import { signTicket, ticketUrl, ticketImageUrl } from "./sign";
+import { signTicket, ticketUrl } from "./sign";
 import type { Ticket } from "../bookings";
 import { getMailTemplate } from "./mail-settings";
 import { errorMessage } from "../errors";
@@ -244,31 +244,74 @@ export function renderTemplate(text: string, values: Record<string, string>): st
 }
 
 /* ------------------------------------------------------------------ *
- *  Rendering the ticket image for an email.
+ *  The header photograph, as bytes.
  * ------------------------------------------------------------------ */
 
+/** The banner the header draws: 600 px wide at 2x, and shallow enough to lead. */
+const HERO_W = 1200;
+const HERO_H = 540;
+
 /**
- * The QR on its own, drawn straight from the ticket's URL.
+ * The event photograph, washed into the navy and returned as JPEG bytes, so the
+ * header can carry a real `<img>` instead of a CSS `background-image`.
  *
- * This used to be cropped out of the finished artwork, which looked clever and
- * was wrong: the crop follows whatever the admin's design happens to hold (a
- * card, a frame, a watermark), so the "entry code" in the mail could arrive
- * half-cut. Drawing it from the payload gives a clean, centred code every time,
- * and it is the same data the artwork carries — so the gate accepts either.
+ * This is the whole point. The header used to be a `<td>` with
+ * `background-image:url(https://machan.me/…)`, which is a picture the mail
+ * client may simply decline to fetch: Gmail and Outlook strip CSS backgrounds
+ * in more places than not, and every client blocks remote images until the
+ * reader says otherwise. The admin preview showed the photo because a browser
+ * renders CSS; the inbox showed flat navy because a mail client does not. A
+ * real `<img>` on a `cid:` is part of the message, so it arrives.
  *
- * 600 px with a two-module margin: sharp at the 220 px the mail shows it, with
- * the quiet zone a scanner needs, and small enough to travel inline.
+ * The wash is baked in with sharp rather than layered in CSS: a CSS gradient
+ * over a CSS background is two things the client has to support, and the photo
+ * has to fade into the navy above and below without a seam. The top and bottom
+ * of the gradient are fully opaque navy, so the banner joins the masthead and
+ * the gold tile with no edge.
  */
-async function qrImage(payload: string): Promise<Buffer | null> {
+async function heroBanner(image: string): Promise<Buffer | null> {
+  if (!image) return null;
   try {
-    const { default: QRCode } = await import("qrcode");
-    return await QRCode.toBuffer(payload, {
-      type: "png",
-      width: 600,
-      margin: 2,
-      errorCorrectionLevel: "H",
-      color: { dark: "#000000", light: "#ffffff" },
-    });
+    const raw = /^https?:\/\//i.test(image)
+      ? await fetchBytes(image)
+      : await readFile(path.join(process.cwd(), "public", image.replace(/^\//, "")));
+    if (!raw) return null;
+
+    const wash = Buffer.from(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${HERO_W}" height="${HERO_H}">
+         <defs>
+           <linearGradient id="w" x1="0" y1="0" x2="0" y2="1">
+             <stop offset="0" stop-color="#0a1224" stop-opacity="1"/>
+             <stop offset="0.26" stop-color="#0a1224" stop-opacity="0.52"/>
+             <stop offset="0.56" stop-color="#0a1224" stop-opacity="0.40"/>
+             <stop offset="0.84" stop-color="#0a1224" stop-opacity="0.80"/>
+             <stop offset="1" stop-color="#0a1224" stop-opacity="1"/>
+           </linearGradient>
+         </defs>
+         <rect width="${HERO_W}" height="${HERO_H}" fill="url(#w)"/>
+       </svg>`
+    );
+
+    return await sharp(raw)
+      .rotate()
+      .resize(HERO_W, HERO_H, { fit: "cover", position: "attention" })
+      .composite([{ input: wash }])
+      .flatten({ background: "#0a1224" })
+      .jpeg({ quality: 72, mozjpeg: true })
+      .toBuffer();
+  } catch {
+    // A photo that cannot be read is not a reason to withhold a ticket: the
+    // header falls back to the flat navy it uses when an event has no picture.
+    return null;
+  }
+}
+
+/** Fetches a remote photograph, but never hangs the checkout on it. */
+async function fetchBytes(url: string): Promise<Buffer | null> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return null;
+    return Buffer.from(await res.arrayBuffer());
   } catch {
     return null;
   }
@@ -284,10 +327,14 @@ export type BuiltMail = {
   /** Plain-text fallback, so the mail is readable with images off. */
   text: string;
   /**
-   * One QR per ticket in the booking, keyed by `cid`, so a four-seat sale is one
-   * message with four codes inside it rather than four messages.
+   * The event photograph, washed into the navy and inline as `cid:hero-banner`.
+   *
+   * Inline rather than a remote URL because this is the header of the message:
+   * a client that blocks remote images would otherwise show a flat navy band,
+   * and the admin would have designed a header nobody ever saw. Null when the
+   * event has no photograph, or the file could not be read.
    */
-  codes: { cid: string; buffer: Buffer }[];
+  hero: Buffer | null;
   /** The uploaded crest, inline, so the header never shows a broken image. */
   logo: Buffer | null;
   /**
@@ -350,50 +397,25 @@ export async function buildBookingMail(
   const logo = await inlineLogo();
   const logoPng = logo?.png ?? null;
 
-  const perSeat: string[] = [];
-  for (const t of ticket.tiers) {
-    for (let n = 0; n < t.qty; n++) perSeat.push(t.id);
-  }
-  // The buyer's word for it, not the stored id: "pavilion" is "VIP Pavilion" on
-  // the site and on the price list, and the code label has to match them.
-  const tierName = (id: string) =>
-    ticket.tiers.find((t) => t.id === id)?.name ?? tierFor(id);
   // The designed ticket, one file per person, each with its own code pasted in.
   // This is what the buyer shows at the gate — there is no grid of codes in the
   // body any more, because a wall of QR squares is not a ticket and the artwork
   // already carries the code in the place the design put it.
   const artworks = await ticketArtworks(tickets);
 
-  const codes: { cid: string; buffer: Buffer }[] = [];
-  const codesHtml: { name: string; tier: string; src: string; url: string }[] = [];
-  for (const [i, t] of tickets.entries()) {
-    const codeUrl = ticketUrl(t.token, signTicket(t.token));
-    const buffer = await qrImage(codeUrl);
-    const cid = `ticket-qr-${i + 1}`;
-    if (buffer) codes.push({ cid, buffer });
-    codesHtml.push({
-      // "1" for a single-seat sale, "Ticket 2" for a multi-seat one: numbering a
-      // one-ticket booking would only raise the question of where the rest are.
-      name: tickets.length > 1 ? `Ticket ${i + 1}` : "",
-      // Seat i belongs to the i-th unit sold, in the same order createBooking
-      // assigned them: "2 × Grandstand, 1 × Stand" is grandstand, grandstand,
-      // stand. A single-tier sale needs no label at all.
-      tier: ticket.tiers.length === 1 ? "" : tierName(perSeat[i] ?? ""),
-      src: buffer ? `cid:${cid}` : ticketImageUrl(t.token, signTicket(t.token)),
-      url: codeUrl,
-    });
-  }
+  // The header photograph, inline. There is no QR in the body any more: the
+  // design carries the code, and one code per person travels as one attached
+  // ticket file. A wall of codes here was rejected twice and is not coming back.
+  const hero = await heroBanner(ticket.heroImage || ticket.image);
 
   const html = ticketHtml({
     heading,
     body,
     footer,
     url,
-    // Every code travels *inside* the mail (cid:), so they render even when the
-    // reader's client blocks remote images — which is exactly the image the
-    // customer has to show at the gate, and exactly the image that was blank in
-    // the broken preview.
-    codes: codesHtml,
+    // The header photograph travels *inside* the mail (cid:), so it shows even
+    // when the reader's client blocks remote images.
+    heroCid: hero ? "hero-banner" : "",
     // The detail row under the message. These are the facts a person checks at
     // the gate, so they are not left to the editable wording.
     event: ticket.eventTitle,
@@ -406,8 +428,9 @@ export async function buildBookingMail(
     date: longDate(ticket.eventDate),
     venue: `${ticket.venue}, ${ticket.city}`,
     // The hero photograph, not the card photo: the header is a wide banner,
-    // and the event page already uses the hero for its own header.
-    coverSrc: coverImageUrl(ticket.heroImage || ticket.image),
+    // and the event page already uses the hero for its own header. Only used by
+    // the stale-CSS fallback below.
+    coverSrc: hero ? "" : coverImageUrl(ticket.heroImage || ticket.image),
     paid: lkr(ticket.total),
     logo: logoPng ? "cid:brand-logo" : "",
     logoScale: logoPng ? logo!.scale : 1,
@@ -424,11 +447,14 @@ export async function buildBookingMail(
       `Reference: ${ticket.reference}`,
       `Seats: ${values.seats}`,
       `Paid: ${lkr(ticket.total)}`,
-      ...codesHtml.map((c, i) =>
-        `${tickets.length > 1 ? `Ticket ${i + 1}: ` : "Ticket: "}${c.url}`
+      ...tickets.map((t, i) =>
+        `${tickets.length > 1 ? `Ticket ${i + 1}: ` : "Ticket: "}${ticketUrl(
+          t.token,
+          signTicket(t.token)
+        )}`
       ),
     ].join("\n"),
-    codes,
+    hero,
     logo: logoPng,
     artworks,
   };
@@ -513,17 +539,22 @@ export async function sendTicketEmail(
   overrides: Partial<MailTemplate> = {}
 ): Promise<MailResult> {
   const built = await buildBookingMail(tickets, overrides);
-  const { subject, html, text: body, codes, logo, artworks } = built;
+  const { subject, html, text: body, hero, logo, artworks } = built;
   const ticket = tickets[0];
   const attachments = [
-    // Every code inline, so they render even when the client blocks remote
-    // images — which is exactly the image the customer has to show at the gate.
-    ...codes.map((c) => ({
-      filename: `${c.cid}.png`,
-      content: c.buffer,
-      inline: true,
-      contentId: c.cid,
-    })),
+    // The header photograph, inline. It is part of the message, not a link to
+    // one: the header is the thing the admin designed, and a client that blocks
+    // remote images would otherwise show a flat navy band instead.
+    ...(hero
+      ? [
+          {
+            filename: "hero.jpg",
+            content: hero,
+            inline: true,
+            contentId: "hero-banner",
+          },
+        ]
+      : []),
     // The crest, inline for the same reason: a remote URL is a broken image
     // whenever the host has moved on without the file.
     ...(logo
@@ -622,22 +653,6 @@ export async function sendTicketEmail(
   return { sent: false, reason: "not-configured" };
 }
 
-/**
- * A tier id, made readable, when the sale itself does not know the name.
- *
- * Only a fallback: the normal path asks the booking, which carries the real
- * label ("VIP Pavilion"). This is for a ticket whose tier id no longer matches
- * anything — a tier renamed after the sale — so the label degrades to "Pavilion"
- * rather than disappearing.
- */
-function tierFor(id: string): string {
-  return id
-    .split(/[-_\s]+/)
-    .filter(Boolean)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
-}
-
 /** Ignores empty strings so a blank admin field keeps the default. */
 function stripEmpty<T extends object>(obj: T): Partial<T> {
   const out: Record<string, unknown> = {};
@@ -663,7 +678,7 @@ export function ticketHtml({
   body,
   footer,
   url,
-  codes,
+  heroCid,
   event,
   reference,
   seats,
@@ -684,11 +699,10 @@ export function ticketHtml({
   footer: string;
   url: string;
   /**
-   * Every code in the sale, each with its own `cid:`. A four-seat booking is one
-   * message with four codes, so the buyer forwards nothing and the gate still
-   * sees four separate admissions.
+   * `cid:hero-banner` when the header photograph is inline, or "". The header
+   * draws a real `<img>` when it is set — see `heroBanner`.
    */
-  codes: { name: string; tier: string; src: string; url: string }[];
+  heroCid: string;
   /** Event name, shown in the cover and repeated in the details row. */
   event: string;
   reference: string;
@@ -810,42 +824,50 @@ export function ticketHtml({
       : "";
 
   /**
-   * The hero: the event's own photograph, washed into the navy.
+   * The header: the crest and the school on the navy, then the event's own
+   * photograph as a real image underneath.
    *
-   * This is the "mix wash" — the photo is there, showing through a dark gradient
-   * so the crest and the school name still read on top of it. Two layers: a
-   * `background-image` on the cell, and a fixed navy wash *above* it via a
-   * full-width cell with a translucent background.
+   * The photograph used to be a CSS `background-image` with the masthead drawn
+   * over it. That looked right in the admin preview, which is a browser, and
+   * vanished in the inbox, which is not: Gmail and Outlook both drop CSS
+   * backgrounds in plenty of contexts, and every client blocks remote images
+   * until the reader allows them. So the photo is now a proper `<img>` fed from
+   * a `cid:` — part of the message rather than something to fetch — and the
+   * words sit on the navy above it, never on top of a picture that may not be
+   * there.
    *
-   * Built so it degrades twice over. Outlook has no CSS gradients and often no
-   * CSS backgrounds, so the cell keeps its solid `bgcolor` and the photo simply
-   * is not there — the header still looks deliberate. And the wash means
-   * nothing depends on the photograph for contrast: white on that navy clears
-   * WCAG AA whatever the picture is.
-   *
-   * The image is a remote URL, deliberately: it is a decorative photograph, and
-   * a blocked image should cost nothing. Everything that must arrive — the
-   * crest, the codes — travels inline.
+   * The wash is baked into the JPEG by `heroBanner`, with fully opaque navy at
+   * its top and bottom edges, so the band joins the masthead and the gold tile
+   * without a seam. Nothing depends on the photograph for contrast.
    */
-  const heroBg = coverSrc
-    ? `background-color:#0a1224;background-image:url('${escapeHtml(
-        coverSrc
-      )}');background-size:cover;background-position:center;background-repeat:no-repeat;`
-    : "background-color:#0a1224;";
+  const heroImg = heroCid
+    ? `
+   <tr><td align="center" style="background:#0a1224;padding:0;font-size:0;line-height:0">
+     <img src="cid:${escapeHtml(heroCid)}" alt="${escapeHtml(
+        event
+      )}" width="600" height="270" style="display:block;width:100%;max-width:600px;height:auto;border:0;outline:none;text-decoration:none">
+   </td></tr>`
+    : // Only reached when the photo could not be read: keep the old CSS band so a
+      // client that *does* honour backgrounds still gets a header, and everyone
+      // else gets the navy.
+      coverSrc
+      ? `
+   <tr><td bgcolor="#0a1224" height="150" valign="top" style="background-color:#0a1224;background-image:url('${escapeHtml(
+     coverSrc
+   )}');background-size:cover;background-position:center;background-repeat:no-repeat;height:150px"></td></tr>`
+      : "";
 
   const hero = `
-   <tr><td bgcolor="#0a1224" valign="top" style="${heroBg}">
-     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;${heroBg}">
-       <tr><td align="center" style="padding:34px 30px 30px;background:linear-gradient(180deg,rgba(4,6,13,0.72) 0%,rgba(10,18,36,0.86) 55%,rgba(10,18,36,0.96) 100%)">
+   <!-- the masthead: crest and name, on the navy -->
+   <tr><td bgcolor="#0a1224" align="center" style="padding:32px 30px 26px">
 
-         ${badge}
+     ${badge}
 
-         <div style="color:#ffffff;font-size:22px;letter-spacing:4px;text-transform:uppercase;font-family:Georgia,'Times New Roman',serif;padding-top:16px;line-height:1.3;text-shadow:0 1px 3px rgba(4,6,13,0.9)">St. Thomas&rsquo; College</div>
-         <div style="color:#ffd444;font-size:9px;letter-spacing:7px;text-transform:uppercase;padding-top:7px">Matale &middot; Sri Lanka</div>
-       </td></tr>
-     </table>
+     <div style="color:#ffffff;font-size:22px;letter-spacing:4px;text-transform:uppercase;font-family:Georgia,'Times New Roman',serif;padding-top:16px;line-height:1.3">St. Thomas&rsquo; College</div>
+     <div style="color:#ffd444;font-size:9px;letter-spacing:7px;text-transform:uppercase;padding-top:7px">Matale &middot; Sri Lanka</div>
    </td></tr>
 
+   ${heroImg}
    <!-- the event, as the gold tile the site would give it -->
    <tr><td style="background:#0a1224;padding:0 16px">
      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#ffd444">
