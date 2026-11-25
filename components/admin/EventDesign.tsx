@@ -86,8 +86,8 @@ export default function EventDesign({
 
   return (
     <section className="rounded-2xl bg-panel p-6">
-      <h2 className="font-display text-lg font-semibold text-white">Ticket artwork</h2>
-      <p className="mt-1 max-w-2xl text-xs leading-relaxed text-white/60">
+      <h2 className="font-display text-lg font-semibold text-strong">Ticket artwork</h2>
+      <p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted">
         The picture buyers receive, with the QR pasted in. Leave a solid white square
         where the code goes — equal sides, at least 160px, pure white, nothing printed
         on top of it. The code fills about 80% of that square, so keep a thin white
@@ -98,7 +98,7 @@ export default function EventDesign({
         <p
           role="status"
           className={`mt-4 rounded-lg px-3 py-2 text-[12px] ${
-            notice.tone === "ok" ? "bg-gold text-black" : "bg-white/10 text-white"
+            notice.tone === "ok" ? "bg-gold text-black" : "bg-strong text-black"
           }`}
         >
           {notice.text}
@@ -108,7 +108,7 @@ export default function EventDesign({
       <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,320px)]">
         {/* what is live now */}
         <div className="rounded-xl bg-well p-4">
-          <p className="text-[11px] uppercase tracking-[0.16em] text-white/60">In use</p>
+          <p className="text-[11px] uppercase tracking-[0.16em] text-muted">In use</p>
           {live ? (
             <div className="mt-3 flex items-start gap-3">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -118,12 +118,12 @@ export default function EventDesign({
                 className="h-20 w-32 shrink-0 rounded-lg object-cover"
               />
               <div className="min-w-0">
-                <p className="truncate text-sm text-white">{live.name}</p>
-                <p className="mt-1 text-[11px] text-white/55">printed on every new booking</p>
+                <p className="truncate text-sm text-strong">{live.name}</p>
+                <p className="mt-1 text-[11px] text-muted">printed on every new booking</p>
               </div>
             </div>
           ) : (
-            <p className="mt-3 text-xs leading-relaxed text-white/55">
+            <p className="mt-3 text-xs leading-relaxed text-muted">
               No artwork for this event — tickets use the plain generated design.
             </p>
           )}
@@ -135,7 +135,7 @@ export default function EventDesign({
                   key={d.id}
                   className="flex items-center justify-between gap-3 rounded-lg bg-panel-2 px-3 py-2"
                 >
-                  <span className="min-w-0 truncate text-[12px] text-white/75">{d.name}</span>
+                  <span className="min-w-0 truncate text-[12px] text-body">{d.name}</span>
                   <span className="flex shrink-0 items-center gap-1.5">
                     <button
                       type="button"
@@ -170,7 +170,7 @@ export default function EventDesign({
         {/* upload */}
         <form onSubmit={upload} className="space-y-3">
           <label className="block">
-            <span className="block text-[11px] uppercase tracking-[0.16em] text-white/60">
+            <span className="block text-[11px] uppercase tracking-[0.16em] text-muted">
               Design name
             </span>
             <input
@@ -179,12 +179,12 @@ export default function EventDesign({
               value={defaultName}
               onChange={(e) => setDefaultName(e.target.value)}
               placeholder="Big Match 2027"
-              className="mt-1.5 w-full rounded-xl bg-well px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-gold"
+              className="mt-1.5 w-full rounded-xl bg-well px-3 py-2.5 text-sm text-strong outline-none placeholder:text-faint focus-visible:outline focus-visible:outline-2 focus-visible:outline-gold"
             />
           </label>
 
           <label className="block">
-            <span className="block text-[11px] uppercase tracking-[0.16em] text-white/60">
+            <span className="block text-[11px] uppercase tracking-[0.16em] text-muted">
               Image · PNG, JPEG or WebP, 8 MB
             </span>
             <input
@@ -192,7 +192,7 @@ export default function EventDesign({
               name="design"
               accept="image/png,image/jpeg,image/webp"
               required
-              className="mt-1.5 w-full rounded-xl bg-well px-3 py-2.5 text-xs text-white/70 file:mr-3 file:rounded-lg file:border-0 file:bg-white file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-black"
+              className="mt-1.5 w-full rounded-xl bg-well px-3 py-2.5 text-xs text-body file:mr-3 file:rounded-lg file:border-0 file:bg-gold file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-black"
             />
           </label>
 
@@ -208,7 +208,7 @@ export default function EventDesign({
             )}
             Upload and find the square
           </button>
-          <p className="text-[11px] leading-relaxed text-white/45">
+          <p className="text-[11px] leading-relaxed text-faint">
             A refusal here means the square could not be found — check it is pure white
             and has nothing drawn inside it.
           </p>

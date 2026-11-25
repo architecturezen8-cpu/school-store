@@ -60,22 +60,22 @@ export default async function AdminPage({
   /* ---------------- signed out: the door ---------------- */
   if (!signedIn) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-black px-4 py-16">
+      <div className="flex min-h-screen items-center justify-center bg-page px-4 py-16">
         <div className="w-full max-w-sm rounded-3xl bg-panel p-7">
-          <p className="text-[11px] uppercase tracking-[0.28em] text-white/65">
+          <p className="text-[11px] uppercase tracking-[0.28em] text-muted">
             St. Thomas&apos; College Matale
           </p>
-          <h1 className="mt-2 font-display text-3xl font-semibold text-white">Store admin</h1>
-          <p className="mt-2 text-sm text-white/65">
+          <h1 className="mt-2 font-display text-3xl font-semibold text-strong">Store admin</h1>
+          <p className="mt-2 text-sm text-muted">
             Sign in to manage tickets, designs and the gate.
           </p>
 
           <div className="mt-6 space-y-2">
             {!adminConfigured() && (
               <Notice tone="warn">
-                Add <code className="rounded-md bg-black/40 px-1.5 py-0.5">ADMIN_PASSWORD</code> to{" "}
-                <code className="rounded-md bg-black/40 px-1.5 py-0.5">.env.local</code>, then
-                restart <code className="rounded-md bg-black/40 px-1.5 py-0.5">npm run dev</code>.
+                Add <code className="rounded-md bg-page px-1.5 py-0.5">ADMIN_PASSWORD</code> to{" "}
+                <code className="rounded-md bg-page px-1.5 py-0.5">.env.local</code>, then
+                restart <code className="rounded-md bg-page px-1.5 py-0.5">npm run dev</code>.
               </Notice>
             )}
             {error && ERRORS[error] && <Notice tone="error">{ERRORS[error]}</Notice>}
@@ -84,7 +84,7 @@ export default async function AdminPage({
           <form action={signIn} className="mt-5 space-y-3">
             <input type="hidden" name="next" value={next ?? "/admin"} />
             <label className="block">
-              <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-white/65">
+              <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted">
                 Password
               </span>
               <input
@@ -101,7 +101,7 @@ export default async function AdminPage({
             </button>
           </form>
 
-          <Link href="/" className="mt-6 inline-block text-sm text-white/65 hover:text-white">
+          <Link href="/" className="mt-6 inline-block text-sm text-muted hover:text-strong">
             ← Back to the store
           </Link>
         </div>
@@ -133,10 +133,10 @@ export default async function AdminPage({
             {bookings.length ? `${outstanding} still to come` : "no bookings yet"}
           </Pill>
         </div>
-        <h1 className="mt-3 font-display text-3xl font-semibold text-white sm:text-4xl">
+        <h1 className="mt-3 font-display text-3xl font-semibold text-strong sm:text-4xl">
           Today at the store
         </h1>
-        <p className="mt-3 max-w-lg text-sm leading-relaxed text-white/65">
+        <p className="mt-3 max-w-lg text-sm leading-relaxed text-muted">
           Tickets sold, money taken and who is through the gate. Everything else is in the
           sidebar.
         </p>
@@ -146,7 +146,7 @@ export default async function AdminPage({
         <Eyebrow>Latest</Eyebrow>
         <div className="mt-3 flex-1">
           {latest.length === 0 ? (
-            <p className="text-sm leading-relaxed text-white/65">
+            <p className="text-sm leading-relaxed text-muted">
               No bookings yet — they appear the moment someone reserves a ticket.
             </p>
           ) : (
@@ -154,8 +154,8 @@ export default async function AdminPage({
               {latest.slice(0, 3).map((b) => (
                 <li key={b.reference} className="flex items-center justify-between gap-2">
                   <span className="min-w-0">
-                    <span className="block truncate text-sm text-white">{b.name}</span>
-                    <span className="block truncate font-mono text-[11px] text-white/65">
+                    <span className="block truncate text-sm text-strong">{b.name}</span>
+                    <span className="block truncate font-mono text-[11px] text-muted">
                       {b.reference}
                     </span>
                   </span>
@@ -169,7 +169,7 @@ export default async function AdminPage({
         </div>
         <Link
           href="/admin/bookings"
-          className="mt-4 inline-flex items-center gap-1.5 text-sm text-white/60 hover:text-white"
+          className="mt-4 inline-flex items-center gap-1.5 text-sm text-muted hover:text-strong"
         >
           All bookings <ArrowUpRight className="h-3.5 w-3.5" />
         </Link>
@@ -201,25 +201,25 @@ export default async function AdminPage({
           key={href}
           href={href}
           className={`group flex min-h-[12rem] flex-col rounded-2xl p-5 transition-colors sm:col-span-2 xl:col-span-1 ${
-            i === 0 ? "bg-white text-black hover:bg-white/90" : "bg-panel text-white hover:bg-panel-2"
+            i === 0 ? "bg-gold text-black hover:bg-gold-bright" : "bg-panel text-strong hover:bg-panel-2"
           }`}
         >
           <div className="flex items-start justify-between gap-3">
             <span
               className={`grid h-10 w-10 place-items-center rounded-xl ${
-                i === 0 ? "bg-black text-white" : "bg-panel-2 text-white"
+                i === 0 ? "bg-page text-strong" : "bg-panel-2 text-strong"
               }`}
             >
               <Icon className="h-5 w-5" />
             </span>
             <ArrowUpRight
               className={`h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 ${
-                i === 0 ? "text-black/55" : "text-white/55"
+                i === 0 ? "text-black/55" : "text-muted"
               }`}
             />
           </div>
           <p className="mt-6 font-display text-lg">{title}</p>
-          <p className={`mt-1 text-sm leading-relaxed ${i === 0 ? "text-black/70" : "text-white/65"}`}>
+          <p className={`mt-1 text-sm leading-relaxed ${i === 0 ? "text-black/70" : "text-muted"}`}>
             {body}
           </p>
         </Link>

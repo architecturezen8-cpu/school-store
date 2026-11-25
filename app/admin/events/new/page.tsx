@@ -37,7 +37,7 @@ export default async function NewEventPage() {
       <section className="rounded-2xl bg-panel p-6">
         <Link
           href="/admin/events"
-          className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.16em] text-white/55 hover:text-white"
+          className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.16em] text-muted hover:text-strong"
         >
           <ArrowLeft className="h-3.5 w-3.5" /> Events
         </Link>
