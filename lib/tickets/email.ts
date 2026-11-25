@@ -1,15 +1,13 @@
-import { readFile } from "node:fs/promises";
 import sharp from "sharp";
-import path from "node:path";
 import nodemailer, { type Transporter } from "nodemailer";
 import { signTicket, ticketUrl, ticketImageUrl } from "./sign";
-import { getTemplateForEvent } from "./templates";
-import { composeTicket, detectWhiteSquare } from "./detect";
 import type { Ticket } from "../bookings";
 import { getMailTemplate } from "./mail-settings";
 import { errorMessage } from "../errors";
 import { listAllEvents } from "../events";
-import { absoluteLogoUrl } from "../settings";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { getSettings, absoluteLogoUrl } from "../settings";
 
 /**
  * Delivering the ticket by email.
@@ -46,6 +44,50 @@ function coverImageUrl(image: string): string {
 }
 
 /** "LKR 3,000" — a receipt should not depend on a locale the reader may not have. */
+/**
+ * The uploaded logo, inline.
+ *
+ * It used to point at an absolute URL — `https://machan.me/uploads/brand/x.png`
+ * — and that URL is exactly what broke: a mail client opens the message long
+ * before the deploy that has that file, and an image the reader cannot fetch is
+ * a broken-image icon. Inlining the bytes means the crest is *in* the message.
+ *
+ * Three parts on purpose: the circle is a solid white `bgcolor` (Outlook drops
+ * CSS backgrounds), the size is a percentage of that circle so the admin's scale
+ * setting carries into the mail, and the PNG is opaque white-flattened on upload
+ * so it cannot turn into a black square in a client that ignores transparency.
+ */
+async function inlineLogo(): Promise<{ png: Buffer; scale: number } | null> {
+  try {
+    const { logo, logoScale } = await getSettings();
+    const url = await absoluteLogoUrl();
+    if (!logo || !url) return null;
+
+    // Local path when we have one; the stored value is root-relative, so read it
+    // straight off disk rather than over the network.
+    const rel = logo.replace(/^\//, "").replace(/^uploads\//, "uploads/");
+    const file = path.join(process.cwd(), "public", rel);
+    const raw = await readFile(file);
+
+    const meta = await sharp(raw).metadata();
+    const png = await sharp(raw)
+      // Small: it is shown at 72-96 px, and a heavy PNG is the difference
+      // between a message that lands in an inbox and one that lands in spam.
+      .resize({ width: 192, height: 192, fit: "inside", withoutEnlargement: true })
+      .png({ compressionLevel: 9 })
+      .toBuffer();
+    const w = meta.width ?? 1;
+    const h = meta.height ?? 1;
+    // Shown inside a padded box, so a tall crest keeps its own aspect instead of
+    // being stretched by the circle. `scale` is what the admin set by eye.
+    return { png, scale: Math.min(0.98, Math.max(0.3, logoScale)) };
+  } catch {
+    // No logo uploaded, or a file that has gone missing: the wordmark badge
+    // below is the fallback, so the mail never has a hole in it.
+    return null;
+  }
+}
+
 function lkr(n: number): string {
   return `LKR ${n.toLocaleString("en-LK")}`;
 }
@@ -119,41 +161,6 @@ async function qrImage(payload: string): Promise<Buffer | null> {
   }
 }
 
-export type TicketRender = {
-  /** The full artwork with the QR pasted in — what gets attached. */
-  image: Buffer;
-  width: number;
-  height: number;
-};
-
-async function ticketImage(ticket: Ticket, signature: string): Promise<TicketRender | null> {
-  const template = await getTemplateForEvent(ticket.event);
-  const payload = ticketUrl(ticket.token, signature);
-
-  if (template) {
-    const file = path.join(process.cwd(), "public", template.file.replace(/^\//, ""));
-    try {
-      const design = await readFile(file);
-      const square = {
-        x: template.qrX,
-        y: template.qrY,
-        size: template.qrSize,
-        confidence: 1,
-      };
-      const { image, width, height } = await composeTicket({
-        design,
-        qrPayload: payload,
-        square,
-        format: "png",
-      });
-      return { image, width, height };
-    } catch {
-      // fall through to the generated ticket
-    }
-  }
-  return null;
-}
-
 /* ------------------------------------------------------------------ *
  *  Sending.
  * ------------------------------------------------------------------ */
@@ -163,10 +170,13 @@ export type BuiltMail = {
   html: string;
   /** Plain-text fallback, so the mail is readable with images off. */
   text: string;
-  /** The finished artwork with this booking's QR in it, if it could be drawn. */
-  artwork: Buffer | null;
-  /** The same QR, cropped, to travel inline as cid:ticket-qr. */
-  qr: Buffer | null;
+  /**
+   * One QR per ticket in the booking, keyed by `cid`, so a four-seat sale is one
+   * message with four codes inside it rather than four messages.
+   */
+  codes: { cid: string; buffer: Buffer }[];
+  /** The uploaded crest, inline, so the header never shows a broken image. */
+  logo: Buffer | null;
 };
 
 /**
@@ -176,11 +186,13 @@ export type BuiltMail = {
  * rather than a mock-up — "what you see is what the customer gets" is the only
  * way a preview is worth having.
  */
-export async function buildTicketMail(
-  ticket: Ticket,
-  overrides: Partial<MailTemplate> = {},
-  of = ticket.of
+export async function buildBookingMail(
+  /** Every ticket from one sale, first seat first. Never empty. */
+  tickets: Ticket[],
+  overrides: Partial<MailTemplate> = {}
 ): Promise<BuiltMail> {
+  const ticket = tickets[0];
+  const of = tickets.length || ticket.of;
   // Whatever the admin saved wins; anything they left blank falls back to the
   // shipped default, so a half-filled editor can never send an empty email.
   const saved = await getMailTemplate().catch(() => DEFAULT_MAIL_TEMPLATE);
@@ -191,7 +203,6 @@ export async function buildTicketMail(
   };
   const signature = signTicket(ticket.token);
   const url = ticketUrl(ticket.token, signature);
-  const imageUrl = ticketImageUrl(ticket.token, signature);
   const seats = ticket.tiers.reduce((n, t) => n + t.qty, 0);
   const seatsText = ticket.tiers.map((t) => `${t.name} × ${t.qty}`).join(", ");
 
@@ -205,54 +216,98 @@ export async function buildTicketMail(
     date: new Date(ticket.eventDate).toDateString(),
   };
 
-  // "Ticket 2 of 4" belongs in the subject: someone with four people's tickets in
-  // an inbox needs to know which one this is before opening it.
-  const ticketNumber = of > 1 ? ` (${ticket.seq} of ${of})` : "";
-  const subject = renderTemplate(mail.subject, values) + ticketNumber;
+  // One message per sale now, so the subject says how many people it covers
+  // ("4 tickets") instead of which one of four it is.
+  const subject =
+    renderTemplate(mail.subject, values) + (of > 1 ? ` (${of} tickets)` : "");
   const body = renderTemplate(mail.body, values);
   const heading = renderTemplate(mail.heading, values);
   const footer = renderTemplate(mail.footer, values);
 
-  const render = await ticketImage(ticket, signature);
-  const image = render?.image ?? null;
-  // Drawn from the payload, not cropped from the artwork — see qrImage().
-  const qr = await qrImage(url);
+  // No attached artwork any more.
+  //
+  // It used to compose the whole designed ticket — sharp, a 1440 px PNG, ~54 KB
+  // — once per seat, and because the mail was sent before the response, a
+  // four-seat booking sat on "Reserving…" for seconds. The artwork is already
+  // reachable from the ticket page and the receipt, and this message carries the
+  // one thing the gate actually scans: the code below. Dropping it makes the
+  // mail build in milliseconds and stops a heavy design from landing in spam.
+  //
+  // One code per ticket, all inside the same message. Drawn from each ticket's
+  // own payload, never cropped from the artwork — see qrImage().
+  const logo = await inlineLogo();
+  const logoPng = logo?.png ?? null;
+
+  const perSeat: string[] = [];
+  for (const t of ticket.tiers) {
+    for (let n = 0; n < t.qty; n++) perSeat.push(t.id);
+  }
+  // The buyer's word for it, not the stored id: "pavilion" is "VIP Pavilion" on
+  // the site and on the price list, and the code label has to match them.
+  const tierName = (id: string) =>
+    ticket.tiers.find((t) => t.id === id)?.name ?? tierFor(id);
+  const codes: { cid: string; buffer: Buffer }[] = [];
+  const codesHtml: { name: string; tier: string; src: string; url: string }[] = [];
+  for (const [i, t] of tickets.entries()) {
+    const codeUrl = ticketUrl(t.token, signTicket(t.token));
+    const buffer = await qrImage(codeUrl);
+    const cid = `ticket-qr-${i + 1}`;
+    if (buffer) codes.push({ cid, buffer });
+    codesHtml.push({
+      // "1" for a single-seat sale, "Ticket 2" for a multi-seat one: numbering a
+      // one-ticket booking would only raise the question of where the rest are.
+      name: tickets.length > 1 ? `Ticket ${i + 1}` : "",
+      // Seat i belongs to the i-th unit sold, in the same order createBooking
+      // assigned them: "2 × Grandstand, 1 × Stand" is grandstand, grandstand,
+      // stand. A single-tier sale needs no label at all.
+      tier: ticket.tiers.length === 1 ? "" : tierName(perSeat[i] ?? ""),
+      src: buffer ? `cid:${cid}` : ticketImageUrl(t.token, signTicket(t.token)),
+      url: codeUrl,
+    });
+  }
 
   const html = ticketHtml({
     heading,
     body,
     footer,
     url,
-    // The close-up travels *inside* the mail (cid:), so it renders even when the
+    // Every code travels *inside* the mail (cid:), so they render even when the
     // reader's client blocks remote images — which is exactly the image the
-    // customer has to show at the gate.
-    qrSrc: qr ? "cid:ticket-qr" : imageUrl,
-    artworkSrc: imageUrl,
-    hasImage: true,
+    // customer has to show at the gate, and exactly the image that was blank in
+    // the broken preview.
+    codes: codesHtml,
     // The detail row under the message. These are the facts a person checks at
     // the gate, so they are not left to the editable wording.
     event: ticket.eventTitle,
     reference: ticket.reference,
-    // One ticket admits one person, so this is 1. The sale as a whole is what has
-    // several seats, and that is `seatsText`.
-    seats: "1",
+    // Every seat in the sale, in one message.
+    seats: String(seats),
     seatsText: seatsText || `${seats} seat${seats === 1 ? "" : "s"}`,
-    seq: ticket.seq,
     of,
     totalSeats: seats,
     date: longDate(ticket.eventDate),
     venue: `${ticket.venue}, ${ticket.city}`,
     coverSrc: coverImageUrl(ticket.image),
     paid: lkr(ticket.total),
-    logo: await absoluteLogoUrl(),
+    logo: logoPng ? "cid:brand-logo" : "",
+    logoScale: logoPng ? logo!.scale : 1,
   });
 
   return {
     subject,
     html,
-    text: [body, "", `Reference: ${ticket.reference}`, `Seats: ${values.seats}`, `Paid: ${lkr(ticket.total)}`, `Ticket: ${url}`].join("\n"),
-    artwork: image,
-    qr,
+    text: [
+      body,
+      "",
+      `Reference: ${ticket.reference}`,
+      `Seats: ${values.seats}`,
+      `Paid: ${lkr(ticket.total)}`,
+      ...codesHtml.map((c, i) =>
+        `${tickets.length > 1 ? `Ticket ${i + 1}: ` : "Ticket: "}${c.url}`
+      ),
+    ].join("\n"),
+    codes,
+    logo: logoPng,
   };
 }
 
@@ -310,60 +365,54 @@ export async function sampleTicket(): Promise<Ticket> {
 }
 
 /**
- * A booking of four seats is four emails — one ticket each.
+ * Sends one booking's tickets.
  *
- * Every ticket is a separate person with a separate QR, so bundling them into one
- * message left the second, third and fourth holder with nothing they could show
- * at the gate that had not already been scanned. Sending them one at a time is
- * also what the customer expects: forward the email to the person it is for.
+ * One message, not one per seat. A four-seat sale used to produce four emails,
+ * which is four things to find in an inbox and — because the booking waited for
+ * SMTP — several seconds of "Reserving…" at the checkout. The message carries
+ * every code instead, so the buyer forwards nothing and the gate still sees one
+ * admission per code.
  *
- * Deliberately sequential rather than `Promise.all`: a school sending forty
- * tickets should not open forty SMTP connections at once, and one failure should
- * not abort the rest.
+ * `tickets` is the whole sale in seq order; a single seat is a list of one.
  */
 export async function sendTicketEmails(
   tickets: Ticket[],
   overrides: Partial<MailTemplate> = {}
 ): Promise<MailResult> {
-  let sent = 0;
-  let lastError = "";
-  let reason: "not-configured" | "failed" = "failed";
-  let provider: "resend" | "smtp" = "smtp";
-  let lastId = "";
-
-  for (const ticket of tickets) {
-    const result = await sendTicketEmail(ticket, overrides, tickets.length);
-    if (result.sent) {
-      sent++;
-      provider = result.provider;
-      lastId = result.id;
-    } else {
-      reason = result.reason;
-      if (result.error) lastError = result.error;
-    }
-  }
-
-  if (sent === tickets.length && sent > 0) return { sent: true, provider, id: lastId };
-  if (sent > 0) {
-    // Partial: say so rather than pretending. The booking stands; the ones that
-    // went are in the customer's inbox and the rest can be resent.
-    return {
-      sent: false,
-      reason: "failed",
-      error: `${sent} of ${tickets.length} tickets were sent. ${lastError}`.trim(),
-    };
-  }
-  return { sent: false, reason, error: lastError || undefined };
+  if (!tickets.length) return { sent: false, reason: "failed", error: "No tickets to send." };
+  return sendTicketEmail(tickets, overrides);
 }
 
+/** The whole sale in one message. Kept as one function so mail can be retried. */
 export async function sendTicketEmail(
-  ticket: Ticket,
-  overrides: Partial<MailTemplate> = {},
-  /** How many tickets this booking has, so the message can say "2 of 4". */
-  of = ticket.of
+  tickets: Ticket[],
+  overrides: Partial<MailTemplate> = {}
 ): Promise<MailResult> {
-  const built = await buildTicketMail(ticket, overrides, of);
-  const { subject, html, text: body, artwork: image, qr } = built;
+  const built = await buildBookingMail(tickets, overrides);
+  const { subject, html, text: body, codes, logo } = built;
+  const ticket = tickets[0];
+  const attachments = [
+    // Every code inline, so they render even when the client blocks remote
+    // images — which is exactly the image the customer has to show at the gate.
+    ...codes.map((c) => ({
+      filename: `${c.cid}.png`,
+      content: c.buffer,
+      inline: true,
+      contentId: c.cid,
+    })),
+    // The crest, inline for the same reason: a remote URL is a broken image
+    // whenever the host has moved on without the file.
+    ...(logo
+      ? [
+          {
+            filename: "brand-logo.png",
+            content: logo,
+            inline: true,
+            contentId: "brand-logo",
+          },
+        ]
+      : []),
+  ];
 
   // Resend: one POST, no SMTP. Preferred when the key is set.
   const resendKey = process.env.RESEND_API_KEY;
@@ -381,26 +430,12 @@ export async function sendTicketEmail(
           subject,
           html,
           text: body,
-          attachments: [
-            ...(image
-              ? [
-                  {
-                    filename: `${ticket.reference}.png`,
-                    content: image.toString("base64"),
-                  },
-                ]
-              : []),
-            ...(qr
-              ? [
-                  {
-                    filename: "ticket-qr.png",
-                    content: qr.toString("base64"),
-                    inline: true,
-                    contentId: "ticket-qr",
-                  },
-                ]
-              : []),
-          ],
+          attachments: attachments.map((a) => ({
+            filename: a.filename,
+            content: a.content.toString("base64"),
+            inline: a.inline,
+            contentId: a.contentId,
+          })),
         }),
       });
 
@@ -434,18 +469,11 @@ export async function sendTicketEmail(
         subject,
         text: body,
         html,
-        attachments: [
-          ...(image ? [{ filename: `${ticket.reference}.png`, content: image }] : []),
-          ...(qr
-            ? [
-                {
-                  filename: "ticket-qr.png",
-                  content: qr,
-                  cid: "ticket-qr",
-                },
-              ]
-            : []),
-        ],
+        attachments: attachments.map((a) => ({
+          filename: a.filename,
+          content: a.content,
+          cid: a.contentId,
+        })),
       });
       return { sent: true, provider: "smtp", id: info.messageId ?? "" };
     } catch (err) {
@@ -454,9 +482,27 @@ export async function sendTicketEmail(
   }
 
   console.log(
-    `[tickets] email not configured — would have sent ${ticket.reference} to ${ticket.email}`
+    `[tickets] email not configured — would have sent ${ticket.reference} (${tickets.length} ticket${
+      tickets.length === 1 ? "" : "s"
+    }) to ${ticket.email}`
   );
   return { sent: false, reason: "not-configured" };
+}
+
+/**
+ * A tier id, made readable, when the sale itself does not know the name.
+ *
+ * Only a fallback: the normal path asks the booking, which carries the real
+ * label ("VIP Pavilion"). This is for a ticket whose tier id no longer matches
+ * anything — a tier renamed after the sale — so the label degrades to "Pavilion"
+ * rather than disappearing.
+ */
+function tierFor(id: string): string {
+  return id
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
 }
 
 /** Ignores empty strings so a blank admin field keeps the default. */
@@ -484,9 +530,7 @@ export function ticketHtml({
   body,
   footer,
   url,
-  qrSrc,
-  artworkSrc,
-  hasImage,
+  codes,
   event,
   reference,
   seats,
@@ -496,7 +540,7 @@ export function ticketHtml({
   coverSrc,
   paid,
   logo,
-  seq,
+  logoScale,
   of,
   totalSeats,
 }: {
@@ -504,18 +548,19 @@ export function ticketHtml({
   body: string;
   footer: string;
   url: string;
-  qrSrc: string;
-  artworkSrc: string;
-  hasImage: boolean;
+  /**
+   * Every code in the sale, each with its own `cid:`. A four-seat booking is one
+   * message with four codes, so the buyer forwards nothing and the gate still
+   * sees four separate admissions.
+   */
+  codes: { name: string; tier: string; src: string; url: string }[];
   /** Event name, shown in the cover and repeated in the details row. */
   event: string;
   reference: string;
-  /** One ticket admits one person, so this is "1". */
+  /** How many people the booking admits. */
   seats: string;
   /** What the whole booking bought, e.g. "Grandstand Seat × 2, Stand × 1". */
   seatsText: string;
-  /** Which ticket this is, 1-based. */
-  seq: number;
   /** How many tickets the booking has. */
   of: number;
   /** Seats on the whole booking. */
@@ -527,8 +572,10 @@ export function ticketHtml({
   coverSrc: string;
   /** e.g. "LKR 3,000" — the amount actually charged. */
   paid: string;
-  /** Absolute URL of the school logo, or "" to fall back to the crest wordmark. */
+  /** `cid:brand-logo`, or "" to fall back to the crest wordmark. */
   logo: string;
+  /** How much of the white circle the logo fills, 0.3-1. */
+  logoScale: number;
 }): string {
   const paragraphs = body
     .split(/\n{2,}/)
@@ -579,30 +626,85 @@ export function ticketHtml({
    * No logo uploaded yet? The white circle keeps its shape and shows the same
    * wordmark the site uses, so the mail never has a hole in it.
    */
+  // 96 px of white, with the mark inset by the admin's scale. The image is not
+  // the circle: a crest that fills its own canvas would be cropped by a round
+  // mask, so it sits inside a padded white box and the circle is the box.
+  const circle = 96;
+  const inner = Math.round(circle * (logo ? logoScale : 0.62));
+
   const badge = `
          <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 auto">
-           <tr><td width="72" height="72" align="center" valign="middle" bgcolor="#ffffff"
-                   style="width:72px;height:72px;background:#ffffff;border-radius:36px">
+           <tr><td width="${circle}" height="${circle}" align="center" valign="middle" bgcolor="#ffffff"
+                   style="width:${circle}px;height:${circle}px;background:#ffffff;border-radius:${
+                     circle / 2
+                   }px">
              ${
                logo
                  ? `<img src="${escapeHtml(
                      logo
-                   )}" alt="College crest" width="72" height="72"
-                     style="display:block;width:72px;height:72px;border-radius:36px;object-fit:cover">`
-                 : `<div style="width:72px;height:72px;line-height:72px;color:#0a1224;font-family:Georgia,'Times New Roman',serif;font-size:20px;letter-spacing:2px">STC</div>`
+                   )}" alt="College crest" width="${inner}" height="${inner}"
+                     style="display:block;margin:0 auto;width:${inner}px;height:${inner}px;object-fit:contain">`
+                 : `<div style="width:${circle}px;height:${circle}px;line-height:${circle}px;color:#0a1224;font-family:Georgia,'Times New Roman',serif;font-size:24px;letter-spacing:2px">STC</div>`
              }
            </td></tr>
          </table>`;
 
   /**
-   * "Ticket 2 of 4" — the one thing this email has to say that the booking
-   * confirmation did not. Four seats means four emails, and a person holding two
-   * of them needs to know which one is theirs without scanning both at the gate.
+   * The codes, laid out for a mail client.
+   *
+   * Tables, not flexbox: Outlook renders neither grid nor flex, and the one
+   * thing this email cannot afford to get wrong is the layout of the codes.
+   * Two per row on a wide screen, one per row on a phone — the 240 px cells
+   * stack because the table is width="100%" with fixed cell widths and the
+   * client wraps them.
+   *
+   * Each code is a white, padded square so it scans off a screen even in a
+   * client that recolours backgrounds, with the number under it so the buyer
+   * knows which one to hand to whom.
+   */
+  const codeCell = (c: (typeof codes)[number]) => `
+        <td width="${codes.length > 1 ? "50%" : "100%"}" align="center" valign="top" style="padding:0 6px 18px">
+          ${
+            c.name
+              ? `<div style="color:#ffd444;font-size:9px;font-weight:bold;letter-spacing:2.5px;text-transform:uppercase;padding-bottom:8px">${escapeHtml(
+                  c.name
+                )}${c.tier ? ` &middot; ${escapeHtml(c.tier)}` : ""}</div>`
+              : ""
+          }
+          <a href="${escapeHtml(c.url)}" style="text-decoration:none">
+            <img src="${escapeHtml(c.src)}" alt="Your ticket QR code" width="220" height="220"
+                 style="display:block;width:220px;height:220px;margin:0 auto;background:#ffffff;border:8px solid #ffffff">
+          </a>
+        </td>`;
+
+  const codeRows: string[] = [];
+  for (let i = 0; i < codes.length; i += 2) {
+    const pair = codes.slice(i, i + 2);
+    codeRows.push(
+      `<tr>${pair.map(codeCell).join("")}${
+        pair.length === 1 && codes.length > 1
+          ? '<td width="50%">&nbsp;</td>'
+          : ""
+      }</tr>`
+    );
+  }
+  // Nothing rendered at all would leave a hole where the ticket should be; the
+  // fallback says where to go rather than showing a broken image.
+  const codeGrid = codes.length
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;max-width:472px;margin:0 auto">${codeRows.join(
+        ""
+      )}</table>`
+    : `<div style="color:#8b9ab5;font-size:12px">Open your ticket to see the entry code.</div>`;
+
+  /**
+   * How many people this one message admits. It used to say "ticket 2 of 4",
+   * when four seats meant four separate emails; now the whole sale arrives
+   * together, so the band says so once, at the top.
    */
   const ticketLine =
     of > 1
       ? `<div style="padding-top:14px;color:#0a1224;font-size:9px;letter-spacing:3px;text-transform:uppercase">
-           Ticket ${seq} of ${of}
+           ${of} tickets &middot; ${escapeHtml(seatsText)}
          </div>`
       : "";
 
@@ -645,36 +747,31 @@ export function ticketHtml({
 <html lang="en"><body style="margin:0;padding:0;background:#04060d;color:#111;font-family:Arial,Helvetica,sans-serif">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0">Your ${escapeHtml(
     event
-  )} ticket${of > 1 ? ` ${seq} of ${of}` : ""} &middot; ${escapeHtml(reference)}</div>
+  )} ticket${of > 1 ? `s (${of})` : ""} &middot; ${escapeHtml(reference)}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#04060d;padding:28px 12px">
  <tr><td align="center">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#0a1224;border-collapse:collapse">
 
    ${hero}
 
-   ${
-     hasImage
-       ? `<!-- the ticket itself: the code, then the artwork the school uploaded -->
+   <!-- the codes: one per seat, side by side on a wide screen -->
    <tr><td align="center" style="background:#0a1224;padding:30px 24px 0">
-     <div style="color:#9fb0cc;font-size:10px;letter-spacing:3px;text-transform:uppercase;padding-bottom:14px">Your entry code</div>
-     <img src="${escapeHtml(
-       qrSrc
-     )}" alt="Your ticket QR code" width="220" height="220" style="width:220px;height:220px;display:block;background:#ffffff;border:8px solid #ffffff">
-     <div style="color:#9fb0cc;font-size:12px;line-height:1.6;padding-top:12px">Show this at the gate&nbsp;&mdash;&nbsp;one scan, one entry<br><span style="color:#8b9ab5">The full ticket is below and attached.</span></div>
+     <div style="color:#9fb0cc;font-size:10px;letter-spacing:3px;text-transform:uppercase;padding-bottom:6px">${
+       codes.length > 1 ? "Your entry codes" : "Your entry code"
+     }</div>
+     <div style="color:#8b9ab5;font-size:12px;line-height:1.6;padding-bottom:16px">${
+       codes.length > 1
+         ? `One code per person &mdash; each is scanned once, for one entry`
+         : `Show this at the gate &mdash; one scan, one entry`
+     }</div>
+     ${codeGrid}
    </td></tr>
-   <tr><td align="center" style="background:#0a1224;padding:26px 24px 0">
-     <img src="${escapeHtml(
-       artworkSrc
-     )}" alt="Your ticket" width="552" style="width:100%;max-width:552px;height:auto;display:block;border:1px solid #1d2740">
-   </td></tr>`
-       : ""
-   }
 
    <!-- reference / seats / paid -->
    <tr><td style="background:#0a1224;padding:28px 24px 0">
      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#060a16;border-top:1px solid #2a3450;border-bottom:1px solid #2a3450;border-collapse:collapse">
        <tr>
-         ${cell("Ticket", of > 1 ? `${seq} of ${of}` : "1", "one person", true, 20)}
+         ${cell(of > 1 ? "Tickets" : "Ticket", String(of), of > 1 ? "one each" : "one person", true, 20)}
          ${cell("Reference", reference, "booking", false, 16)}
          ${cell("Paid", paid, "payment done", false, 17)}
        </tr>
@@ -685,13 +782,15 @@ export function ticketHtml({
        )} &middot; REF ${escapeHtml(reference.toUpperCase())}
      </div>
      ${
-       // The sale bought several seats; this email is one of them. Say which,
-       // and say what the whole booking holds, so nobody is surprised at the gate.
+       // Every seat is on this message, so say plainly that each code is its own
+       // admission — the thing a buyer needs to know before the gate.
        totalSeats > 1
          ? `<div style="padding-top:10px;color:#93a3c0;font-size:12px;line-height:1.6">
-              This is one of <strong style="color:#ffffff">${totalSeats} tickets</strong> on booking ${escapeHtml(
+              All <strong style="color:#ffffff">${totalSeats} tickets</strong> for booking ${escapeHtml(
                 reference
-              )} — <span style="color:#c3cde0">${escapeHtml(seatsText)}</span>. Each is emailed separately and each admits one person.
+              )} are in this email — <span style="color:#c3cde0">${escapeHtml(
+                seatsText
+              )}</span>. Each code admits one person, once.
             </div>`
          : ""
      }

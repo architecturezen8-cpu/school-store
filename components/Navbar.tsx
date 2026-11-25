@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { ChevronDown, Search, ShoppingBag } from "lucide-react";
 import LogoBadge from "@/components/LogoBadge";
-import { useBrandLogo } from "@/components/context/BrandContext";
+import { useBrand } from "@/components/context/BrandContext";
 import { useCart } from "@/components/context/CartContext";
 import { href, ILink, withBase } from "@/lib/nav";
 
@@ -31,7 +31,7 @@ const navLinks: NavLink[] = [
 
 /** Horizontal crest + wordmark lockup (mobile & tablet) */
 function BrandLockup() {
-  const logo = useBrandLogo();
+  const { logo, scale: logoScale } = useBrand();
   // No aria-label: the visible wordmark ("St.Thomas' College") *is* the
   // accessible name. Labelling it "Home" would hide the college name from
   // screen readers and fail label-in-name.
@@ -40,6 +40,7 @@ function BrandLockup() {
       <LogoBadge
         src={logo}
         size={44}
+        scale={logoScale}
         className="shadow-[0_8px_26px_rgba(0,0,0,0.45)]"
       />
       <span className="flex flex-col leading-none">
@@ -98,7 +99,7 @@ export default function Navbar({
   const [menuOpen, setMenuOpen] = useState(false);
   const [shopExpanded, setShopExpanded] = useState(false);
   const { count, setOpen } = useCart();
-  const logo = useBrandLogo();
+  const { logo, scale: logoScale } = useBrand();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -306,7 +307,7 @@ function DesktopBar({
 }) {
   const [scrolled, setScrolled] = useState(false);
   const { count, setOpen } = useCart();
-  const logo = useBrandLogo();
+  const { logo, scale: logoScale } = useBrand();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -405,6 +406,7 @@ function DesktopBar({
           <LogoBadge
             src={logo}
             size={56}
+            scale={logoScale}
             className="shadow-[0_15px_45px_rgba(0,0,0,0.5)] transition-transform duration-500 hover:scale-105"
           />
         </a>

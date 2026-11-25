@@ -2,7 +2,7 @@
 
 import { ArrowUp, Mail, MapPin, Phone } from "lucide-react";
 import LogoBadge from "@/components/LogoBadge";
-import { useBrandLogo } from "@/components/context/BrandContext";
+import { useBrand } from "@/components/context/BrandContext";
 import { href, withBase } from "@/lib/links";
 import { openTrack } from "@/lib/nav";
 import Reveal from "@/components/Reveal";
@@ -71,7 +71,7 @@ function ColumnTitle({ children }: { children: string }) {
 }
 
 export default function Footer() {
-  const logo = useBrandLogo();
+  const { logo, scale: logoScale } = useBrand();
   return (
     <footer
       id="contact"
@@ -89,6 +89,7 @@ export default function Footer() {
               <LogoBadge
                 src={logo}
                 size={56}
+                scale={logoScale}
                 className="shadow-[0_0_44px_rgba(255,255,255,0.18)]"
               />
               <div className="min-w-0">

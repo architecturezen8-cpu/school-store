@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { z } from "zod";
 import { createBooking, ticketsForBooking } from "@/lib/bookings";
 import { hasDatabase } from "@/lib/db";
@@ -45,29 +45,43 @@ export async function POST(req: Request) {
     const booking = await createBooking(parsed.data);
 
     // The booking is committed at this point: a mail problem must never turn a
-    // successful reservation into an error the customer sees, so the delivery
-    // result is reported alongside it instead.
-    let email: { sent: boolean; reason?: string; tickets?: number } = {
+    // successful reservation into an error the customer sees, so delivery is
+    // reported alongside it rather than blocking it.
+    //
+    // Delivery no longer holds the response open. It used to send every ticket
+    // before replying, so a four-seat sale sat on "Reserving…" for seconds while
+    // SMTP finished — and the customer had already paid. The customer now gets
+    // their reference and their codes the moment the seats are booked, and the
+    // single email for the sale is delivered in the background.
+    const tickets = await ticketsForBooking(booking.reference);
+    const email: { sent: boolean; reason?: string; tickets?: number } = {
       sent: false,
-      reason: "failed",
+      reason: "queued",
+      tickets: tickets.length,
     };
-    try {
-      // One email per person: four seats is four tickets with four QRs, so four
-      // messages. Sending one would leave the other three at the gate with
-      // nothing to show that had not already been scanned.
-      const tickets = await ticketsForBooking(booking.reference);
-      if (tickets.length) {
-        const result = await sendTicketEmails(tickets);
-        email = result.sent
-          ? { sent: true, tickets: tickets.length }
-          : { sent: false, reason: result.reason, tickets: tickets.length };
-        if (!result.sent && result.error) {
-          console.error("[api/bookings] ticket email:", result.error);
+    // Saying "emailed" when there is no mail transport is the kind of small lie
+    // that gets a buyer to the gate with nothing to show, so the confirmation
+    // only claims an email when one can actually go out.
+    email.sent = Boolean(process.env.RESEND_API_KEY || process.env.SMTP_HOST);
+
+    if (tickets.length) {
+      // `after()` runs once the response is on the wire. If it fails or is not
+      // available, the admin's "Resend" on the booking is the fallback, so this
+      // is never the only copy.
+      after(async () => {
+        try {
+          const result = await sendTicketEmails(tickets);
+          if (!result.sent) {
+            console.error(
+              "[api/bookings] ticket email:",
+              result.reason,
+              result.error ?? ""
+            );
+          }
+        } catch (err) {
+          console.error("[api/bookings] ticket email failed:", errorMessage(err));
         }
-      }
-    } catch (err) {
-      console.error("[api/bookings] ticket email failed:", errorMessage(err));
-      email = { sent: false, reason: "failed" };
+      });
     }
 
     // The signature is what makes the confirmation screen's QR the same ticket

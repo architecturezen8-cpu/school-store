@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server";
-import QRCode from "qrcode";
 import { isAdmin } from "@/lib/admin/auth";
-import { listBookings, getTicketByToken } from "@/lib/bookings";
+import { listBookings, getTicketByToken, ticketsForBooking } from "@/lib/bookings";
 import { databaseDown } from "@/lib/db";
-import { buildTicketMail, sampleTicket } from "@/lib/tickets/email";
-import { ticketUrl, signTicket } from "@/lib/tickets/sign";
+import { buildBookingMail, sampleTicket } from "@/lib/tickets/email";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,10 +13,10 @@ export const dynamic = "force-dynamic";
  * The email, rendered by the same function that sends it.
  *
  * The admin preview used to be a hand-built mock-up that drifted from the real
- * message the moment either changed. This returns `buildTicketMail().html`
- * instead, with one substitution: the inline QR (`cid:ticket-qr`) becomes the
- * public artwork URL, because a `<img src="cid:…">` renders as nothing outside
- * a mail client.
+ * message the moment either changed. This returns `buildBookingMail().html`
+ * instead, with one substitution: every inline code (`cid:ticket-qr-N`) becomes
+ * a `data:` URI, because `<img src="cid:…">` renders as nothing outside a mail
+ * client — which is exactly why the preview arrived with empty images.
  *
  * The response is the document itself, not a file — the frame in
  * /admin/mail just points at this URL, so "refresh" means "refresh the mail".
@@ -57,48 +55,31 @@ export async function GET(req: Request) {
     );
   }
 
-  const mail = await buildTicketMail(preview);
-  // Drawn here rather than fetched from /api/tickets/<token>/qr: that route
-  // looks the ticket up in the database, which is right for a real booking and
-  // impossible for a sample. A data: URI is the same image either way, needs no
-  // round trip, and cannot arrive in the frame as a broken 404.
-  const signature = signTicket(preview.token);
-  const qrPng = await QRCode.toBuffer(ticketUrl(preview.token, signature), {
-    type: "png",
-    width: 600,
-    margin: 2,
-    errorCorrectionLevel: "H",
-    color: { dark: "#000000", light: "#ffffff" },
+  // The whole sale, not one seat: the message the customer receives carries every
+  // code, so a preview showing a single one would be a preview of a different
+  // email.
+  const sale = full
+    ? await ticketsForBooking(full.reference).catch(() => [])
+    : [];
+  const mail = await buildBookingMail(sale.length ? sale : [preview]);
+
+  // Every code in the message is inline (`cid:ticket-qr-N`), which renders as
+  // nothing outside a mail client. Swap each one for the same PNG as a data:
+  // URI, taken from the buffer that was actually attached, so the frame shows
+  // the real codes and never a broken-image icon.
+  const dataUris = new Map<string, string>(
+    mail.codes.map((c) => [c.cid, `data:image/png;base64,${c.buffer.toString("base64")}`])
+  );
+  if (mail.logo) {
+    dataUris.set("brand-logo", `data:image/png;base64,${mail.logo.toString("base64")}`);
+  }
+
+  let html = mail.html.replace(/src="cid:([^"]+)"/g, (whole, cid: string) => {
+    const uri = dataUris.get(cid);
+    return uri ? `src="${uri}"` : whole;
   });
-  const qrUrl = `data:image/png;base64,${qrPng.toString("base64")}`;
 
-  /**
-   * The ticket artwork, handled from the buffer that is actually attached.
-   *
-   * The mail points this <img> at /api/tickets/<token>/image, which looks the
-   * booking up in the database. That is right for a customer's mail and wrong
-   * here twice over: a sample has no booking row (so the route 404s and the frame
-   * shows a broken-image icon), and a real booking costs an extra round trip to
-   * the server to render a picture we already have in hand.
-   *
-   * `mail.artwork` is that picture — the exact PNG attached to the message. So:
-   * inline it when it exists, and remove the row entirely when it does not, so
-   * the preview never shows a gap.
-   */
-  const artworkTag =
-    /<tr><td align="center" style="background:#0a1224;padding:26px 24px 0">\s*<img src="[^"]*" alt="Your ticket"[\s\S]*?<\/td><\/tr>/;
-  // The mail itself has no <title> or <main> (mail clients do not use either),
-  // so the standalone document gets them — it is a page here, and a page
-  // without a title is an accessibility failure.
-  const artworkData = mail.artwork
-    ? `data:image/png;base64,${mail.artwork.toString("base64")}`
-    : "";
-
-  const html = mail.html
-    .replace(/src="cid:ticket-qr"/g, `src="${qrUrl}"`)
-    .replace(artworkTag, (block) =>
-      artworkData ? block.replace(/src="[^"]*"/, `src="${artworkData}"`) : ""
-    )
+  html = html
     .replace(
       "<html lang=\"en\">",
       `<html lang="en"><head><meta charset="utf-8"><title>Ticket email · ${preview.reference}</title></head>`
