@@ -123,12 +123,38 @@ try {
   ok(`connected to "${who.rows[0].db}"`);
   line(`  ${who.rows[0].v.split(",")[0]}`);
 } catch (err) {
-  bad(`could not connect: ${err.message}`);
+  const msg = String(err.message ?? "");
+  bad(`could not connect: ${msg}`);
   line();
-  line("  Common causes:");
-  line("   · wrong password  → Settings → Database → Reset database password");
-  line("   · direct host instead of the pooler (IPv6-only)");
-  line("   · the project is paused (Supabase pauses free projects when idle)");
+
+  /* Name the cause. "Could not connect" with a list of maybes is what sent
+     someone looking at their password when their network simply cannot reach
+     the host, so each failure mode says its own thing. */
+  if (/ETIMEDOUT|timeout expired|timeout/i.test(msg)) {
+    line("  The host did not answer in time. That is almost never the password.");
+    line("   · is the project paused?  Supabase free projects pause when idle —");
+    line("                             open the dashboard and wake it");
+    line("   · is this the IPv6-only direct host (db.<ref>.supabase.co)?");
+    line("                             many networks cannot reach it; use the");
+    line("                             Session pooler instead (see SUPABASE.md)");
+    line("   · is there a firewall or corporate proxy in the way?");
+  } else if (/ENOTFOUND|getaddrinfo/i.test(msg)) {
+    line("  That hostname does not resolve.");
+    line("   · check the host for typos — it is the part after the @");
+    line("   · the direct host needs the region in it: db.<ref>.supabase.co");
+  } else if (/password|authentication|SASL|role .* does not exist/i.test(msg)) {
+    line("  The host answered and refused the login.");
+    line("   · wrong password or username → Settings → Database → Reset password");
+    line("   · the username must be <role>.<project-ref> for the pooler");
+  } else if (/ECONNREFUSED/i.test(msg)) {
+    line("  Nothing is listening on that host and port.");
+    line("   · is the port right? Supabase's pooler is 6543 or 5432, not 5433");
+  } else {
+    line("  Common causes:");
+    line("   · wrong password  → Settings → Database → Reset database password");
+    line("   · direct host instead of the pooler (IPv6-only)");
+    line("   · the project is paused (Supabase pauses free projects when idle)");
+  }
   line();
   process.exit(1);
 }
@@ -186,6 +212,37 @@ for (const [table, expected] of Object.entries(EXPECTED)) {
   if (n >= expected) ok(`${table.padEnd(13)} ${String(n).padStart(3)} rows`);
   else {
     bad(`${table.padEnd(13)} ${String(n).padStart(3)} rows (expected ≥ ${expected})`);
+    seeded = false;
+  }
+}
+
+/*
+ * Tables are not enough: the events table can exist and still be missing every
+ * column the event page reads, which is what "column \"tagline\" does not exist"
+ * means. That error used to arrive only from a build log.
+ */
+const NEEDED_COLUMNS = [
+  "events.tagline",
+  "events.story",
+  "events.rules",
+  "events.gallery",
+  "events.links",
+  "events.hero_image",
+  "events.hero_kicker",
+  "events.ends_at",
+  "events.position",
+];
+if (have.has("events")) {
+  const { rows: cols } = await client.query(
+    `select column_name from information_schema.columns where table_schema='public' and table_name='events'`
+  );
+  const names = new Set(cols.map((c) => c.column_name));
+  const gone = NEEDED_COLUMNS.filter((c) => !names.has(c.split(".")[1]));
+  if (gone.length === 0) {
+    ok(`events has all ${NEEDED_COLUMNS.length} columns the event page needs`);
+  } else {
+    bad(`events is missing: ${gone.map((c) => c.split(".")[1]).join(", ")}`);
+    line("    fix: npm run db:migrate");
     seeded = false;
   }
 }

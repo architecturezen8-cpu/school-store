@@ -101,11 +101,32 @@ function withAsset<T extends { image: string }>(item: T): T {
   };
 }
 
+/**
+ * A build must never quietly fill itself in with demo data.
+ *
+ * At runtime the fallback is right: a shop whose database blinked should still
+ * render something rather than a 500. During `next build` it is the opposite —
+ * the pages are written to disk and deployed, so a fallback bakes the demo
+ * catalogue into the live site and the build still exits 0. `npm run build`
+ * sets STORE_STRICT=1 and this rethrows instead, which surfaces the real reason
+ * (`column "tagline" does not exist`, `ETIMEDOUT …`) once, instead of the 128
+ * identical lines a fallback prints on a 34-page build.
+ */
+const STRICT = process.env.STORE_STRICT === "1";
+
 async function safe<T>(run: () => Promise<T>, fallback: T): Promise<T> {
   if (!hasDatabase()) return fallback;
   try {
     return await run();
   } catch (err) {
+    if (STRICT) {
+      console.error(
+        `\n[store] BUILD STOPPED: the database could not answer, so the shop cannot be built from it.\n` +
+          `[store] ${errorMessage(err)}\n` +
+          `[store] Fix it with: npm run db:check   ·   npm run db:migrate   ·   npm run db:seed\n`
+      );
+      throw new Error(`The shop was built from the seed catalogue, not the database: ${errorMessage(err)}`);
+    }
     console.error("[store] query failed, serving seed data:", errorMessage(err));
     return fallback;
   }
