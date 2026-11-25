@@ -324,8 +324,14 @@ create table if not exists site_settings (
   id         integer primary key check (id = 1),
   -- Path under public/, e.g. /uploads/brand/logo.png . Empty = built-in crest.
   logo       text not null default '',
+  -- How much of the white circle the mark should fill, 0.3-1. A crest with a lot
+  -- of white margin needs to be larger than one that fills its own square, so
+  -- this is a setting rather than a constant.
+  logo_scale numeric(3,2) not null default 0.86,
   updated_at timestamptz not null default now()
 );
+
+alter table site_settings add column if not exists logo_scale numeric(3,2) not null default 0.86;
 
 drop trigger if exists site_settings_touch_updated_at on site_settings;
 create trigger site_settings_touch_updated_at

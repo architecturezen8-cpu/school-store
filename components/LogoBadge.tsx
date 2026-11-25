@@ -20,15 +20,25 @@ export default function LogoBadge({
   className = "",
   /** Padding around the crest when falling back to the SVG. */
   inset = 0.28,
+  /**
+   * How much of the circle an uploaded logo fills, 0.3-1.
+   *
+   * Uploaded crests are padded onto a white square, so one with a lot of built-in
+   * margin looks small here even though the file is correct. The admin sets this
+   * by eye, and every circle — navbar, footer, admin, mail — follows.
+   */
+  scale = 0.86,
   decorative = true,
 }: {
   src?: string;
   size?: number;
   className?: string;
   inset?: number;
+  scale?: number;
   decorative?: boolean;
 }) {
   const crestSize = Math.round(size * inset);
+  const logoSize = Math.round(size * Math.min(1, Math.max(0.3, scale)));
 
   return (
     <span
@@ -36,14 +46,18 @@ export default function LogoBadge({
       style={{ height: size, width: size }}
     >
       {src ? (
+        // Inset rather than `object-cover`: a round mask over a crest with writing
+        // at the bottom clips the motto, and the whole point of the white circle
+        // is that the mark reads at 28 px as well as at 176.
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={src}
           alt={decorative ? "" : "St. Thomas' College crest"}
           aria-hidden={decorative || undefined}
-          width={size}
-          height={size}
-          className="h-full w-full object-cover"
+          width={logoSize}
+          height={logoSize}
+          className="object-contain"
+          style={{ height: logoSize, width: logoSize }}
         />
       ) : (
         <CrestLogo

@@ -9,9 +9,10 @@ gate. If you only read one section, read **Setting it up** below.
 
 ```
 admin uploads a design            customer books                gate
-with a white square      ──▶   ──▶ QR pasted in the    ──▶   ──▶ scan once
-/admin/templates                  square, email sent           /admin/gate
-                                  /t/<token> also shows it     (or /gate)
+with a white square      ──▶   ──▶ one email, a code  ──▶   ──▶ scan once each
+/admin/templates                  per seat                     /admin/gate
+/admin/settings                   /t/<token> also shows them   (or /gate)
+(the school crest)
 ```
 
 Every booking gets its own **admission ticket**:
@@ -69,11 +70,22 @@ tied to a single event, or left as the default for every event.
 
 ### The email
 
-**One design, not a gallery.** Every customer gets the same mail: the event
-photograph as the cover, the school's name on it, the date and the event, the
-message, the ticket, a three-column details row and one wide button. There is no
-"pick a design" step, because a school sending one kind of ticket does not need
-one.
+**One design, not a gallery.** Every customer gets the same mail: the crest in a
+white circle, the date and the event on a gold band, the message, one code per
+seat, a three-column details row and one wide button. There is no "pick a
+design" step, because a school sending one kind of ticket does not need one.
+
+**One email per sale, one code per seat.** Buying four tickets sends *one*
+message with four codes in it, numbered "Ticket 1" to "Ticket 4" (with the tier
+under each). Each code admits one person, once — so the gate still sees four
+admissions. Mailing four separate messages made a four-seat booking wait on SMTP
+four times before the buyer saw "Booked", and left them hunting four emails.
+
+**The crest is inlined, not linked.** A remote `src` is a broken-image icon the
+moment the reader's client cannot fetch it — the host has moved on, the file is
+fine but not deployed yet, the client blocks remote images. The uploaded logo is
+embedded as `cid:brand-logo`, sized by the **size in the circle** setting, so what
+the admin sees in the preview is what arrives.
 
 `/admin/mail` does exactly two things: it **shows** the message and it **sends a
 test**. There is no wording editor. The ticket is a default — subject, heading,
@@ -81,7 +93,7 @@ message and footer are the ones in `lib/tickets/email.ts` — because a ticket i
 the one thing a school sends thousands of times and every variation of it is a
 chance to ship a typo to a buyer. What the admin gets instead is certainty:
 
-1. **Preview** — rendered by `buildTicketMail()`, the same function that sends,
+1. **Preview** — rendered by `buildBookingMail()`, the same function that sends,
    for a real booking, so the QR shown is the QR that will be scanned. Pick which
    booking to preview from the reference chips above the frame.
 2. **Send a test** — type any address and the real ticket lands in that inbox.

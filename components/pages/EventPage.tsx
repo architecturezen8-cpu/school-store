@@ -206,7 +206,7 @@ export default function EventPage({
 
               <p className="mt-3 flex items-start gap-2 text-[11px] leading-relaxed text-white/50">
                 <Info size={12} className="mt-0.5 shrink-0" />
-                One QR per booking, scanned once at the gate. Emailed instantly.
+                One QR per seat, each scanned once at the gate. Emailed instantly.
               </p>
             </div>
           </div>

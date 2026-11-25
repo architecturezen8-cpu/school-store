@@ -44,7 +44,7 @@ export default async function SettingsPage() {
         )}
 
         <div className="mt-6">
-          <LogoForm current={settings.logo} />
+          <LogoForm current={settings.logo} currentScale={settings.logoScale} />
         </div>
       </section>
 

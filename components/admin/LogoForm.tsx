@@ -6,7 +6,11 @@ import { ImagePlus, Trash2, Upload } from "lucide-react";
 import LogoBadge from "@/components/LogoBadge";
 import { useToast } from "@/components/admin/Toasts";
 import { buttonClass } from "@/components/admin/ui";
-import { clearLogoAction, uploadLogoAction } from "@/app/admin/actions";
+import {
+  clearLogoAction,
+  saveLogoScaleAction,
+  uploadLogoAction,
+} from "@/app/admin/actions";
 
 /**
  * Upload, preview, replace, remove.
@@ -16,10 +20,17 @@ import { clearLogoAction, uploadLogoAction } from "@/app/admin/actions";
  * disappears in the navbar is a disappointment nobody should discover on the live
  * site. The four sizes are the four real ones, not a guess.
  */
-export default function LogoForm({ current }: { current: string }) {
+export default function LogoForm({
+  current,
+  currentScale = 0.86,
+}: {
+  current: string;
+  currentScale?: number;
+}) {
   const router = useRouter();
   const toast = useToast();
   const [logo, setLogo] = useState(current);
+  const [scale, setScale] = useState(currentScale);
   const [busy, setBusy] = useState<"upload" | "clear" | null>(null);
   const [pending, startTransition] = useTransition();
   const input = useRef<HTMLInputElement>(null);
@@ -65,6 +76,20 @@ export default function LogoForm({ current }: { current: string }) {
     });
   }
 
+  /**
+   * Saved when the slider is released, not on every pixel: a drag fires dozens of
+   * changes and each one is a server round trip.
+   */
+  async function commitScale(value: number) {
+    const result = await saveLogoScaleAction(value);
+    if (!result.ok) {
+      toast({ tone: "error", title: "Could not save that size", body: result.error });
+      return;
+    }
+    toast({ tone: "ok", title: "Logo size saved", body: `${Math.round(value * 100)}% of the circle.` });
+    startTransition(() => router.refresh());
+  }
+
   const working = Boolean(busy) || pending;
 
   return (
@@ -75,9 +100,9 @@ export default function LogoForm({ current }: { current: string }) {
           Preview
         </p>
         <div className="mt-4 flex flex-wrap items-end gap-4">
-          <LogoBadge src={logo} size={88} decorative={false} />
-          <LogoBadge src={logo} size={44} />
-          <LogoBadge src={logo} size={28} />
+          <LogoBadge src={logo} size={88} scale={scale} decorative={false} />
+          <LogoBadge src={logo} size={44} scale={scale} />
+          <LogoBadge src={logo} size={28} scale={scale} />
         </div>
         <p className="mt-4 text-[11px] leading-relaxed text-muted">
           {logo
@@ -138,6 +163,39 @@ export default function LogoForm({ current }: { current: string }) {
           <p role="status" className="mt-3 text-xs text-gold">
             Uploading and resizing…
           </p>
+        )}
+
+        {/* Size in the circle. Only meaningful once there is an upload — the
+            built-in crest already sits the way it was drawn. */}
+        {logo && (
+          <div className="mt-5 border-t border-line/60 pt-4">
+            <div className="flex items-baseline justify-between gap-3">
+              <label
+                htmlFor="logo-scale"
+                className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted"
+              >
+                Size in the circle
+              </label>
+              <span className="font-mono text-xs text-gold">{Math.round(scale * 100)}%</span>
+            </div>
+            <input
+              id="logo-scale"
+              type="range"
+              min={40}
+              max={100}
+              step={2}
+              value={Math.round(scale * 100)}
+              aria-describedby="logo-scale-help"
+              onChange={(e) => setScale(Number(e.target.value) / 100)}
+              onPointerUp={() => void commitScale(scale)}
+              onKeyUp={() => void commitScale(scale)}
+              className="mt-3 w-full accent-gold"
+            />
+            <p id="logo-scale-help" className="mt-2 text-[11px] leading-relaxed text-muted">
+              A crest with its own white margin needs a bigger number; one that fills the
+              image needs a smaller one. This applies everywhere, including the email.
+            </p>
+          </div>
         )}
       </div>
     </div>

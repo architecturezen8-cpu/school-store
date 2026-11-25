@@ -3,7 +3,7 @@ import "./globals.css";
 import { CartProvider } from "@/components/context/CartContext";
 import SiteChrome from "@/components/SiteChrome";
 import { BrandProvider } from "@/components/context/BrandContext";
-import { logoUrl } from "@/lib/settings";
+import { getSettings, logoUrl } from "@/lib/settings";
 import { getProducts } from "@/lib/store";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://the-thomian-store.vercel.app";
@@ -53,7 +53,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // The logo the admin uploaded, read once here and handed to every surface that
   // shows a mark. One read per request, and no client-side fetch for an image
   // that changes about once a year.
-  const [products, logo] = await Promise.all([getProducts(), logoUrl()]);
+  const [products, logo, settings] = await Promise.all([
+    getProducts(),
+    logoUrl(),
+    getSettings(),
+  ]);
   const searchIndex = products.map((p) => ({
     ...searchFields(p),
     rating: 0,
@@ -66,7 +70,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="bg-ink text-white">
         <div className="grain-overlay" aria-hidden />
         <CartProvider>
-          <BrandProvider logo={logo}>
+          <BrandProvider logo={logo} scale={settings.logoScale}>
             <SiteChrome searchIndex={searchIndex}>{children}</SiteChrome>
           </BrandProvider>
         </CartProvider>
