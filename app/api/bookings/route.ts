@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createBooking, getTicketByToken } from "@/lib/bookings";
+import { createBooking, ticketsForBooking } from "@/lib/bookings";
 import { hasDatabase } from "@/lib/db";
-import { sendTicketEmail } from "@/lib/tickets/email";
+import { sendTicketEmails } from "@/lib/tickets/email";
 import { signTicket } from "@/lib/tickets/sign";
 import { errorMessage } from "@/lib/errors";
 
@@ -47,14 +47,23 @@ export async function POST(req: Request) {
     // The booking is committed at this point: a mail problem must never turn a
     // successful reservation into an error the customer sees, so the delivery
     // result is reported alongside it instead.
-    let email: { sent: boolean; reason?: string } = { sent: false, reason: "failed" };
+    let email: { sent: boolean; reason?: string; tickets?: number } = {
+      sent: false,
+      reason: "failed",
+    };
     try {
-      const ticket = await getTicketByToken(booking.token);
-      if (ticket) {
-        const result = await sendTicketEmail(ticket);
+      // One email per person: four seats is four tickets with four QRs, so four
+      // messages. Sending one would leave the other three at the gate with
+      // nothing to show that had not already been scanned.
+      const tickets = await ticketsForBooking(booking.reference);
+      if (tickets.length) {
+        const result = await sendTicketEmails(tickets);
         email = result.sent
-          ? { sent: true }
-          : { sent: false, reason: result.reason };
+          ? { sent: true, tickets: tickets.length }
+          : { sent: false, reason: result.reason, tickets: tickets.length };
+        if (!result.sent && result.error) {
+          console.error("[api/bookings] ticket email:", result.error);
+        }
       }
     } catch (err) {
       console.error("[api/bookings] ticket email failed:", errorMessage(err));
@@ -63,8 +72,22 @@ export async function POST(req: Request) {
 
     // The signature is what makes the confirmation screen's QR the same ticket
     // that was emailed, so the customer can be admitted from either.
+    // Every ticket gets its signature, so the confirmation screen can show all
+    // of the QRs — the same codes that were emailed — rather than one and a
+    // promise. `token`/`signature` at the top stay for anything reading a single
+    // ticket from this response.
     return NextResponse.json(
-      { booking: { ...booking, signature: signTicket(booking.token) }, email },
+      {
+        booking: {
+          ...booking,
+          signature: signTicket(booking.token),
+          tickets: booking.tickets.map((t) => ({
+            ...t,
+            signature: signTicket(t.token),
+          })),
+        },
+        email,
+      },
       { status: 201 }
     );
   } catch (err) {

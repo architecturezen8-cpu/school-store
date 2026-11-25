@@ -6,6 +6,7 @@ import { databaseProblem } from "@/lib/admin/db-guard";
 import { databaseDown, hasDatabase } from "@/lib/db";
 import { listAllEvents } from "@/lib/events";
 import { safeDecode } from "@/lib/safe-decode";
+import ParamToast from "@/components/admin/ParamToast";
 import { toggleEventFeaturedAction, toggleEventPublishedAction } from "../actions";
 import {
   Empty,
@@ -40,6 +41,9 @@ export default async function AdminEventsPage({
   if (!hasDatabase()) redirect("/admin?error=database");
 
   const { ok, error } = await searchParams;
+
+  const okText = ok ? safeDecode(ok) : "";
+  const errorText = error ? safeDecode(error) : "";
   const problem = databaseProblem();
   const events = databaseDown() ? [] : await listAllEvents();
 
@@ -63,8 +67,8 @@ export default async function AdminEventsPage({
         )}
         {(ok || error) && (
           <div className="mt-4 space-y-2">
-            {ok && <Notice tone="ok">{safeDecode(ok)}</Notice>}
-            {error && <Notice tone="error">{safeDecode(error)}</Notice>}
+            <ParamToast ok={okText} error={errorText} />
+            
           </div>
         )}
       </section>

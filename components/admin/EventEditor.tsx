@@ -17,6 +17,7 @@ import {
 import { Field, Notice, buttonClass, inputClass, labelClass } from "@/components/admin/ui";
 import EventDesign, { type DesignSummary } from "@/components/admin/EventDesign";
 import { useFormRescue } from "@/components/admin/useFormRescue";
+import { useToast } from "@/components/admin/Toasts";
 import type { AdminEvent, EventDraft } from "@/lib/events";
 import { slugify, uniqueSlug } from "@/lib/slug";
 import type { EventImage, EventLink, EventRule } from "@/data/seed";
@@ -82,6 +83,7 @@ export default function EventEditor({
   const serverDraft = useRef<EventDraft>(initial);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const toast = useToast();
   const [pending, startTransition] = useTransition();
   const [uploading, setUploading] = useState<string | null>(null);
   /**
@@ -94,6 +96,17 @@ export default function EventEditor({
 
   const set = <K extends keyof EventDraft>(key: K, value: EventDraft[K]) =>
     setDraft((d) => ({ ...d, [key]: value }));
+
+  /**
+   * Raise a popup for the same thing the inline notice says.
+   *
+   * Both, deliberately: the popup is what the admin sees without scrolling (the
+   * save button is at the bottom of a long form, the notice at the top), and the
+   * inline copy is what is still there a minute later when they look back at the
+   * field that was wrong.
+   */
+  const toastOf = (tone: "ok" | "error" | "warn", title: string, body?: string) =>
+    toast({ tone, title, body, key: `${tone}:${title}` });
 
   /**
    * A rescued copy wins over what the server sent — once, after mount.
@@ -219,11 +232,13 @@ export default function EventEditor({
       const result = await uploadAction(body);
       if (!result.ok || !result.url) {
         setError(result.error ?? "That image could not be uploaded.");
+        toastOf("error", result.error ?? "That image could not be uploaded.");
         return null;
       }
       return result.url;
     } catch (err) {
       setError((err as Error).message || "That image could not be uploaded.");
+      toastOf("error", (err as Error).message || "That image could not be uploaded.");
       return null;
     } finally {
       setUploading(null);
@@ -241,13 +256,14 @@ export default function EventEditor({
       const result = await saveAction(JSON.stringify({ draft: tidy, mode }));
       if (!result.ok) {
         setError(result.error ?? "Could not save.");
-        window.scrollTo({ top: 0, behavior: "smooth" });
+        toastOf("error", result.error ?? "Could not save.", "Nothing was changed");
         return;
       }
       // The copy on disk is answered by the save; keeping it would make the
       // next visit open an old draft over the event it just wrote.
       rescue.clear();
       setNotice(mode === "create" ? "Event created." : "Saved.");
+      toastOf("ok", mode === "create" ? "Event created." : "Saved.", "The shop updates on its next visit.");
       // A new event gets its own page; an edit stays put but refetches, so the
       // form shows what was actually written rather than what was typed.
       if (mode === "create" && result.slug) {
@@ -262,7 +278,10 @@ export default function EventEditor({
     startTransition(async () => {
       const on = !draft.featured;
       const result = await featureAction(draft.slug, on);
-      if (!result.ok) setError(result.error ?? "Could not change the spotlight.");
+      if (!result.ok) {
+        setError(result.error ?? "Could not change the spotlight.");
+        toastOf("error", result.error ?? "Could not change the spotlight.");
+      }
       else {
         // `draft` is seeded from props and never re-synced, so the label has to
         // follow the switch here or it lies until the page is reloaded.
@@ -271,6 +290,11 @@ export default function EventEditor({
           on
             ? "Added to the spotlight on /tickets."
             : "Removed from the spotlight on /tickets."
+        );
+        toastOf(
+          "ok",
+          on ? "Added to the spotlight" : "Removed from the spotlight",
+          "This is the big card at the top of /tickets."
         );
         router.refresh();
       }
@@ -281,7 +305,10 @@ export default function EventEditor({
     if (!confirm(`Delete “${draft.title || draft.slug}”? This cannot be undone.`)) return;
     startTransition(async () => {
       const result = await deleteAction(draft.slug);
-      if (!result.ok) setError(result.error ?? "Could not delete that event.");
+      if (!result.ok) {
+        setError(result.error ?? "Could not delete that event.");
+        toastOf("error", result.error ?? "Could not delete that event.");
+      }
       else router.push("/admin/events");
     });
   }
@@ -425,6 +452,25 @@ export default function EventEditor({
                 if (url) set("heroImage", url);
               }}
               onClear={() => set("heroImage", "")}
+            />
+
+            {/*
+              The card photo, which is a different shape from the hero and used to
+              have no field at all — so an event created with only a hero uploaded
+              showed a blank tile on /tickets. A card is now its own image, and it
+              falls back to the hero when left empty, which is the common case.
+            */}
+            <ImageField
+              label="Card photograph"
+              hint={draft.image ? "shown on /tickets" : "falls back to the hero"}
+              value={draft.image}
+              fallback={draft.heroImage}
+              busy={uploading === "card"}
+              onPick={async (file) => {
+                const url = await upload(file, "card");
+                if (url) set("image", url);
+              }}
+              onClear={() => set("image", "")}
             />
 
             <Field label="Kicker" hint="the small line above the title">

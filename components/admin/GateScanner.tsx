@@ -26,6 +26,9 @@ type ScanTicket = {
   tiers: string[];
   admittedAt: string | null;
   admittedBy: string;
+  /** Which person this is, and how many the booking holds. */
+  seq: number;
+  of: number;
 };
 
 type ScanResult =
@@ -252,15 +255,24 @@ export default function GateScanner() {
               <p className="text-base font-medium">{result.ticket.name}</p>
               <p className="opacity-60">{result.ticket.event}</p>
               <p className="opacity-60">
-                {result.ticket.tiers.join(", ")} · {result.ticket.seats} seat
-                {result.ticket.seats === 1 ? "" : "s"}
+                {result.ticket.seats} seat{result.ticket.seats === 1 ? "" : "s"} on the
+                booking
               </p>
+              {/* The important line when a booking has several tickets: this is
+                  one person, not the whole party. Saying "2 of 4" is what stops
+                  a volunteer looking for four people on one code. */}
+              {result.ticket.of > 1 && (
+                <p className="font-semibold">
+                  Ticket {result.ticket.seq} of {result.ticket.of} — admit one person
+                </p>
+              )}
               <p className="font-mono text-xs opacity-60">Ref {result.ticket.reference}</p>
               {result.status === "already" && result.ticket.admittedAt && (
                 <p className="mt-2 rounded-lg bg-page px-3 py-2 text-strong">
-                  First scanned {new Date(result.ticket.admittedAt).toLocaleString("en-GB")}
+                  {result.ticket.of > 1 ? `Ticket ${result.ticket.seq} of ${result.ticket.of} was` : "First"} scanned{" "}
+                  {new Date(result.ticket.admittedAt).toLocaleString("en-GB")}
                   {result.ticket.admittedBy ? ` at ${result.ticket.admittedBy}` : ""}. Do
-                  not admit again.
+                  not admit again — {result.ticket.of > 1 ? "the other people on this booking have their own codes." : "one scan, one entry."}
                 </p>
               )}
               {result.status === "already" && (

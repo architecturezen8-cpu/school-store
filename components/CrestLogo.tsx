@@ -9,18 +9,22 @@ type CrestProps = {
    */
   decorative?: boolean;
   alt?: string;
+  /** Inline size, for when the crest sits in a circle of a known diameter. */
+  style?: React.CSSProperties;
 };
 
 export default function CrestLogo({
   className = "h-8 w-8",
   decorative = false,
   alt = "St. Thomas' College Matale crest",
+  style,
 }: CrestProps) {
   return (
     <svg
       viewBox="0 0 100 112"
       fill="none"
       className={className}
+      style={style}
       role={decorative ? "presentation" : "img"}
       {...(decorative
         ? { "aria-hidden": true as const, focusable: "false" as const }

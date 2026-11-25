@@ -67,7 +67,7 @@ export default function EventPage({
   const rules = event.rules ?? [];
   const gallery = event.gallery ?? [];
   const links = event.links ?? [];
-  const hero = event.heroImage ?? event.image;
+  const hero = event.heroImage || event.image;
 
   /* Sections are numbered on screen ("01 · The day") only when there is more than
      one of them; a single section with "01" in front of it looks like a mistake. */

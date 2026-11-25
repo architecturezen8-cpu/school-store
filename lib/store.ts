@@ -323,7 +323,12 @@ export async function getEvents(): Promise<CollegeEvent[]> {
         city: r.city,
         date: new Date(r.starts_at),
         doors: r.doors,
-        image: asset(r.image),
+        // The card photo falls back to the hero. They are separate columns — a
+        // card is landscape and a hero can be anything — but an event with a
+        // photograph and no *card* photograph used to render a blank tile, which
+        // reads as "no image" rather than "same image". The admin's intent is
+        // clear enough: they uploaded a picture of this event.
+        image: asset(r.image || r.hero_image || ""),
         tag: r.tag ?? undefined,
         featured: r.featured,
         tiers: bySlug.get(r.slug) ?? [],

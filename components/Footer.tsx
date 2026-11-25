@@ -1,5 +1,8 @@
+"use client";
+
 import { ArrowUp, Mail, MapPin, Phone } from "lucide-react";
-import CrestLogo from "@/components/CrestLogo";
+import LogoBadge from "@/components/LogoBadge";
+import { useBrandLogo } from "@/components/context/BrandContext";
 import { href, withBase } from "@/lib/links";
 import { openTrack } from "@/lib/nav";
 import Reveal from "@/components/Reveal";
@@ -68,6 +71,7 @@ function ColumnTitle({ children }: { children: string }) {
 }
 
 export default function Footer() {
+  const logo = useBrandLogo();
   return (
     <footer
       id="contact"
@@ -82,9 +86,11 @@ export default function Footer() {
           {/* 1 — brand */}
           <Reveal className="sm:col-span-2 lg:col-span-5 lg:pr-10">
             <div className="flex items-center gap-4">
-              <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-white shadow-[0_0_44px_rgba(255,255,255,0.18)]">
-                <CrestLogo className="h-9 w-9 text-ink" decorative />
-              </span>
+              <LogoBadge
+                src={logo}
+                size={56}
+                className="shadow-[0_0_44px_rgba(255,255,255,0.18)]"
+              />
               <div className="min-w-0">
                 <p className="font-display text-xl font-semibold leading-tight tracking-tight">
                   St. Thomas’ College

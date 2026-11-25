@@ -8,8 +8,14 @@ import {
   setTemplateActive,
   uploadTemplate,
 } from "@/lib/tickets/templates";
-import { getTicketByReference, getTicketByToken, listBookings } from "@/lib/bookings";
-import { sendTicketEmail, sampleTicket } from "@/lib/tickets/email";
+import {
+  getTicketByReference,
+  getTicketByToken,
+  listBookings,
+  ticketsForBooking,
+} from "@/lib/bookings";
+import { saveLogo } from "@/lib/settings";
+import { sendTicketEmail, sendTicketEmails, sampleTicket } from "@/lib/tickets/email";
 import { friendlyError } from "@/lib/errors";
 import { query } from "@/lib/db";
 import {
@@ -19,7 +25,7 @@ import {
   unsetFeatured,
   type EventDraft,
 } from "@/lib/events";
-import { uploadImage } from "@/lib/uploads";
+import { uploadImage, uploadLogo } from "@/lib/uploads";
 
 /**
  * Admin server actions.
@@ -107,11 +113,17 @@ export async function resendTicketAction(formData: FormData) {
   const ticket = await getTicketByToken(token);
   if (!ticket) redirect("/admin/bookings?error=notfound");
 
-  const result = await sendTicketEmail(ticket);
+  // Every ticket on the booking, because "resend the ticket" means the customer
+  // wants all of them back — the reason they are asking is usually that one of
+  // four did not arrive.
+  const all = await ticketsForBooking(ticket.reference);
+  const result = all.length ? await sendTicketEmails(all) : await sendTicketEmail(ticket);
   revalidatePath("/admin/bookings");
   redirect(
     result.sent
-      ? `/admin/bookings?ok=${encodeURIComponent(ticket.reference)}`
+      ? `/admin/bookings?ok=${encodeURIComponent(
+          all.length > 1 ? `${ticket.reference} (${all.length} tickets)` : ticket.reference
+        )}`
       : `/admin/bookings?error=${encodeURIComponent(
           result.reason === "not-configured"
             ? "Email is not configured — set RESEND_API_KEY or SMTP_HOST."
@@ -240,6 +252,46 @@ export async function saveEventAction(payload: string) {
   revalidatePath("/tickets");
   revalidatePath(`/events/${result.slug}`);
   return { ok: true as const, slug: result.slug };
+}
+
+/**
+ * The school's logo — the one image that appears on the site, in the admin and at
+ * the top of every ticket email. Saved immediately rather than on form submit:
+ * there is no form around it, and an upload that needs saving is an upload people
+ * forget to save.
+ */
+export async function uploadLogoAction(formData: FormData) {
+  await requireAdmin();
+  const file = formData.get("logo");
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false as const, error: "Choose an image first." };
+  }
+  const result = await uploadLogo(file);
+  if (!result.ok) return { ok: false as const, error: result.error };
+
+  try {
+    await saveLogo(result.url);
+  } catch (err) {
+    return { ok: false as const, error: friendlyError(err) };
+  }
+
+  // Every surface that shows the mark.
+  revalidatePath("/", "layout");
+  revalidatePath("/admin", "layout");
+  return { ok: true as const, url: result.url };
+}
+
+/** Fall back to the built-in crest. */
+export async function clearLogoAction() {
+  await requireAdmin();
+  try {
+    await saveLogo("");
+  } catch (err) {
+    return { ok: false as const, error: friendlyError(err) };
+  }
+  revalidatePath("/", "layout");
+  revalidatePath("/admin", "layout");
+  return { ok: true as const };
 }
 
 /** One photograph at a time, so a multi-megabyte file never rides inside the form. */

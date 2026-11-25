@@ -95,3 +95,56 @@ export async function removeUpload(url: string): Promise<void> {
   if (!absolute.startsWith(root + path.sep)) return;
   await unlink(absolute).catch(() => {});
 }
+
+/* ------------------------------------------------------------------ *
+ *  The school's logo
+ * ------------------------------------------------------------------ */
+
+/**
+ * The logo, normalised into a square.
+ *
+ * A crest is nearly always taller than it is wide, and the white circles that
+ * show it are square. Padding to a square — rather than cropping — means the
+ * bottom of the motto never gets cut off, and the circle stays a circle. Drawn on
+ * white first so a transparent PNG does not turn into a black square in an email
+ * client (Outlook composites onto white, Gmail onto the message background; the
+ * only safe answer is to have no transparency at all).
+ *
+ * 512 px is four times the biggest circle on the site, which is enough for a
+ * retina screen and small enough to travel inline in a mail.
+ */
+export const LOGO_UPLOAD_DIR = path.join("public", "uploads", "brand");
+const LOGO_EDGE = 512;
+
+export async function uploadLogo(file: File): Promise<UploadedImage> {
+  const ext = ALLOWED.get(file.type);
+  if (!ext) return { ok: false, error: "Upload a PNG, JPEG or WebP image." };
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return { ok: false, error: "That image is over 12 MB. Compress it and try again." };
+  }
+
+  let output: Buffer;
+  try {
+    const bytes = Buffer.from(await file.arrayBuffer());
+    output = await sharp(bytes)
+      .rotate()
+      .resize({
+        width: LOGO_EDGE,
+        height: LOGO_EDGE,
+        fit: "contain",
+        background: { r: 255, g: 255, b: 255, alpha: 1 },
+      })
+      .flatten({ background: "#ffffff" })
+      .png({ compressionLevel: 9 })
+      .toBuffer();
+  } catch {
+    return { ok: false, error: "That file is not a readable image." };
+  }
+
+  const relative = path.join("uploads", "brand", `${randomUUID()}.png`).replace(/\\/g, "/");
+  const absolute = path.join(process.cwd(), "public", relative);
+  await mkdir(path.dirname(absolute), { recursive: true });
+  await writeFile(absolute, output);
+
+  return { ok: true, url: `/${relative}`, width: LOGO_EDGE, height: LOGO_EDGE };
+}

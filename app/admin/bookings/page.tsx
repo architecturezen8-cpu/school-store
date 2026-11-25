@@ -6,9 +6,12 @@ import { databaseDown, hasDatabase } from "@/lib/db";
 import { listBookings } from "@/lib/bookings";
 import { lkr } from "@/lib/format";
 import { safeDecode } from "@/lib/safe-decode";
+import ParamToast from "@/components/admin/ParamToast";
 import { resendTicketAction } from "../actions";
 import { Empty, Notice, PageHeader, Panel, Pill, Stat, buttonClass } from "@/components/admin/ui";
-import { Mail } from "lucide-react";
+import { Mail, ReceiptText } from "lucide-react";
+import { asset } from "@/lib/assets";
+import { signTicket } from "@/lib/tickets/sign";
 
 export const dynamic = "force-dynamic";
 
@@ -26,11 +29,16 @@ export default async function BookingsPage({
   if (!hasDatabase()) redirect("/admin?error=database");
 
   const { ok, error } = await searchParams;
+
+  const okText = ok ? `Ticket re-sent for ${safeDecode(ok)}.` : "";
+  const errorText = error ? safeDecode(error) : "";
   // A database that has already failed is not asked again: one timeout per
   // process is a diagnosis, three hundred is a hung page.
   const problem = databaseProblem();
   const bookings = databaseDown() ? [] : await listBookings(300);
-  const admitted = bookings.filter((b) => b.admittedAt).length;
+  // People, not bookings: with one ticket per person a four-seat booking can be
+  // half in, and "2 bookings admitted" would be a lie in the middle of the day.
+  const admitted = bookings.reduce((n, b) => n + b.admitted, 0);
   const revenue = bookings.reduce((n, b) => n + b.total, 0);
   const seats = bookings.reduce((n, b) => n + b.seats, 0);
 
@@ -50,8 +58,8 @@ export default async function BookingsPage({
 
         {(ok || error) && (
           <div className="mt-4 space-y-2">
-            {ok && <Notice tone="ok">Ticket re-sent for {safeDecode(ok)}.</Notice>}
-            {error && <Notice tone="error">{safeDecode(error)}</Notice>}
+            <ParamToast ok={okText} error={errorText} />
+            
           </div>
         )}
       </section>
@@ -62,7 +70,7 @@ export default async function BookingsPage({
         <Stat
           label="Admitted at the gate"
           value={String(admitted)}
-          note={`${bookings.length - admitted} outstanding`}
+          note={`${seats - admitted} of ${seats} still to come`}
         />
         <Stat label="Taken" value={lkr(revenue)} tone="invert" />
       </dl>
@@ -99,6 +107,11 @@ export default async function BookingsPage({
                     </td>
                     <td className="py-3 pr-4 text-body">{lkr(b.total)}</td>
                     <td className="py-3 pr-4">
+                      {b.seats > 1 && (
+                        <span className="mr-1 font-mono text-[11px] text-faint">
+                          {b.admitted}/{b.seats}
+                        </span>
+                      )}
                       {b.admittedAt ? (
                         <Pill tone="ok">{new Date(b.admittedAt).toLocaleString("en-GB")}</Pill>
                       ) : (
@@ -106,7 +119,20 @@ export default async function BookingsPage({
                       )}
                     </td>
                     <td className="py-3 text-right">
-                      <form action={resendTicketAction}>
+                      {/* The bill, for a parent at the door who needs a receipt
+                          on paper rather than four ticket QR codes. */}
+                      <a
+                        href={asset(
+                          `/api/tickets/${encodeURIComponent(b.token)}/receipt?s=${encodeURIComponent(
+                            signTicket(b.token)
+                          )}`
+                        )}
+                        download
+                        className={`${buttonClass("ghost")} !px-3 !py-1.5 !text-xs mr-1.5`}
+                      >
+                        <ReceiptText className="h-3.5 w-3.5" /> Bill
+                      </a>
+                      <form action={resendTicketAction} className="inline">
                         <input type="hidden" name="token" value={b.token} />
                         <button
                           type="submit"

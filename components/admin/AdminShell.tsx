@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import CrestLogo from "@/components/CrestLogo";
+import LogoBadge from "@/components/LogoBadge";
+import { ToastProvider } from "@/components/admin/Toasts";
 import { signOut } from "@/app/admin/actions";
 import {
   CalendarCheck,
@@ -14,6 +15,7 @@ import {
   Mail,
   Menu,
   ScanLine,
+  Settings,
   X,
 } from "lucide-react";
 
@@ -33,13 +35,17 @@ const NAV = [
   { href: "/admin/bookings", label: "Bookings", icon: CalendarCheck },
   { href: "/admin/mail", label: "Ticket email", icon: Mail },
   { href: "/admin/gate", label: "Gate scanner", icon: ScanLine },
+  { href: "/admin/settings", label: "School logo", icon: Settings },
 ];
 
 export default function AdminShell({
   signedIn,
+  logo = "",
   children,
 }: {
   signedIn: boolean;
+  /** The uploaded school logo, or "" for the built-in crest. */
+  logo?: string;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -58,9 +64,7 @@ export default function AdminShell({
     <div className="flex h-full flex-col rounded-2xl bg-panel p-3">
       {/* the school, at the top */}
       <div className="flex items-center gap-3 px-2 py-2">
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-panel-2">
-          <CrestLogo className="h-8 w-8 text-strong" decorative />
-        </span>
+        <LogoBadge src={logo} size={44} />
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold leading-tight text-strong">
             St. Thomas&apos; College
@@ -139,13 +143,12 @@ export default function AdminShell({
   );
 
   return (
+    <ToastProvider>
     <div className="min-h-screen bg-page text-strong lg:flex lg:gap-3 lg:p-3">
       {/* ---------- mobile top bar ---------- */}
       <header className="sticky top-0 z-30 flex items-center justify-between gap-3 bg-page px-4 py-3 lg:hidden">
         <div className="flex min-w-0 items-center gap-3">
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-panel">
-            <CrestLogo className="h-7 w-7 text-strong" decorative />
-          </span>
+          <LogoBadge src={logo} size={36} />
           <div className="min-w-0">
             <p className="truncate text-[10px] uppercase tracking-[0.22em] text-muted">
               Store admin
@@ -173,8 +176,9 @@ export default function AdminShell({
         {navTile}
       </aside>
 
-      {/* ---------- page ---------- */}
-      <main className="min-w-0 flex-1 px-3 pb-6 lg:px-0 lg:pb-0 lg:pr-1">{children}</main>
-    </div>
+        {/* ---------- page ---------- */}
+        <main className="min-w-0 flex-1 px-3 pb-6 lg:px-0 lg:pb-0 lg:pr-1">{children}</main>
+      </div>
+    </ToastProvider>
   );
 }
