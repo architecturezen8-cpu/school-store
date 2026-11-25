@@ -188,7 +188,21 @@ export async function buildTicketReceipt(
   page.drawLine({ start: { x: MARGIN, y }, end: { x: right, y }, thickness: 0.7, color: LINE });
   y -= 18;
 
-  for (const t of first.tiers) {
+  // The items are the tiers the sale was made from. If a booking somehow carries
+  // none — an event whose tiers were rebuilt after the sale — the bill still has
+  // to show what was bought, so it falls back to one line for the whole sale
+  // rather than a table with a header and no rows.
+  const items = first.tiers.length
+    ? first.tiers
+    : [
+        {
+          name: "Tickets",
+          price: Math.round(first.total / Math.max(1, tickets.length)),
+          qty: tickets.length,
+        },
+      ];
+
+  for (const t of items) {
     page.drawText(t.name, { x: MARGIN, y, size: 10, font: regular, color: INK, maxWidth: colQty - MARGIN - 50 });
     const qty = String(t.qty);
     page.drawText(qty, {
@@ -222,7 +236,7 @@ export async function buildTicketReceipt(
   // second page where the thing the bursar looks for — the total — was on page
   // one and the tail was on page two. The count is what matters here; the codes
   // live on the tickets themselves.
-  const totalQty = first.tiers.reduce((n, t) => n + t.qty, 0);
+  const totalQty = items.reduce((n, t) => n + t.qty, 0);
 
   y -= 2;
   page.drawLine({ start: { x: MARGIN, y }, end: { x: right, y }, thickness: 0.7, color: LINE });

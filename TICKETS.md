@@ -86,18 +86,29 @@ The message body has no grid of codes. A wall of QR squares is not a ticket, and
 the artwork already carries the code where the design put it; the body says how
 many files are attached and points at them.
 
-**The hero is the event's photograph, and it is a real image.** The photograph is
-read on the server, cropped to a 600 × 270 banner (1200 × 540 for retina), washed
-into the navy with sharp — fully opaque navy at the top and bottom edge, so the
-band joins the masthead and the gold tile with no seam — and attached as
-`cid:hero-banner`.
+**The header is the event's photograph, with the crest and the school's name on
+it — baked into one image.** Email has no way to put HTML text on top of a
+picture. The header used to try: a CSS `background-image` on the cell with the
+text over it. That is a background the client may not fetch and a stack of CSS
+it may not honour, which is why the admin preview showed the photograph and the
+inbox showed flat navy.
 
-It used to be a CSS `background-image` pointing at an absolute URL, which is why
-the admin preview showed the photograph and the inbox did not: a browser renders
-CSS, and Gmail and Outlook strip backgrounds and block remote images in plenty of
-contexts. A `<img>` on a `cid:` is part of the message, so it arrives. The crest
-and the school name now sit on the navy above the photograph rather than on top
-of it, so no word ever depends on a picture that may be missing.
+So `heroBanner()` in `lib/tickets/email.ts` does it in pixels instead. The photo
+is read on the server, cropped to a 600 × 310 banner (1200 × 620 for retina),
+washed into the navy, and the crest and the wordmark are composited onto it.
+The mail carries the result as one ordinary `<img>` on `cid:hero-banner` — part
+of the message, so it arrives.
+
+- The wash is baked in, fully opaque navy at the bottom edge, so the banner
+  joins the gold tile below it with no seam, and dark enough under the name that
+  the type reads at AA whatever the photograph is.
+- `public/brand/masthead.png` is `ST. THOMAS' COLLEGE` over `MATALE · SRI LANKA`,
+  rendered once from a serif at 2343 px wide. It is a picture of two lines of
+  type rather than type itself because the name is drawn *into* an image, and no
+  mail client renders SVG text; a fixed asset works the same on every server.
+- No photograph, or a missing wordmark? `heroBanner()` returns null and the HTML
+  masthead (crest in its circle, name, city) is drawn above a plain navy band
+  instead. Plainer, never broken.
 
 **The crest is inlined, not linked.** A remote `src` is a broken-image icon the
 moment the reader's client cannot fetch it — the host has moved on, the file is
@@ -137,23 +148,23 @@ typed by hand would eventually put the wrong number in front of a customer.
 
 The message, top to bottom:
 
-1. **Masthead** — the crest in a white circle, `ST. THOMAS' COLLEGE`,
-   `MATALE · SRI LANKA`, on the navy.
-2. **Header photograph** — the event's hero photo, washed into the navy, inline.
-3. **Gold band** — the date, the event name and (for a multi-seat sale) how many
+1. **Header** — the crest and `ST. THOMAS' COLLEGE · MATALE · SRI LANKA` over
+   the event's hero photograph, washed into the navy, inline.
+2. **Gold band** — the date, the event name and (for a multi-seat sale) how many
    tickets are in the message.
-4. **The message** — the admin's wording.
-5. **Your tickets** — one panel saying how many files are attached. No grid of
+3. **The message** — the admin's wording.
+4. **Your tickets** — one panel saying how many files are attached. No grid of
    codes: the artwork carries the code, and one code per person travels as one
    attached PNG.
-6. **Reference · Seats · Paid** — three cells with hairline dividers.
-7. **One wide gold button** — to the ticket page.
-8. **Footer** — the admin's small print, then the compliance line.
+5. **Reference · Seats · Paid** — three cells with hairline dividers.
+6. **One wide gold button** — to the ticket page.
+7. **Footer** — the admin's small print, then the compliance line.
 
 The preview on `/admin/mail` is the real message, not a mock-up: it is rendered
 by `buildBookingMail()` — the same function that sends — inside an iframe, with
-the inline parts (the header photograph, the crest) swapped for `data:` URIs so
-the frame shows the bytes that were actually attached. The test send goes through the same
+the inline parts (the baked header, and the crest when the masthead is drawn in
+HTML) swapped for `data:` URIs so the frame shows the bytes that were actually
+attached. The test send goes through the same
 `sendTicketEmail()`, to the address the admin types instead of the buyer's.
 
 Resend is used when `RESEND_API_KEY` is set; otherwise plain SMTP. With neither,

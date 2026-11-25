@@ -130,6 +130,8 @@ async function ticketArtworks(tickets: Ticket[]): Promise<{ filename: string; bu
 
 async function inlineLogo(): Promise<{
   png: Buffer;
+  /** The uploaded file as it arrived, for drawing the crest into the header. */
+  raw: Buffer;
   scale: number;
   /** True when the mark is opaque edge to edge, so a square plate would show. */
   opaque: boolean;
@@ -186,6 +188,7 @@ async function inlineLogo(): Promise<{
 
     return {
       png,
+      raw,
       scale: Math.min(0.98, Math.max(0.3, logoScale)),
       opaque,
     };
@@ -247,44 +250,66 @@ export function renderTemplate(text: string, values: Record<string, string>): st
  *  The header photograph, as bytes.
  * ------------------------------------------------------------------ */
 
-/** The banner the header draws: 600 px wide at 2x, and shallow enough to lead. */
+/**
+ * The banner the header draws: 600 px wide at 2x, and tall enough for the crest,
+ * the school's name and a strip of photograph under them.
+ */
 const HERO_W = 1200;
-const HERO_H = 540;
+const HERO_H = 620;
 
 /**
- * The event photograph, washed into the navy and returned as JPEG bytes, so the
- * header can carry a real `<img>` instead of a CSS `background-image`.
+ * The school's name and city, as a transparent PNG.
  *
- * This is the whole point. The header used to be a `<td>` with
- * `background-image:url(https://machan.me/…)`, which is a picture the mail
- * client may simply decline to fetch: Gmail and Outlook strip CSS backgrounds
- * in more places than not, and every client blocks remote images until the
- * reader says otherwise. The admin preview showed the photo because a browser
- * renders CSS; the inbox showed flat navy because a mail client does not. A
- * real `<img>` on a `cid:` is part of the message, so it arrives.
- *
- * The wash is baked in with sharp rather than layered in CSS: a CSS gradient
- * over a CSS background is two things the client has to support, and the photo
- * has to fade into the navy above and below without a seam. The top and bottom
- * of the gradient are fully opaque navy, so the banner joins the masthead and
- * the gold tile with no edge.
+ * A picture of two lines of type rather than type itself, because this is the
+ * one place the mail cannot rely on the reader's fonts: the name is drawn into
+ * the header photograph, and a mail client never renders SVG text. Rendered
+ * once from a serif at 2343 px wide, so it stays sharp at 2x on a phone and can
+ * be scaled down for the 600 px banner without going soft.
  */
-async function heroBanner(image: string): Promise<Buffer | null> {
+const WORDMARK = ["public", "brand", "masthead.png"];
+
+/**
+ * The header: photograph, wash, crest and the school's name, baked into one
+ * JPEG so the crest and the name sit *on* the photograph.
+ *
+ * Email has no way to put HTML text on top of an image. The old header tried:
+ * a CSS `background-image` on the cell with the text over it. That is a
+ * background the client may not fetch and a stack of CSS it may not honour —
+ * Gmail strips backgrounds in plenty of contexts and every client blocks remote
+ * images — so the inbox showed navy where the preview had a photograph. The fix
+ * is not another layer of CSS; it is to stop layering. sharp composites the
+ * crest and the name onto the washed photograph, and the mail carries the result
+ * as one normal `<img>`.
+ *
+ * The wash is baked in at the same time, fully opaque navy at the bottom edge so
+ * the banner joins the gold tile below it with no seam, and dark under the name
+ * so the type reads at AA whatever the photograph is.
+ *
+ * Returns null when there is no photograph to bake, or when the wordmark is
+ * missing — the caller then draws the HTML masthead instead, which is plainer
+ * but never broken.
+ */
+async function heroBanner(
+  image: string,
+  crest: { raw: Buffer; scale: number; opaque: boolean } | null
+): Promise<Buffer | null> {
   if (!image) return null;
   try {
     const raw = /^https?:\/\//i.test(image)
       ? await fetchBytes(image)
       : await readFile(path.join(process.cwd(), "public", image.replace(/^\//, "")));
     if (!raw) return null;
+    const wordmarkRaw = await readFile(path.join(process.cwd(), ...WORDMARK));
 
     const wash = Buffer.from(
       `<svg xmlns="http://www.w3.org/2000/svg" width="${HERO_W}" height="${HERO_H}">
          <defs>
            <linearGradient id="w" x1="0" y1="0" x2="0" y2="1">
              <stop offset="0" stop-color="#0a1224" stop-opacity="1"/>
-             <stop offset="0.26" stop-color="#0a1224" stop-opacity="0.52"/>
-             <stop offset="0.56" stop-color="#0a1224" stop-opacity="0.40"/>
-             <stop offset="0.84" stop-color="#0a1224" stop-opacity="0.80"/>
+             <stop offset="0.22" stop-color="#0a1224" stop-opacity="0.90"/>
+             <stop offset="0.50" stop-color="#0a1224" stop-opacity="0.82"/>
+             <stop offset="0.70" stop-color="#0a1224" stop-opacity="0.60"/>
+             <stop offset="0.88" stop-color="#0a1224" stop-opacity="0.82"/>
              <stop offset="1" stop-color="#0a1224" stop-opacity="1"/>
            </linearGradient>
          </defs>
@@ -292,16 +317,56 @@ async function heroBanner(image: string): Promise<Buffer | null> {
        </svg>`
     );
 
+    // The crest in its white circle, exactly as the HTML masthead draws it. No
+    // crest uploaded? The circle is skipped rather than left empty.
+    const cx = HERO_W / 2;
+    const cy = 150;
+    const radius = 88;
+    const layers: { input: Buffer; top: number; left: number }[] = [
+      { input: wash, top: 0, left: 0 },
+    ];
+
+    if (crest) {
+      const inner = Math.round(radius * 2 * (crest.opaque ? 1 : crest.scale));
+      const circle = Buffer.from(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${HERO_W}" height="${HERO_H}">
+           <circle cx="${cx}" cy="${cy}" r="${radius}" fill="#ffffff"/>
+         </svg>`
+      );
+      const mark = await sharp(crest.raw)
+        .rotate()
+        .resize(inner, inner, {
+          fit: "contain",
+          background: { r: 255, g: 255, b: 255, alpha: 0 },
+        })
+        .png()
+        .toBuffer();
+      layers.push({ input: circle, top: 0, left: 0 });
+      layers.push({
+        input: mark,
+        top: Math.round(cy - inner / 2),
+        left: Math.round(cx - inner / 2),
+      });
+    }
+
+    const wordmark = await sharp(wordmarkRaw).resize({ width: 720 }).png().toBuffer();
+    const wm = await sharp(wordmark).metadata();
+    layers.push({
+      input: wordmark,
+      top: 296,
+      left: Math.round(cx - (wm.width ?? 720) / 2),
+    });
+
     return await sharp(raw)
       .rotate()
       .resize(HERO_W, HERO_H, { fit: "cover", position: "attention" })
-      .composite([{ input: wash }])
+      .composite(layers)
       .flatten({ background: "#0a1224" })
-      .jpeg({ quality: 72, mozjpeg: true })
+      .jpeg({ quality: 76, mozjpeg: true })
       .toBuffer();
   } catch {
-    // A photo that cannot be read is not a reason to withhold a ticket: the
-    // header falls back to the flat navy it uses when an event has no picture.
+    // A photo that cannot be read, or a wordmark that has gone missing, is not a
+    // reason to withhold a ticket: the HTML masthead takes over.
     return null;
   }
 }
@@ -406,7 +471,7 @@ export async function buildBookingMail(
   // The header photograph, inline. There is no QR in the body any more: the
   // design carries the code, and one code per person travels as one attached
   // ticket file. A wall of codes here was rejected twice and is not coming back.
-  const hero = await heroBanner(ticket.heroImage || ticket.image);
+  const hero = await heroBanner(ticket.heroImage || ticket.image, logo);
 
   const html = ticketHtml({
     heading,
@@ -556,8 +621,10 @@ export async function sendTicketEmail(
         ]
       : []),
     // The crest, inline for the same reason: a remote URL is a broken image
-    // whenever the host has moved on without the file.
-    ...(logo
+    // whenever the host has moved on without the file. Only when the HTML
+    // masthead is drawing it — a baked header has the crest in its own pixels,
+    // and a second copy would be one more file in the inbox for nothing.
+    ...(logo && !hero
       ? [
           {
             filename: "brand-logo.png",
@@ -840,16 +907,21 @@ export function ticketHtml({
    * its top and bottom edges, so the band joins the masthead and the gold tile
    * without a seam. Nothing depends on the photograph for contrast.
    */
+  // The baked header: photograph, crest and the school's name in one image, which
+  // is the only way email lets anything sit *on* a photograph. The alt text says
+  // what the image says, because a reader with images off gets nothing else.
   const heroImg = heroCid
     ? `
    <tr><td align="center" style="background:#0a1224;padding:0;font-size:0;line-height:0">
-     <img src="cid:${escapeHtml(heroCid)}" alt="${escapeHtml(
+     <img src="cid:${escapeHtml(
+       heroCid
+     )}" alt="St. Thomas&rsquo; College, Matale &mdash; ${escapeHtml(
         event
-      )}" width="600" height="270" style="display:block;width:100%;max-width:600px;height:auto;border:0;outline:none;text-decoration:none">
+      )}" width="600" height="310" style="display:block;width:100%;max-width:600px;height:auto;border:0;outline:none;text-decoration:none">
    </td></tr>`
-    : // Only reached when the photo could not be read: keep the old CSS band so a
-      // client that *does* honour backgrounds still gets a header, and everyone
-      // else gets the navy.
+    : // Only reached when the photograph could not be read or the wordmark is
+      // missing: keep the old CSS band so a client that *does* honour backgrounds
+      // still gets a header, and everyone else gets the navy.
       coverSrc
       ? `
    <tr><td bgcolor="#0a1224" height="150" valign="top" style="background-color:#0a1224;background-image:url('${escapeHtml(
@@ -857,7 +929,12 @@ export function ticketHtml({
    )}');background-size:cover;background-position:center;background-repeat:no-repeat;height:150px"></td></tr>`
       : "";
 
-  const hero = `
+  // Fallback masthead, drawn in HTML: used when there is no photograph to bake,
+  // and when the banner could not be composed. Never when the banner has already
+  // carried the crest and the name.
+  const masthead = heroCid
+    ? ""
+    : `
    <!-- the masthead: crest and name, on the navy -->
    <tr><td bgcolor="#0a1224" align="center" style="padding:32px 30px 26px">
 
@@ -865,7 +942,10 @@ export function ticketHtml({
 
      <div style="color:#ffffff;font-size:22px;letter-spacing:4px;text-transform:uppercase;font-family:Georgia,'Times New Roman',serif;padding-top:16px;line-height:1.3">St. Thomas&rsquo; College</div>
      <div style="color:#ffd444;font-size:9px;letter-spacing:7px;text-transform:uppercase;padding-top:7px">Matale &middot; Sri Lanka</div>
-   </td></tr>
+   </td></tr>`;
+
+  const hero = `
+   ${masthead}
 
    ${heroImg}
    <!-- the event, as the gold tile the site would give it -->
