@@ -69,37 +69,63 @@ function coverImageUrl(image: string): string {
  * so it cannot turn into a black square in a client that ignores transparency.
  */
 /**
- * The school's uploaded ticket design with a booking's code pasted into it.
+ * The school's uploaded ticket design, once per person, each with that person's
+ * code pasted into its white square.
  *
- * Rendered once per message. This used to run per seat, which meant a four-seat
- * sale composed four 1440 px PNGs with sharp before the checkout could reply —
- * it was the slow part of booking. One composition, attached once, is what the
- * buyer wants anyway: the finished ticket they can print.
+ * One attachment per seat, not one per sale. A single file for a ten-seat
+ * booking would give nine of the ten people nothing to show at the gate —
+ * forwarding a picture by hand is exactly the thing nobody does.
+ *
+ * Each file is named after its place in the sale, so an inbox with ten
+ * attachments shows which is which without opening them.
+ *
+ * Sequential rather than `Promise.all`: sharp is CPU-bound, and ten compositing
+ * jobs at once on a small school server thrash rather than help. This runs after
+ * the response is sent, so it is no longer on the checkout's critical path.
  */
-async function ticketArtwork(ticket: Ticket): Promise<Buffer | null> {
-  try {
-    const template = await getTemplateForEvent(ticket.event);
-    if (!template) return null;
+async function ticketArtworks(tickets: Ticket[]): Promise<{ filename: string; buffer: Buffer }[]> {
+  const template = await getTemplateForEvent(tickets[0]?.event ?? "").catch(() => null);
+  if (!template) return [];
 
-    const file = path.join(process.cwd(), "public", template.file.replace(/^\//, ""));
-    const design = await readFile(file);
-    const square = {
-      x: template.qrX,
-      y: template.qrY,
-      size: template.qrSize,
-      confidence: 1,
-    };
-    const { image } = await composeTicket({
-      design,
-      qrPayload: qrPayload(ticket.token, signTicket(ticket.token)),
-      square,
-      format: "png",
-    });
-    return image;
+  let design: Buffer;
+  try {
+    design = await readFile(
+      path.join(process.cwd(), "public", template.file.replace(/^\//, ""))
+    );
   } catch {
-    // A missing design file must not stop the email: the codes are the ticket.
-    return null;
+    // A missing design file must not stop the email: the ticket page still
+    // shows a working code for every seat.
+    return [];
   }
+
+  const square = {
+    x: template.qrX,
+    y: template.qrY,
+    size: template.qrSize,
+    confidence: 1,
+  };
+
+  const out: { filename: string; buffer: Buffer }[] = [];
+  for (const t of tickets) {
+    try {
+      const { image } = await composeTicket({
+        design,
+        qrPayload: qrPayload(t.token, signTicket(t.token)),
+        square,
+        format: "png",
+      });
+      out.push({
+        filename:
+          tickets.length > 1
+            ? `${t.reference}-ticket-${t.seq}.png`
+            : `${t.reference}-ticket.png`,
+        buffer: image,
+      });
+    } catch {
+      // One unrenderable seat should not cost the buyer the other nine.
+    }
+  }
+  return out;
 }
 
 async function inlineLogo(): Promise<{
@@ -265,12 +291,15 @@ export type BuiltMail = {
   /** The uploaded crest, inline, so the header never shows a broken image. */
   logo: Buffer | null;
   /**
-   * The designed ticket with this booking's code in it, for attaching.
+   * The designed ticket with each booking's code in it, for attaching: one PNG
+   * per person.
    *
-   * Null when no design has been uploaded — the generated codes in the body are
-   * then the only thing that needs to scan, and they do.
+   * A booking of ten seats gets ten files, because each person at the gate needs
+   * their own code and forwarding one file to nine friends does not give them
+   * one. Empty when no design has been uploaded — the ticket page still shows a
+   * working code for every seat.
    */
-  artwork: Buffer | null;
+  artworks: { filename: string; buffer: Buffer }[];
 };
 
 /**
@@ -318,17 +347,6 @@ export async function buildBookingMail(
   const heading = renderTemplate(mail.heading, values);
   const footer = renderTemplate(mail.footer, values);
 
-  // No attached artwork any more.
-  //
-  // It used to compose the whole designed ticket — sharp, a 1440 px PNG, ~54 KB
-  // — once per seat, and because the mail was sent before the response, a
-  // four-seat booking sat on "Reserving…" for seconds. The artwork is already
-  // reachable from the ticket page and the receipt, and this message carries the
-  // one thing the gate actually scans: the code below. Dropping it makes the
-  // mail build in milliseconds and stops a heavy design from landing in spam.
-  //
-  // One code per ticket, all inside the same message. Drawn from each ticket's
-  // own payload, never cropped from the artwork — see qrImage().
   const logo = await inlineLogo();
   const logoPng = logo?.png ?? null;
 
@@ -340,11 +358,11 @@ export async function buildBookingMail(
   // the site and on the price list, and the code label has to match them.
   const tierName = (id: string) =>
     ticket.tiers.find((t) => t.id === id)?.name ?? tierFor(id);
-  // The designed ticket, as an attachment — the whole artwork the school
-  // uploaded, with this booking's code pasted in. One per message, not one per
-  // seat: the sale is one email now, so the artwork that represents it is the
-  // first seat's, and every seat already has its own scannable code above.
-  const artwork = await ticketArtwork(ticket);
+  // The designed ticket, one file per person, each with its own code pasted in.
+  // This is what the buyer shows at the gate — there is no grid of codes in the
+  // body any more, because a wall of QR squares is not a ticket and the artwork
+  // already carries the code in the place the design put it.
+  const artworks = await ticketArtworks(tickets);
 
   const codes: { cid: string; buffer: Buffer }[] = [];
   const codesHtml: { name: string; tier: string; src: string; url: string }[] = [];
@@ -387,11 +405,14 @@ export async function buildBookingMail(
     totalSeats: seats,
     date: longDate(ticket.eventDate),
     venue: `${ticket.venue}, ${ticket.city}`,
-    coverSrc: coverImageUrl(ticket.image),
+    // The hero photograph, not the card photo: the header is a wide banner,
+    // and the event page already uses the hero for its own header.
+    coverSrc: coverImageUrl(ticket.heroImage || ticket.image),
     paid: lkr(ticket.total),
     logo: logoPng ? "cid:brand-logo" : "",
     logoScale: logoPng ? logo!.scale : 1,
     logoOpaque: logo ? logo.opaque : false,
+    ticketCount: tickets.length,
   });
 
   return {
@@ -409,7 +430,7 @@ export async function buildBookingMail(
     ].join("\n"),
     codes,
     logo: logoPng,
-    artwork,
+    artworks,
   };
 }
 
@@ -457,6 +478,7 @@ export async function sampleTicket(): Promise<Ticket> {
     city: event?.city ?? "Matale",
     doors: event?.doors ?? "Gates open 8:00 AM",
     image: event?.image ?? "",
+    heroImage: event?.heroImage || event?.image || "",
     name: "Sample Ticket",
     email: "",
     total,
@@ -491,7 +513,7 @@ export async function sendTicketEmail(
   overrides: Partial<MailTemplate> = {}
 ): Promise<MailResult> {
   const built = await buildBookingMail(tickets, overrides);
-  const { subject, html, text: body, codes, logo, artwork } = built;
+  const { subject, html, text: body, codes, logo, artworks } = built;
   const ticket = tickets[0];
   const attachments = [
     // Every code inline, so they render even when the client blocks remote
@@ -514,18 +536,14 @@ export async function sendTicketEmail(
           },
         ]
       : []),
-    // The finished ticket, as a file the buyer can open, print, or show on a
-    // screen that is not showing their mail app.
-    ...(artwork
-      ? [
-          {
-            filename: `${ticket.reference}-ticket.png`,
-            content: artwork,
-            inline: false,
-            contentId: "",
-          },
-        ]
-      : []),
+    // The finished tickets, one file per person: the buyer opens the one they
+    // need, prints it, or shows it on a screen that is not their mail app.
+    ...artworks.map((a) => ({
+      filename: a.filename,
+      content: a.buffer,
+      inline: false,
+      contentId: "",
+    })),
   ];
 
   // Resend: one POST, no SMTP. Preferred when the key is set.
@@ -659,6 +677,7 @@ export function ticketHtml({
   logoOpaque,
   of,
   totalSeats,
+  ticketCount,
 }: {
   heading: string;
   body: string;
@@ -679,6 +698,8 @@ export function ticketHtml({
   seatsText: string;
   /** How many tickets the booking has. */
   of: number;
+  /** How many ticket files are attached — one per person. */
+  ticketCount: number;
   /** Seats on the whole booking. */
   totalSeats: number;
   /** Already formatted, e.g. "Saturday, 9 January 2027". */
@@ -776,54 +797,7 @@ export function ticketHtml({
            </td></tr>
          </table>`;
 
-  /**
-   * The codes, laid out for a mail client.
-   *
-   * Tables, not flexbox: Outlook renders neither grid nor flex, and the one
-   * thing this email cannot afford to get wrong is the layout of the codes.
-   * Two per row on a wide screen, one per row on a phone — the 240 px cells
-   * stack because the table is width="100%" with fixed cell widths and the
-   * client wraps them.
-   *
-   * Each code is a white, padded square so it scans off a screen even in a
-   * client that recolours backgrounds, with the number under it so the buyer
-   * knows which one to hand to whom.
-   */
-  const codeCell = (c: (typeof codes)[number]) => `
-        <td width="${codes.length > 1 ? "50%" : "100%"}" align="center" valign="top" style="padding:0 6px 18px">
-          ${
-            c.name
-              ? `<div style="color:#ffd444;font-size:9px;font-weight:bold;letter-spacing:2.5px;text-transform:uppercase;padding-bottom:8px">${escapeHtml(
-                  c.name
-                )}${c.tier ? ` &middot; ${escapeHtml(c.tier)}` : ""}</div>`
-              : ""
-          }
-          <a href="${escapeHtml(c.url)}" style="text-decoration:none">
-            <img src="${escapeHtml(c.src)}" alt="Your ticket QR code" width="220" height="220"
-                 style="display:block;width:220px;height:220px;margin:0 auto;background:#ffffff;border:8px solid #ffffff">
-          </a>
-        </td>`;
-
-  const codeRows: string[] = [];
-  for (let i = 0; i < codes.length; i += 2) {
-    const pair = codes.slice(i, i + 2);
-    codeRows.push(
-      `<tr>${pair.map(codeCell).join("")}${
-        pair.length === 1 && codes.length > 1
-          ? '<td width="50%">&nbsp;</td>'
-          : ""
-      }</tr>`
-    );
-  }
-  // Nothing rendered at all would leave a hole where the ticket should be; the
-  // fallback says where to go rather than showing a broken image.
-  const codeGrid = codes.length
-    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;max-width:472px;margin:0 auto">${codeRows.join(
-        ""
-      )}</table>`
-    : `<div style="color:#8b9ab5;font-size:12px">Open your ticket to see the entry code.</div>`;
-
-  /**
+    /**
    * How many people this one message admits. It used to say "ticket 2 of 4",
    * when four seats meant four separate emails; now the whole sale arrives
    * together, so the band says so once, at the top.
@@ -905,17 +879,23 @@ export function ticketHtml({
 
    ${hero}
 
-   <!-- the codes: one per seat, side by side on a wide screen -->
+   <!-- the tickets: attached, one per person -->
    <tr><td align="center" style="background:#0a1224;padding:30px 24px 0">
-     <div style="color:#9fb0cc;font-size:10px;letter-spacing:3px;text-transform:uppercase;padding-bottom:6px">${
-       codes.length > 1 ? "Your entry codes" : "Your entry code"
+     <div style="color:#9fb0cc;font-size:10px;letter-spacing:3px;text-transform:uppercase;padding-bottom:8px">${
+       ticketCount > 1 ? "Your tickets" : "Your ticket"
      }</div>
-     <div style="color:#8b9ab5;font-size:12px;line-height:1.6;padding-bottom:16px">${
-       codes.length > 1
-         ? `One code per person &mdash; each is scanned once, for one entry`
-         : `Show this at the gate &mdash; one scan, one entry`
-     }</div>
-     ${codeGrid}
+     <div style="max-width:430px;margin:0 auto;background:#121a30;border:1px solid #2a3450;padding:18px 20px">
+       <div style="color:#e4eaf5;font-size:13px;line-height:1.7">
+         ${
+           ticketCount > 1
+             ? `All <strong style="color:#ffd444">${ticketCount} tickets</strong> are attached to this email &mdash; one file per person.`
+             : `Your ticket is attached to this email.`
+         }
+       </div>
+       <div style="color:#8b9ab5;font-size:12px;line-height:1.6;padding-top:8px">
+         Open the attachment for the QR code &mdash; it is scanned once, for one entry.
+       </div>
+     </div>
    </td></tr>
 
    <!-- reference / seats / paid -->
