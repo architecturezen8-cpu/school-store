@@ -8,6 +8,9 @@ import { listAllEvents } from "../events";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { getSettings, absoluteLogoUrl } from "../settings";
+import { getTemplateForEvent } from "./templates";
+import { composeTicket } from "./detect";
+import { qrPayload } from "./sign";
 
 /**
  * Delivering the ticket by email.
@@ -35,6 +38,14 @@ function longDate(iso: string): string {
   });
 }
 
+/**
+ * The logo as it travels in a mail: a small square, the mark centred in it.
+ *
+ * 192 px is displayed at 96, so it stays sharp on a retina screen without
+ * carrying a heavy image into every message.
+ */
+const LOGO_MAIL_BOX = 192;
+
 /** The event photograph as an absolute URL the mail client can fetch. */
 function coverImageUrl(image: string): string {
   if (!image) return "";
@@ -57,35 +68,111 @@ function coverImageUrl(image: string): string {
  * setting carries into the mail, and the PNG is opaque white-flattened on upload
  * so it cannot turn into a black square in a client that ignores transparency.
  */
-async function inlineLogo(): Promise<{ png: Buffer; scale: number } | null> {
+/**
+ * The school's uploaded ticket design with a booking's code pasted into it.
+ *
+ * Rendered once per message. This used to run per seat, which meant a four-seat
+ * sale composed four 1440 px PNGs with sharp before the checkout could reply —
+ * it was the slow part of booking. One composition, attached once, is what the
+ * buyer wants anyway: the finished ticket they can print.
+ */
+async function ticketArtwork(ticket: Ticket): Promise<Buffer | null> {
+  try {
+    const template = await getTemplateForEvent(ticket.event);
+    if (!template) return null;
+
+    const file = path.join(process.cwd(), "public", template.file.replace(/^\//, ""));
+    const design = await readFile(file);
+    const square = {
+      x: template.qrX,
+      y: template.qrY,
+      size: template.qrSize,
+      confidence: 1,
+    };
+    const { image } = await composeTicket({
+      design,
+      qrPayload: qrPayload(ticket.token, signTicket(ticket.token)),
+      square,
+      format: "png",
+    });
+    return image;
+  } catch {
+    // A missing design file must not stop the email: the codes are the ticket.
+    return null;
+  }
+}
+
+async function inlineLogo(): Promise<{
+  png: Buffer;
+  scale: number;
+  /** True when the mark is opaque edge to edge, so a square plate would show. */
+  opaque: boolean;
+} | null> {
   try {
     const { logo, logoScale } = await getSettings();
     const url = await absoluteLogoUrl();
     if (!logo || !url) return null;
 
-    // Local path when we have one; the stored value is root-relative, so read it
-    // straight off disk rather than over the network.
-    const rel = logo.replace(/^\//, "").replace(/^uploads\//, "uploads/");
+    // The stored value is root-relative, so read it straight off disk rather
+    // than over the network.
+    const rel = logo.replace(/^\//, "");
     const file = path.join(process.cwd(), "public", rel);
     const raw = await readFile(file);
 
     const meta = await sharp(raw).metadata();
-    const png = await sharp(raw)
-      // Small: it is shown at 72-96 px, and a heavy PNG is the difference
-      // between a message that lands in an inbox and one that lands in spam.
-      .resize({ width: 192, height: 192, fit: "inside", withoutEnlargement: true })
-      .png({ compressionLevel: 9 })
+    // Does the image have any usable transparency? A crest saved as JPEG (or a
+    // PNG that was flattened onto white) is a solid rectangle, and drawing it
+    // "as is" inside a circle shows its corners.
+    const opaque = !hasAlpha(meta);
+
+    // Over the white circle, transparent pixels stay white — which is the whole
+    // point of the circle. Outside it, over the navy hero, they would be white
+    // too, so the image is given a matching transparent margin instead and the
+    // circle is drawn behind it as its own element.
+    //
+    // GIF rather than PNG: Outlook and older Gmail render PNG alpha badly (they
+    // composite it onto the message background), while binary transparency in
+    // GIF is understood everywhere. The mask below makes the alpha binary, so a
+    // soft anti-aliased edge does not turn into a grey fringe.
+    const square = LOGO_MAIL_BOX;
+    const base = sharp(raw).rotate().resize(square, square, {
+      fit: "contain",
+      background: { r: 255, g: 255, b: 255, alpha: 0 },
+    });
+
+    // Everything above "nearly opaque" becomes fully opaque, the rest fully
+    // transparent. A crest has hard edges; a photograph would not survive this,
+    // and a logo is not a photograph.
+    const { data, info } = await base
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    for (let i = 3; i < data.length; i += 4) {
+      data[i] = data[i] > 96 ? 255 : 0;
+    }
+
+    const png = await sharp(data, {
+      raw: { width: info.width, height: info.height, channels: 4 },
+    })
+      .gif()
       .toBuffer();
-    const w = meta.width ?? 1;
-    const h = meta.height ?? 1;
-    // Shown inside a padded box, so a tall crest keeps its own aspect instead of
-    // being stretched by the circle. `scale` is what the admin set by eye.
-    return { png, scale: Math.min(0.98, Math.max(0.3, logoScale)) };
+
+    return {
+      png,
+      scale: Math.min(0.98, Math.max(0.3, logoScale)),
+      opaque,
+    };
   } catch {
     // No logo uploaded, or a file that has gone missing: the wordmark badge
     // below is the fallback, so the mail never has a hole in it.
     return null;
   }
+}
+
+/** Whether the source image even has an alpha channel to preserve. */
+function hasAlpha(meta: { hasAlpha?: boolean }): boolean {
+  return Boolean(meta.hasAlpha);
 }
 
 function lkr(n: number): string {
@@ -177,6 +264,13 @@ export type BuiltMail = {
   codes: { cid: string; buffer: Buffer }[];
   /** The uploaded crest, inline, so the header never shows a broken image. */
   logo: Buffer | null;
+  /**
+   * The designed ticket with this booking's code in it, for attaching.
+   *
+   * Null when no design has been uploaded — the generated codes in the body are
+   * then the only thing that needs to scan, and they do.
+   */
+  artwork: Buffer | null;
 };
 
 /**
@@ -246,6 +340,12 @@ export async function buildBookingMail(
   // the site and on the price list, and the code label has to match them.
   const tierName = (id: string) =>
     ticket.tiers.find((t) => t.id === id)?.name ?? tierFor(id);
+  // The designed ticket, as an attachment — the whole artwork the school
+  // uploaded, with this booking's code pasted in. One per message, not one per
+  // seat: the sale is one email now, so the artwork that represents it is the
+  // first seat's, and every seat already has its own scannable code above.
+  const artwork = await ticketArtwork(ticket);
+
   const codes: { cid: string; buffer: Buffer }[] = [];
   const codesHtml: { name: string; tier: string; src: string; url: string }[] = [];
   for (const [i, t] of tickets.entries()) {
@@ -291,6 +391,7 @@ export async function buildBookingMail(
     paid: lkr(ticket.total),
     logo: logoPng ? "cid:brand-logo" : "",
     logoScale: logoPng ? logo!.scale : 1,
+    logoOpaque: logo ? logo.opaque : false,
   });
 
   return {
@@ -308,6 +409,7 @@ export async function buildBookingMail(
     ].join("\n"),
     codes,
     logo: logoPng,
+    artwork,
   };
 }
 
@@ -389,7 +491,7 @@ export async function sendTicketEmail(
   overrides: Partial<MailTemplate> = {}
 ): Promise<MailResult> {
   const built = await buildBookingMail(tickets, overrides);
-  const { subject, html, text: body, codes, logo } = built;
+  const { subject, html, text: body, codes, logo, artwork } = built;
   const ticket = tickets[0];
   const attachments = [
     // Every code inline, so they render even when the client blocks remote
@@ -409,6 +511,18 @@ export async function sendTicketEmail(
             content: logo,
             inline: true,
             contentId: "brand-logo",
+          },
+        ]
+      : []),
+    // The finished ticket, as a file the buyer can open, print, or show on a
+    // screen that is not showing their mail app.
+    ...(artwork
+      ? [
+          {
+            filename: `${ticket.reference}-ticket.png`,
+            content: artwork,
+            inline: false,
+            contentId: "",
           },
         ]
       : []),
@@ -472,7 +586,8 @@ export async function sendTicketEmail(
         attachments: attachments.map((a) => ({
           filename: a.filename,
           content: a.content,
-          cid: a.contentId,
+          // Only inline parts get a cid; the ticket file is a normal attachment.
+          ...(a.contentId ? { cid: a.contentId } : {}),
         })),
       });
       return { sent: true, provider: "smtp", id: info.messageId ?? "" };
@@ -541,6 +656,7 @@ export function ticketHtml({
   paid,
   logo,
   logoScale,
+  logoOpaque,
   of,
   totalSeats,
 }: {
@@ -576,6 +692,8 @@ export function ticketHtml({
   logo: string;
   /** How much of the white circle the logo fills, 0.3-1. */
   logoScale: number;
+  /** True when the mark has no transparency, so it should fill the circle. */
+  logoOpaque: boolean;
 }): string {
   const paragraphs = body
     .split(/\n{2,}/)
@@ -626,11 +744,20 @@ export function ticketHtml({
    * No logo uploaded yet? The white circle keeps its shape and shows the same
    * wordmark the site uses, so the mail never has a hole in it.
    */
-  // 96 px of white, with the mark inset by the admin's scale. The image is not
-  // the circle: a crest that fills its own canvas would be cropped by a round
-  // mask, so it sits inside a padded white box and the circle is the box.
+  // The circle is an element of its own, and the logo is a plain image on top.
+  //
+  // It used to be one <img> with `border-radius` doing the clipping, which is
+  // what produced the white plate: a round mask over a square crest cuts the
+  // corners and leaves the white padding showing as a square against the navy.
+  // Drawing a solid white circle underneath and floating a transparent-cornered
+  // logo above it means the white is exactly the circle and nothing else — the
+  // same on the storefront, and the same for a transparent upload.
   const circle = 96;
-  const inner = Math.round(circle * (logo ? logoScale : 0.62));
+  // An opaque crest fills the circle edge to edge; a transparent one is padded,
+  // so it is scaled by what the admin set.
+  const inner = logoOpaque
+    ? circle
+    : Math.round(circle * (logo ? logoScale : 0.62));
 
   const badge = `
          <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 auto">
@@ -643,7 +770,7 @@ export function ticketHtml({
                  ? `<img src="${escapeHtml(
                      logo
                    )}" alt="College crest" width="${inner}" height="${inner}"
-                     style="display:block;margin:0 auto;width:${inner}px;height:${inner}px;object-fit:contain">`
+                     style="display:block;margin:0 auto;width:${inner}px;height:${inner}px">`
                  : `<div style="width:${circle}px;height:${circle}px;line-height:${circle}px;color:#0a1224;font-family:Georgia,'Times New Roman',serif;font-size:24px;letter-spacing:2px">STC</div>`
              }
            </td></tr>
@@ -708,14 +835,38 @@ export function ticketHtml({
          </div>`
       : "";
 
+  /**
+   * The hero: the event's own photograph, washed into the navy.
+   *
+   * This is the "mix wash" — the photo is there, showing through a dark gradient
+   * so the crest and the school name still read on top of it. Two layers: a
+   * `background-image` on the cell, and a fixed navy wash *above* it via a
+   * full-width cell with a translucent background.
+   *
+   * Built so it degrades twice over. Outlook has no CSS gradients and often no
+   * CSS backgrounds, so the cell keeps its solid `bgcolor` and the photo simply
+   * is not there — the header still looks deliberate. And the wash means
+   * nothing depends on the photograph for contrast: white on that navy clears
+   * WCAG AA whatever the picture is.
+   *
+   * The image is a remote URL, deliberately: it is a decorative photograph, and
+   * a blocked image should cost nothing. Everything that must arrive — the
+   * crest, the codes — travels inline.
+   */
+  const heroBg = coverSrc
+    ? `background-color:#0a1224;background-image:url('${escapeHtml(
+        coverSrc
+      )}');background-size:cover;background-position:center;background-repeat:no-repeat;`
+    : "background-color:#0a1224;";
+
   const hero = `
-   <tr><td bgcolor="#0a1224" valign="top" style="background:#0a1224">
-     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
-       <tr><td align="center" style="padding:30px 30px 26px">
+   <tr><td bgcolor="#0a1224" valign="top" style="${heroBg}">
+     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;${heroBg}">
+       <tr><td align="center" style="padding:34px 30px 30px;background:linear-gradient(180deg,rgba(4,6,13,0.72) 0%,rgba(10,18,36,0.86) 55%,rgba(10,18,36,0.96) 100%)">
 
          ${badge}
 
-         <div style="color:#ffffff;font-size:22px;letter-spacing:4px;text-transform:uppercase;font-family:Georgia,'Times New Roman',serif;padding-top:16px;line-height:1.3">St. Thomas&rsquo; College</div>
+         <div style="color:#ffffff;font-size:22px;letter-spacing:4px;text-transform:uppercase;font-family:Georgia,'Times New Roman',serif;padding-top:16px;line-height:1.3;text-shadow:0 1px 3px rgba(4,6,13,0.9)">St. Thomas&rsquo; College</div>
          <div style="color:#ffd444;font-size:9px;letter-spacing:7px;text-transform:uppercase;padding-top:7px">Matale &middot; Sri Lanka</div>
        </td></tr>
      </table>
