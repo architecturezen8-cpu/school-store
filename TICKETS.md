@@ -77,15 +77,31 @@ design" step, because a school sending one kind of ticket does not need one.
 
 **One email per sale, one code per seat.** Buying four tickets sends *one*
 message with four codes in it, numbered "Ticket 1" to "Ticket 4" (with the tier
-under each). Each code admits one person, once — so the gate still sees four
-admissions. Mailing four separate messages made a four-seat booking wait on SMTP
-four times before the buyer saw "Booked", and left them hunting four emails.
+under each), **plus the finished ticket as an attachment** — the school's own
+uploaded design with the code pasted into its white square. Each code admits one
+person, once, so the gate still sees four admissions. Mailing four separate
+messages made a four-seat booking wait on SMTP four times before the buyer saw
+"Booked", and left them hunting four emails.
+
+**The hero is the event's photograph, washed into the navy.** A `background-image`
+on the header cell under a fixed navy gradient, so the crest and the school name
+still read at 4.5:1 whatever the picture is. Outlook, which drops CSS
+backgrounds, keeps the flat navy and loses only the decoration.
 
 **The crest is inlined, not linked.** A remote `src` is a broken-image icon the
 moment the reader's client cannot fetch it — the host has moved on, the file is
 fine but not deployed yet, the client blocks remote images. The uploaded logo is
 embedded as `cid:brand-logo`, sized by the **size in the circle** setting, so what
 the admin sees in the preview is what arrives.
+
+**Transparency is kept, and the circle is drawn behind the logo.** Uploads used
+to be flattened onto white and padded on white, which put a square white plate
+around a transparent crest — invisible on a white page, obvious against the navy
+hero. The file now keeps its alpha and the white circle is a separate element
+underneath, so the white is exactly the circle and nothing else. The version that
+travels in the mail has its alpha thresholded to binary and is sent as GIF,
+because Outlook and older Gmail composite PNG transparency onto the message
+background.
 
 `/admin/mail` does exactly two things: it **shows** the message and it **sends a
 test**. There is no wording editor. The ticket is a default — subject, heading,
