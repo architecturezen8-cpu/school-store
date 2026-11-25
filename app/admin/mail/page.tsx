@@ -94,8 +94,8 @@ export default async function MailPage({
       {/* ---------------- send a test ---------------- */}
       <section className="rounded-2xl bg-panel p-6 xl:col-span-2">
         <Eyebrow>Check it lands</Eyebrow>
-        <h2 className="mt-2 font-display text-xl font-semibold text-white">Send a test</h2>
-        <p className="mt-2 text-sm leading-relaxed text-white/65">
+        <h2 className="mt-2 font-display text-xl font-semibold text-strong">Send a test</h2>
+        <p className="mt-2 text-sm leading-relaxed text-muted">
           The real ticket, sent to your own inbox. The booking is untouched.
         </p>
         {/* The booking is bound into the action rather than posted in a hidden
@@ -119,11 +119,11 @@ export default async function MailPage({
             <Mail className="h-4 w-4" /> Send test ticket
           </button>
         </form>
-        <p className="mt-3 text-xs leading-relaxed text-white/60">
+        <p className="mt-3 text-xs leading-relaxed text-muted">
           {chosen ? (
             <>
               Uses booking{" "}
-              <span className="font-mono text-white/75">{chosen.reference}</span> — the same one
+              <span className="font-mono text-body">{chosen.reference}</span> — the same one
               in the preview.
             </>
           ) : (
@@ -139,9 +139,9 @@ export default async function MailPage({
           {!configured && (
             <Notice tone="warn">
               No mail transport yet — add{" "}
-              <code className="rounded-md bg-black/40 px-1.5 py-0.5">RESEND_API_KEY</code> or the{" "}
-              <code className="rounded-md bg-black/40 px-1.5 py-0.5">SMTP_*</code> variables to{" "}
-              <code className="rounded-md bg-black/40 px-1.5 py-0.5">.env.local</code>. Bookings
+              <code className="rounded-md bg-page px-1.5 py-0.5">RESEND_API_KEY</code> or the{" "}
+              <code className="rounded-md bg-page px-1.5 py-0.5">SMTP_*</code> variables to{" "}
+              <code className="rounded-md bg-page px-1.5 py-0.5">.env.local</code>. Bookings
               still succeed in the meantime; nothing is sent. (Everything below still works.)
             </Notice>
           )}
@@ -161,7 +161,7 @@ export default async function MailPage({
                   className={`rounded-full px-2.5 py-1 font-mono text-[11px] ${
                     chosen?.reference === b.reference
                       ? "bg-gold text-black"
-                      : "bg-well text-white/65 hover:text-white"
+                      : "bg-well text-muted hover:text-strong"
                   }`}
                 >
                   {b.reference}
@@ -170,17 +170,17 @@ export default async function MailPage({
             </div>
           )}
         </div>
-        <p className="mt-2 truncate font-mono text-[11px] text-white/65">Subject: {subject}</p>
-        <div className="mt-3 overflow-hidden rounded-xl bg-black">
+        <p className="mt-2 truncate font-mono text-[11px] text-muted">Subject: {subject}</p>
+        <div className="mt-3 overflow-hidden rounded-xl bg-page">
           <iframe
             src={frameSrc}
             title="Ticket email preview"
-            className="h-[70vh] max-h-[820px] min-h-[560px] w-full border-0 bg-black"
+            className="h-[70vh] max-h-[820px] min-h-[560px] w-full border-0 bg-page"
           />
         </div>
-        <p className="mt-3 text-xs leading-relaxed text-white/60">
+        <p className="mt-3 text-xs leading-relaxed text-muted">
           Rendered by the same code that sends the mail. The QR belongs to{" "}
-          {chosen ? <span className="font-mono text-white/75">{chosen.reference}</span> : "—"}, so
+          {chosen ? <span className="font-mono text-body">{chosen.reference}</span> : "—"}, so
           it is the code that will be scanned at the gate.
         </p>
       </div>

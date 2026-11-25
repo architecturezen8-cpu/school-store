@@ -47,7 +47,7 @@ export default function AdminShell({
 
   // Signed out: the sign-in screen owns the whole viewport.
   if (!signedIn) {
-    return <main className="min-h-screen bg-black">{children}</main>;
+    return <main className="min-h-screen bg-page">{children}</main>;
   }
 
   const isActive = (href: string) =>
@@ -59,13 +59,13 @@ export default function AdminShell({
       {/* the school, at the top */}
       <div className="flex items-center gap-3 px-2 py-2">
         <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-panel-2">
-          <CrestLogo className="h-8 w-8 text-white" decorative />
+          <CrestLogo className="h-8 w-8 text-strong" decorative />
         </span>
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold leading-tight text-white">
+          <p className="truncate text-sm font-semibold leading-tight text-strong">
             St. Thomas&apos; College
           </p>
-          <p className="truncate text-[10px] uppercase tracking-[0.18em] text-white/60">
+          <p className="truncate text-[10px] uppercase tracking-[0.18em] text-muted">
             Matale · Store admin
           </p>
         </div>
@@ -73,7 +73,7 @@ export default function AdminShell({
 
       {/* sections */}
       <nav id="admin-sidebar" className="mt-4 flex-1 overflow-y-auto" aria-label="Admin sections">
-        <p className="px-3 pb-2 text-[10px] uppercase tracking-[0.18em] text-white/65">
+        <p className="px-3 pb-2 text-[10px] uppercase tracking-[0.18em] text-muted">
           Manage
         </p>
         <ul className="space-y-1">
@@ -87,8 +87,8 @@ export default function AdminShell({
                   aria-current={active ? "page" : undefined}
                   className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors ${
                     active
-                      ? "bg-white font-semibold text-black"
-                      : "text-white/70 hover:bg-panel-2 hover:text-white"
+                      ? "bg-gold font-semibold text-black"
+                      : "text-body hover:bg-panel-2 hover:text-strong"
                   }`}
                 >
                   <Icon className="h-4 w-4 shrink-0" />
@@ -102,7 +102,7 @@ export default function AdminShell({
         <div className="mt-4">
           <Link
             href="/"
-            className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-white/65 transition-colors hover:bg-panel-2 hover:text-white"
+            className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-muted transition-colors hover:bg-panel-2 hover:text-strong"
           >
             <ExternalLink className="h-4 w-4 shrink-0" />
             View the store
@@ -115,20 +115,20 @@ export default function AdminShell({
         <div className="flex items-center gap-3">
           <span
             aria-hidden
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-xs font-bold text-black"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-strong text-xs font-bold text-page"
           >
             SA
           </span>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium leading-tight text-white">Store admin</p>
-            <p className="truncate text-[11px] text-white/60">St. Thomas&apos; College</p>
+            <p className="truncate text-sm font-medium leading-tight text-strong">Store admin</p>
+            <p className="truncate text-[11px] text-muted">St. Thomas&apos; College</p>
           </div>
           <form action={signOut}>
             <button
               type="submit"
               aria-label="Sign out"
               title="Sign out"
-              className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white/60 transition-colors hover:bg-panel-2 hover:text-white"
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:bg-panel-2 hover:text-strong"
             >
               <LogOut className="h-4 w-4" />
             </button>
@@ -139,15 +139,15 @@ export default function AdminShell({
   );
 
   return (
-    <div className="min-h-screen bg-black text-white lg:flex lg:gap-3 lg:p-3">
+    <div className="min-h-screen bg-page text-strong lg:flex lg:gap-3 lg:p-3">
       {/* ---------- mobile top bar ---------- */}
-      <header className="sticky top-0 z-30 flex items-center justify-between gap-3 bg-black px-4 py-3 lg:hidden">
+      <header className="sticky top-0 z-30 flex items-center justify-between gap-3 bg-page px-4 py-3 lg:hidden">
         <div className="flex min-w-0 items-center gap-3">
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-panel">
-            <CrestLogo className="h-7 w-7 text-white" decorative />
+            <CrestLogo className="h-7 w-7 text-strong" decorative />
           </span>
           <div className="min-w-0">
-            <p className="truncate text-[10px] uppercase tracking-[0.22em] text-white/60">
+            <p className="truncate text-[10px] uppercase tracking-[0.22em] text-muted">
               Store admin
             </p>
             <p className="truncate text-sm font-semibold">{current?.label ?? "Overview"}</p>
@@ -159,7 +159,7 @@ export default function AdminShell({
           aria-label={open ? "Close menu" : "Open menu"}
           aria-expanded={open}
           aria-controls="admin-nav"
-          className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-panel text-white/80"
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-panel text-strong"
         >
           {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>

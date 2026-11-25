@@ -138,30 +138,31 @@ export default function GateScanner() {
 
   useEffect(() => stopCamera, [stopCamera]);
 
-  // Admitted is the one tile that turns white: on a black page, a white tile is
-  // the loudest thing there is, and the palette has no green to borrow.
+  // Admitted is the one tile that turns gold: it is the loudest fill the
+  // palette has, and gold already means "this one is real" everywhere else.
+  // Error keeps the bright surface, because a rejection has to stop someone.
   const tone =
     result?.status === "admitted"
-      ? "bg-white text-black"
+      ? "bg-gold text-black"
       : result?.status === "already"
-        ? "bg-panel-2 text-white"
+        ? "bg-panel-2 text-strong"
         : result
-          ? "bg-well text-white"
-          : "bg-well text-white";
+          ? "bg-well text-strong"
+          : "bg-well text-strong";
 
   return (
     <div className="space-y-5">
       <label className="block">
-        <span className="text-[11px] uppercase tracking-[0.18em] text-white/65">Gate</span>
+        <span className="text-[11px] uppercase tracking-[0.18em] text-muted">Gate</span>
         <input
           value={by}
           onChange={(e) => setBy(e.target.value)}
-          className="mt-2 w-full rounded-xl bg-well px-4 py-3 text-white outline-none transition-colors focus:bg-panel-2 focus:ring-2 focus:ring-gold"
+          className="mt-2 w-full rounded-xl bg-well px-4 py-3 text-strong outline-none transition-colors focus:bg-panel-2 focus:ring-2 focus:ring-gold"
           placeholder="Gate 1"
         />
       </label>
 
-      <div className="relative overflow-hidden rounded-xl bg-black">
+      <div className="relative overflow-hidden rounded-xl bg-page">
         <video
           ref={videoRef}
           playsInline
@@ -170,9 +171,9 @@ export default function GateScanner() {
         />
         {camera !== "on" && (
           <div className="grid aspect-[4/3] max-h-[420px] w-full place-items-center gap-3 p-6 text-center">
-            <Camera className="h-10 w-10 text-white/25" />
+            <Camera className="h-10 w-10 text-faint" />
             {camera === "unsupported" ? (
-              <p className="text-sm text-white/70">
+              <p className="text-sm text-body">
                 This browser cannot scan with the camera. Paste the ticket link
                 below, or type the reference.
               </p>
@@ -181,7 +182,7 @@ export default function GateScanner() {
                 type="button"
                 onClick={startCamera}
                 disabled={camera === "starting"}
-                className="rounded-xl bg-white px-5 py-3 text-sm font-semibold text-black hover:bg-white/85 disabled:opacity-60"
+                className="rounded-xl bg-gold px-5 py-3 text-sm font-semibold text-black hover:bg-gold-bright disabled:opacity-60"
               >
                 {camera === "starting" ? "Starting camera…" : "Start camera"}
               </button>
@@ -194,7 +195,7 @@ export default function GateScanner() {
         <button
           type="button"
           onClick={stopCamera}
-          className="w-full rounded-xl bg-panel-2 px-4 py-3 text-sm text-white/80 hover:bg-panel-2"
+          className="w-full rounded-xl bg-panel-2 px-4 py-3 text-sm text-strong hover:bg-panel-2"
         >
           Stop camera
         </button>
@@ -208,20 +209,20 @@ export default function GateScanner() {
         className="space-y-2"
       >
         <label className="block">
-          <span className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-white/65">
+          <span className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-muted">
             <Keyboard className="h-3.5 w-3.5" /> Paste link or type reference
           </span>
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="https://…/t/…?s=…  or  BM-ABC123"
-            className="mt-2 w-full rounded-xl bg-well px-4 py-3 text-sm text-white outline-none transition-colors focus:bg-panel-2 focus:ring-2 focus:ring-gold"
+            className="mt-2 w-full rounded-xl bg-well px-4 py-3 text-sm text-strong outline-none transition-colors focus:bg-panel-2 focus:ring-2 focus:ring-gold"
           />
         </label>
         <button
           type="submit"
           disabled={busy || !text.trim()}
-          className="w-full rounded-xl bg-white px-4 py-3 text-sm font-semibold text-black hover:bg-white/85 disabled:opacity-40"
+          className="w-full rounded-xl bg-gold px-4 py-3 text-sm font-semibold text-black hover:bg-gold-bright disabled:opacity-40"
         >
           {busy ? "Checking…" : "Check ticket"}
         </button>
@@ -256,7 +257,7 @@ export default function GateScanner() {
               </p>
               <p className="font-mono text-xs opacity-60">Ref {result.ticket.reference}</p>
               {result.status === "already" && result.ticket.admittedAt && (
-                <p className="mt-2 rounded-lg bg-black px-3 py-2 text-white">
+                <p className="mt-2 rounded-lg bg-page px-3 py-2 text-strong">
                   First scanned {new Date(result.ticket.admittedAt).toLocaleString("en-GB")}
                   {result.ticket.admittedBy ? ` at ${result.ticket.admittedBy}` : ""}. Do
                   not admit again.
@@ -273,7 +274,7 @@ export default function GateScanner() {
                     }).catch(() => {});
                     setResult(null);
                   }}
-                  className="mt-3 inline-flex items-center gap-2 rounded-lg bg-panel px-3 py-2 text-xs text-white/70 hover:text-white"
+                  className="mt-3 inline-flex items-center gap-2 rounded-lg bg-panel px-3 py-2 text-xs text-body hover:text-strong"
                 >
                   <RotateCcw className="h-3.5 w-3.5" /> Undo (only if this was a mis-scan)
                 </button>

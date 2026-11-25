@@ -104,7 +104,7 @@ export default async function TemplatesPage({
                   name="design"
                   accept="image/png,image/jpeg,image/webp"
                   required
-                  className={`${inputClass} file:mr-3 file:rounded-lg file:border-0 file:bg-white file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-black`}
+                  className={`${inputClass} file:mr-3 file:rounded-lg file:border-0 file:bg-gold file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-black`}
                 />
               </Field>
 
@@ -115,17 +115,17 @@ export default async function TemplatesPage({
           </Panel>
 
           <Panel title="The square matters" tone="sunken">
-            <ul className="space-y-3 text-xs leading-relaxed text-white/65">
+            <ul className="space-y-3 text-xs leading-relaxed text-muted">
               <li>
-                <span className="text-white/80">Shape.</span> Equal width and height, at least
+                <span className="text-strong">Shape.</span> Equal width and height, at least
                 160px, pure white — no off-white, no transparency.
               </li>
               <li>
-                <span className="text-white/80">Fit.</span> The QR fills about 80% of it, so a thin
+                <span className="text-strong">Fit.</span> The QR fills about 80% of it, so a thin
                 white margin stays around the code.
               </li>
               <li>
-                <span className="text-white/80">Nothing on top.</span> No logo, no text and no
+                <span className="text-strong">Nothing on top.</span> No logo, no text and no
                 texture inside the square.
               </li>
             </ul>
@@ -150,10 +150,10 @@ export default async function TemplatesPage({
                     className="h-28 w-full rounded-lg object-cover"
                   />
                   <div className="mt-3 flex items-start justify-between gap-2">
-                    <p className="min-w-0 truncate text-sm text-white">{t.name}</p>
+                    <p className="min-w-0 truncate text-sm text-strong">{t.name}</p>
                     {t.isActive ? <Pill tone="ok">live</Pill> : <Pill>off</Pill>}
                   </div>
-                  <p className="mt-1 text-[11px] text-white/65">
+                  <p className="mt-1 text-[11px] text-muted">
                     {t.event ?? "all events"} · {t.width}×{t.height} · QR {t.qrSize}px
                   </p>
                   <div className="mt-3 flex items-center gap-2">

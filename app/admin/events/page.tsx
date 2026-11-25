@@ -94,13 +94,13 @@ export default async function AdminEventsPage({
 
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="min-w-0 truncate font-display text-[15px] font-semibold text-white">
+                    <p className="min-w-0 truncate font-display text-[15px] font-semibold text-strong">
                       {e.title || e.slug}
                     </p>
                     {e.featured && <Pill tone="ok">in the spotlight</Pill>}
                     {!e.published && <Pill>draft</Pill>}
                   </div>
-                  <p className="mt-1 text-[11.5px] text-white/55">
+                  <p className="mt-1 text-[11.5px] text-muted">
                     {e.startsAt
                       ? new Date(e.startsAt).toLocaleString("en-GB", {
                           day: "numeric",
@@ -112,7 +112,7 @@ export default async function AdminEventsPage({
                       : "no date"}
                     {e.venue ? ` · ${e.venue}` : ""}
                   </p>
-                  <p className="mt-2 text-[11px] text-white/45">
+                  <p className="mt-2 text-[11px] text-faint">
                     {e.tierCount} ticket {e.tierCount === 1 ? "type" : "types"} ·{" "}
                     {e.rules.length} rules · {e.gallery.length} photos · {e.links.length} links
                   </p>
@@ -162,10 +162,10 @@ export default async function AdminEventsPage({
 
       <section className="rounded-2xl bg-panel p-6">
         <Eyebrow>Where this shows</Eyebrow>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/60">
-          A published event appears on <code className="text-white/80">/tickets</code> as a card
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
+          A published event appears on <code className="text-strong">/tickets</code> as a card
           and gets its own page at{" "}
-          <code className="text-white/80">/events/&lt;address&gt;</code>. Anything in the spotlight
+          <code className="text-strong">/events/&lt;address&gt;</code>. Anything in the spotlight
           also gets a full-width hero with its own countdown — add as many as you like; they
           stack in list order.
         </p>

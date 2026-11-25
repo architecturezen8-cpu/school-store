@@ -333,8 +333,8 @@ export default function EventEditor({
 
         {/* ---- the facts ---- */}
         <section className="rounded-2xl bg-panel p-6">
-          <h2 className="font-display text-lg font-semibold text-white">The essentials</h2>
-          <p className="mt-1 text-sm text-white/60">
+          <h2 className="font-display text-lg font-semibold text-strong">The essentials</h2>
+          <p className="mt-1 text-sm text-muted">
             These four lines are what the card on /tickets shows.
           </p>
 
@@ -408,8 +408,8 @@ export default function EventEditor({
 
         {/* ---- the hero ---- */}
         <section className="rounded-2xl bg-panel p-6">
-          <h2 className="font-display text-lg font-semibold text-white">The hero</h2>
-          <p className="mt-1 text-sm text-white/60">
+          <h2 className="font-display text-lg font-semibold text-strong">The hero</h2>
+          <p className="mt-1 text-sm text-muted">
             The top of the event page. Upload a photograph — it is resized for you.
           </p>
 
@@ -459,8 +459,8 @@ export default function EventEditor({
 
         {/* ---- the story ---- */}
         <section className="rounded-2xl bg-panel p-6">
-          <h2 className="font-display text-lg font-semibold text-white">The story</h2>
-          <p className="mt-1 text-sm text-white/60">
+          <h2 className="font-display text-lg font-semibold text-strong">The story</h2>
+          <p className="mt-1 text-sm text-muted">
             A blank line starts a new paragraph. The first one is set larger.
           </p>
           <textarea
@@ -476,8 +476,8 @@ export default function EventEditor({
         <section className="rounded-2xl bg-panel p-6">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h2 className="font-display text-lg font-semibold text-white">Rules & entry</h2>
-              <p className="mt-1 text-sm text-white/60">
+              <h2 className="font-display text-lg font-semibold text-strong">Rules & entry</h2>
+              <p className="mt-1 text-sm text-muted">
                 Numbered on the page, in this order.
               </p>
             </div>
@@ -491,7 +491,7 @@ export default function EventEditor({
           </div>
 
           {draft.rules.length === 0 ? (
-            <p className="mt-4 rounded-xl bg-well px-4 py-6 text-center text-sm text-white/50">
+            <p className="mt-4 rounded-xl bg-well px-4 py-6 text-center text-sm text-faint">
               No rules yet. Nothing is shown on the page until you add one.
             </p>
           ) : (
@@ -523,7 +523,7 @@ export default function EventEditor({
                       type="button"
                       onClick={() => removeAt("rules", i)}
                       aria-label={`Remove rule ${i + 1}`}
-                      className="mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white/50 hover:bg-white/10 hover:text-white"
+                      className="mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-faint hover:bg-panel-2 hover:text-strong"
                     >
                       <X className="h-4 w-4" />
                     </button>
@@ -538,8 +538,8 @@ export default function EventEditor({
         <section className="rounded-2xl bg-panel p-6">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h2 className="font-display text-lg font-semibold text-white">Gallery</h2>
-              <p className="mt-1 text-sm text-white/60">
+              <h2 className="font-display text-lg font-semibold text-strong">Gallery</h2>
+              <p className="mt-1 text-sm text-muted">
                 Photographs from previous years. Three or more fills the grid.
               </p>
             </div>
@@ -571,7 +571,7 @@ export default function EventEditor({
           </div>
 
           {draft.gallery.length === 0 ? (
-            <p className="mt-4 rounded-xl bg-well px-4 py-6 text-center text-sm text-white/50">
+            <p className="mt-4 rounded-xl bg-well px-4 py-6 text-center text-sm text-faint">
               No photographs yet.
             </p>
           ) : (
@@ -596,7 +596,7 @@ export default function EventEditor({
                         removeAt("gallery", i);
                       }}
                       aria-label={`Remove photo ${i + 1}`}
-                      className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-white/50 hover:bg-white/10 hover:text-white"
+                      className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-faint hover:bg-panel-2 hover:text-strong"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -611,8 +611,8 @@ export default function EventEditor({
         <section className="rounded-2xl bg-panel p-6">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h2 className="font-display text-lg font-semibold text-white">Links</h2>
-              <p className="mt-1 text-sm text-white/60">
+              <h2 className="font-display text-lg font-semibold text-strong">Links</h2>
+              <p className="mt-1 text-sm text-muted">
                 The schedule, a map, the old boys&apos; page — anywhere else to look.
               </p>
             </div>
@@ -626,7 +626,7 @@ export default function EventEditor({
           </div>
 
           {draft.links.length === 0 ? (
-            <p className="mt-4 rounded-xl bg-well px-4 py-6 text-center text-sm text-white/50">
+            <p className="mt-4 rounded-xl bg-well px-4 py-6 text-center text-sm text-faint">
               No links yet.
             </p>
           ) : (
@@ -653,7 +653,7 @@ export default function EventEditor({
                     type="button"
                     onClick={() => removeAt("links", i)}
                     aria-label={`Remove link ${i + 1}`}
-                    className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-white/50 hover:bg-white/10 hover:text-white"
+                    className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-faint hover:bg-panel-2 hover:text-strong"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -667,10 +667,10 @@ export default function EventEditor({
         <section className="rounded-2xl bg-panel p-6">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h2 className="font-display text-lg font-semibold text-white">
+              <h2 className="font-display text-lg font-semibold text-strong">
                 Ticket types & the design
               </h2>
-              <p className="mt-1 text-sm text-white/60">
+              <p className="mt-1 text-sm text-muted">
                 Each type is its own price. Sold-out types cannot be removed — the
                 bookings still point at them.
               </p>
@@ -692,7 +692,7 @@ export default function EventEditor({
           </div>
 
           {draft.tiers.length === 0 ? (
-            <p className="mt-4 rounded-xl bg-well px-4 py-6 text-center text-sm text-white/50">
+            <p className="mt-4 rounded-xl bg-well px-4 py-6 text-center text-sm text-faint">
               No ticket types — the event cannot be booked.
             </p>
           ) : (
@@ -722,7 +722,7 @@ export default function EventEditor({
                       type="button"
                       onClick={() => removeAt("tiers", i)}
                       aria-label={`Remove ticket type ${i + 1}`}
-                      className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-white/50 hover:bg-white/10 hover:text-white"
+                      className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-faint hover:bg-panel-2 hover:text-strong"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -740,8 +740,8 @@ export default function EventEditor({
                     aria-label={`Ticket type ${i + 1} perks`}
                     className={inputClass}
                   />
-                  <p className="mt-1.5 text-[11px] text-white/60">
-                    id <code className="text-white/60">{t.id}</code>
+                  <p className="mt-1.5 text-[11px] text-muted">
+                    id <code className="text-muted">{t.id}</code>
                   </p>
                 </li>
               ))}
@@ -763,7 +763,7 @@ export default function EventEditor({
 
         {/* ---- switches ---- */}
         <section className="rounded-2xl bg-panel p-6">
-          <h2 className="font-display text-lg font-semibold text-white">On sale</h2>
+          <h2 className="font-display text-lg font-semibold text-strong">On sale</h2>
           <div className="mt-4 space-y-3">
             <label className="flex cursor-pointer items-start gap-3">
               <input
@@ -773,8 +773,8 @@ export default function EventEditor({
                 className="mt-1 h-4 w-4 accent-gold"
               />
               <span>
-                <span className="block text-sm text-white">Published</span>
-                <span className="block text-xs text-white/55">
+                <span className="block text-sm text-strong">Published</span>
+                <span className="block text-xs text-muted">
                   Off means the page 404s and the event disappears from /tickets.
                 </span>
               </span>
@@ -787,8 +787,8 @@ export default function EventEditor({
                 className="mt-1 h-4 w-4 accent-gold"
               />
               <span>
-                <span className="block text-sm text-white">Show in the /tickets spotlight</span>
-                <span className="block text-xs text-white/55">
+                <span className="block text-sm text-strong">Show in the /tickets spotlight</span>
+                <span className="block text-xs text-muted">
                   Each spotlight event gets its own big hero with a countdown. Turn on as
                   many as you like — the first one in the list leads the page.
                 </span>
@@ -815,7 +815,7 @@ export default function EventEditor({
               className={`${inputClass} font-mono disabled:opacity-60`}
             />
           </Field>
-          <p className="mt-2 text-[11px] leading-relaxed text-white/50">
+          <p className="mt-2 text-[11px] leading-relaxed text-faint">
             {mode === "update"
               ? "The address is fixed after the first save — tickets already printed point at it."
               : slugTaken
@@ -824,7 +824,7 @@ export default function EventEditor({
           </p>
 
           {blockers.length > 0 && (
-            <p className="mt-3 rounded-lg bg-well px-3 py-2 text-[11.5px] leading-relaxed text-white/65">
+            <p className="mt-3 rounded-lg bg-well px-3 py-2 text-[11.5px] leading-relaxed text-muted">
               Before you can save: {blockers.join(" · ")}.
             </p>
           )}
@@ -882,12 +882,12 @@ export default function EventEditor({
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={preview.image} alt="" className="h-full w-full object-cover" />
               ) : (
-                <div className="grid h-full place-items-center text-white/30">
+                <div className="grid h-full place-items-center text-faint">
                   <ImagePlus className="h-6 w-6" />
                 </div>
               )}
               {preview.date && (
-                <span className="absolute bottom-2 left-3 rounded-md bg-ink/85 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white">
+                <span className="absolute bottom-2 left-3 rounded-md bg-ink/85 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-strong">
                   {preview.date.toLocaleDateString("en-GB", {
                     day: "numeric",
                     month: "short",
@@ -896,13 +896,13 @@ export default function EventEditor({
               )}
             </div>
             <div className="p-4">
-              <p className="font-display text-[15px] font-semibold leading-tight text-white">
+              <p className="font-display text-[15px] font-semibold leading-tight text-strong">
                 {preview.title}
               </p>
-              <p className="mt-1 line-clamp-2 text-[11.5px] leading-relaxed text-white/55">
+              <p className="mt-1 line-clamp-2 text-[11.5px] leading-relaxed text-muted">
                 {preview.subtitle || "—"}
               </p>
-              <p className="mt-2 text-[11px] text-white/60">
+              <p className="mt-2 text-[11px] text-muted">
                 {preview.price === null
                   ? "no tickets"
                   : preview.price === 0
@@ -911,7 +911,7 @@ export default function EventEditor({
               </p>
             </div>
           </div>
-          <p className="mt-3 text-[11px] leading-relaxed text-white/50">
+          <p className="mt-3 text-[11px] leading-relaxed text-faint">
             A thumbnail of the card. The page itself has the hero, the story, the rules,
             the gallery and the links above.
           </p>
@@ -922,7 +922,7 @@ export default function EventEditor({
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gold">
               Draft
             </p>
-            <p className="mt-1.5 text-xs leading-relaxed text-white/55">
+            <p className="mt-1.5 text-xs leading-relaxed text-muted">
               Not published — nobody can see this yet. Tick “Published” and save when it is
               ready.
             </p>
@@ -931,7 +931,7 @@ export default function EventEditor({
 
         <div className="rounded-2xl bg-panel p-4">
           <p className={labelClass}>How it reads</p>
-          <ul className="mt-2 space-y-1.5 text-[11.5px] text-white/55">
+          <ul className="mt-2 space-y-1.5 text-[11.5px] text-muted">
             <li>{draft.rules.length} rules</li>
             <li>{draft.gallery.length} gallery photos</li>
             <li>{draft.links.length} links</li>
@@ -969,7 +969,7 @@ function ImageField({
     <div>
       <span className="flex items-baseline justify-between gap-3">
         <span className={labelClass}>{label}</span>
-        {hint && <span className="text-[11px] text-white/60">{hint}</span>}
+        {hint && <span className="text-[11px] text-muted">{hint}</span>}
       </span>
 
       <div className="mt-2 flex items-start gap-3">
@@ -978,13 +978,13 @@ function ImageField({
             // eslint-disable-next-line @next/next/no-img-element
             <img src={shown} alt="" className="h-full w-full object-cover" />
           ) : (
-            <div className="grid h-full place-items-center text-white/30">
+            <div className="grid h-full place-items-center text-faint">
               <ImagePlus className="h-5 w-5" />
             </div>
           )}
           {busy && (
-            <div className="absolute inset-0 grid place-items-center bg-black/60">
-              <Loader2 className="h-5 w-5 animate-spin text-white" />
+            <div className="absolute inset-0 grid place-items-center bg-page/70">
+              <Loader2 className="h-5 w-5 animate-spin text-strong" />
             </div>
           )}
         </div>
@@ -1023,7 +1023,7 @@ function ImageField({
       </div>
 
       {!value && fallback && (
-        <p className="mt-2 text-[11px] text-white/60">
+        <p className="mt-2 text-[11px] text-muted">
           Showing the card image. Upload a hero to use a different photograph.
         </p>
       )}

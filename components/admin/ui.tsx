@@ -8,30 +8,46 @@ import type { ReactNode } from "react";
  *
  *   · **no borders anywhere.** Shape comes from a fill, a radius and the gap
  *     between tiles. A hairline only ever appears *inside* a tile (dividers).
- *   · **black, white and yellow only.** The page is black: a true near-black,
- *     not a navy. Tiles step up through neutral greys, and yellow is the only
- *     accent — one filled action per screen, one live state.
+ *   · **charcoal, off-white and yellow only.** Not black, not white, and not
+ *     navy. Pure white on pure black is a 21:1 contrast ratio — plenty of
+ *     contrast and still tiring, because the eye keeps re-adapting between the
+ *     letters and the background. Both ends sit slightly inside the extremes
+ *     here, which lands the text around 15:1: unmistakable and comfortable.
+ *   · **the surfaces have to be visible.** A tile on the page is a 1.10:1 step
+ *     and a tile on a tile is 1.26:1. Steps smaller than about 1.05:1 exist in
+ *     the CSS and not on the screen.
  *   · **generous radius.** 1rem tiles, 0.75rem controls, pills for tags.
  *   · **one flat colour per tile.** No gradients, no transparency, no blur.
  *
- *   page      bg-black            (#050505)
- *   tile      bg-panel            (#111111, raised)
- *   tile alt  bg-panel-2          (#1a1a1a, a tile on a tile)
- *   quiet     bg-well             (#0a0a0a, inset wells)
+ *   page      bg-page            (#131417)
+ *   tile      bg-panel            (#1c1e21, raised)
+ *   tile alt  bg-panel-2          (#26292d, a tile on a tile)
+ *   quiet     bg-well             (#17181b, inset wells)
  *   accent    bg-gold / text-gold    (#ffd444)
+ *
+ * Text is a four-step ramp, named for the job rather than an opacity, and every
+ * step clears 4.5:1 on every surface above:
+ *
+ *   text-strong   #f2f4f6   headings, input values
+ *   text-body     #d3d7dc   sentences, nav labels
+ *   text-muted    #a4aab2   labels, secondary lines
+ *   text-faint    #878e97   meta text, timestamps
+ *
+ * `qa/admin-palette.mjs` checks all of it against the rendered pages, so this
+ * does not depend on anybody remembering it.
  */
 
 /* ---------- inputs ---------------------------------------------------- */
 
 export const inputClass =
-  "mt-2 w-full rounded-xl bg-well px-4 py-3 text-sm text-white " +
-  "placeholder:text-white/40 outline-none ring-0 transition-colors " +
-  "focus:bg-panel-2 focus:ring-2 focus:ring-white/70";
+  "mt-2 w-full rounded-xl bg-well px-4 py-3 text-sm text-strong " +
+  "placeholder:text-faint outline-none ring-0 transition-colors " +
+  "focus:bg-panel-2 focus:ring-2 focus:ring-faint";
 
 export const selectClass = `${inputClass} appearance-none`;
 
 export const labelClass =
-  "text-[11px] font-medium uppercase tracking-[0.16em] text-white/60";
+  "text-[11px] font-medium uppercase tracking-[0.16em] text-muted";
 
 export function Field({
   label,
@@ -48,7 +64,7 @@ export function Field({
     <label className={`block ${className}`}>
       <span className="flex items-baseline justify-between gap-3">
         <span className={labelClass}>{label}</span>
-        {hint && <span className="text-[11px] text-white/60">{hint}</span>}
+        {hint && <span className="text-[11px] text-muted">{hint}</span>}
       </span>
       {children}
     </label>
@@ -60,17 +76,17 @@ export function Field({
 const BUTTON_BASE =
   "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold " +
   "transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 " +
-  "focus-visible:outline-white disabled:opacity-50";
+  "focus-visible:outline-strong disabled:opacity-50";
 
 const BUTTON_TONES = {
   /** The one thing to press on a screen. */
   primary: "bg-gold text-black hover:bg-gold-bright",
-  /** The everyday action: a grey tile with white words. */
-  secondary: "bg-panel-2 text-white hover:bg-white/15",
+  /** The everyday action: a grey tile with bright words. */
+  secondary: "bg-panel-2 text-strong hover:bg-line",
   /** Quiet: no fill until hovered. */
-  ghost: "text-white/75 hover:bg-panel-2 hover:text-white",
+  ghost: "text-body hover:bg-panel-2 hover:text-strong",
   /** Destructive: stays in-palette — white text, and the words carry the meaning. */
-  danger: "bg-panel text-white/85 hover:bg-white hover:text-black",
+  danger: "bg-panel text-strong hover:bg-panel-2 hover:text-strong",
 } as const;
 
 export function buttonClass(tone: keyof typeof BUTTON_TONES = "primary") {
@@ -114,11 +130,11 @@ export function PageHeader({
             {eyebrow}
           </p>
         )}
-        <h1 className="mt-1.5 font-display text-2xl font-semibold text-white sm:text-[28px]">
+        <h1 className="mt-1.5 font-display text-2xl font-semibold text-strong sm:text-[28px]">
           {title}
         </h1>
         {description && (
-          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/60">{description}</p>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">{description}</p>
         )}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
@@ -149,13 +165,13 @@ export function Panel({
 }) {
   const shell =
     tone === "invert"
-      ? "bg-white text-black"
+      ? "bg-gold text-black"
       : tone === "sunken"
         ? "bg-well"
         : "bg-panel";
 
-  const titleColour = tone === "invert" ? "text-black" : "text-white";
-  const noteColour = tone === "invert" ? "text-black/65" : "text-white/60";
+  const titleColour = tone === "invert" ? "text-black" : "text-strong";
+  const noteColour = tone === "invert" ? "text-black/70" : "text-muted";
 
   return (
     <section className={`rounded-2xl ${shell} ${className}`}>
@@ -190,12 +206,12 @@ export function Stat({
 }) {
   // dt/dd, not p/p: these sit inside a <dl>, and a definition list may only
   // contain dt/dd groups (axe flags anything else).
-  const shell = tone === "invert" ? "bg-gold text-black" : "bg-panel text-white";
+  const shell = tone === "invert" ? "bg-gold text-black" : "bg-panel text-strong";
   return (
     <div className={`rounded-2xl ${shell} p-5`}>
       <dt
         className={`text-[11px] uppercase tracking-[0.16em] ${
-          tone === "invert" ? "text-black/60" : "text-white/60"
+          tone === "invert" ? "text-black/60" : "text-muted"
         }`}
       >
         {label}
@@ -207,7 +223,7 @@ export function Stat({
         {note && (
           <span
             className={`mt-2 block text-xs font-normal ${
-              tone === "invert" ? "text-black/60" : "text-white/60"
+              tone === "invert" ? "text-black/60" : "text-muted"
             }`}
           >
             {note}
@@ -222,14 +238,16 @@ export function Stat({
 
 /**
  * In-palette notices. A bento tray has no red or green tile, so tone is carried
- * by the mark and the weight of the words: a filled white tile for a problem,
- * a grey one for everything else.
+ * by the mark and the weight of the words: a bright tile for a problem, a grey
+ * one for everything else.
  */
 const NOTICE_TONES = {
-  ok: "bg-panel-2 text-white",
-  error: "bg-white text-black",
-  warn: "bg-panel-2 text-white",
-  info: "bg-well text-white/80",
+  ok: "bg-panel-2 text-strong",
+  // The one solid bright surface left in the admin, kept for the one message
+  // that has to stop someone: an error. Everything else is a grey tile.
+  error: "bg-strong text-black",
+  warn: "bg-panel-2 text-strong",
+  info: "bg-well text-strong",
 } as const;
 
 export function Notice({
@@ -256,7 +274,7 @@ export function Notice({
 
 export function Empty({ children }: { children: ReactNode }) {
   return (
-    <p className="rounded-xl bg-well px-5 py-10 text-center text-sm text-white/65">
+    <p className="rounded-xl bg-well px-5 py-10 text-center text-sm text-muted">
       {children}
     </p>
   );
@@ -272,8 +290,8 @@ export function Pill({
 }) {
   const tones = {
     ok: "bg-gold text-black",
-    muted: "bg-panel-2 text-white/75",
-    invert: "bg-well text-white",
+    muted: "bg-panel-2 text-body",
+    invert: "bg-well text-strong",
   } as const;
   return (
     <span
@@ -288,7 +306,7 @@ export function Pill({
  *  the colour never drift between pages. */
 export function Eyebrow({ children }: { children: ReactNode }) {
   return (
-    <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-white/65">
+    <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-muted">
       {children}
     </p>
   );

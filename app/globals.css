@@ -61,14 +61,37 @@
   --color-navy-600: #1e3060;
 
   /* ---- admin surfaces -------------------------------------------------------
-     The admin wears no navy: it steps up through neutral greys on black, with
-     the existing `gold` as its only accent. These names are used only by
-     components/admin, so the storefront is untouched. */
-  --color-well: #0a0a0a;
-  --color-panel: #111111;
-  --color-panel-2: #1a1a1a;
-  --color-line: #262626;
+     The admin wears no navy: a warm-neutral charcoal stack with the existing
+     `gold` as its only accent. These names are used only by components/admin,
+     so the storefront is untouched.
+
+     Why charcoal rather than black, and off-white rather than white: pure white
+     on pure black is a 21:1 contrast ratio, and an hour of it is genuinely
+     tiring — the eye keeps re-adapting between the letterforms and the
+     background. Dropping both ends slightly (F2F4F6 on #1C1E21 = 15:1) keeps
+     the text unmistakably readable while removing the glare.
+
+     The tiles also had to move up with it. On #000 a #111 tile is a 1.11:1
+     step, which is below the point where a raised surface reads as raised; on
+     this page the same step is measured from a lighter page, so the tile is
+     lifted further to stay legible as a separate surface. */
+  --color-well: #17181b;
+  --color-panel: #1c1e21;
+  --color-panel-2: #26292d;
+  --color-line: #34383d;
   --color-gold-bright: #ffe066;
+
+  /* ---- admin text ramp -----------------------------------------------------
+     Four steps, each named for its job rather than its opacity. Every one of
+     them clears 4.5:1 on every admin surface — including `faint`, which is the
+     old white/45 meta text that used to sit at 4.78 on a tile and below 4.5 on
+     nothing else. Contrast that changes with the surface behind it is how a
+     hierarchy turns into an accessibility bug. */
+  --color-strong: #f2f4f6;
+  --color-body: #d3d7dc;
+  --color-muted: #a4aab2;
+  --color-faint: #878e97;
+  --color-page: #131417;
 
   --font-display: "Poppins", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;

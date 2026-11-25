@@ -73,7 +73,7 @@ export default async function BookingsPage({
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] text-left text-sm">
-              <thead className="text-[11px] uppercase tracking-[0.14em] text-white/65">
+              <thead className="text-[11px] uppercase tracking-[0.14em] text-muted">
                 <tr>
                   <th className="pb-3 pr-4 font-medium">Reference</th>
                   <th className="pb-3 pr-4 font-medium">Customer</th>
@@ -88,16 +88,16 @@ export default async function BookingsPage({
               <tbody>
                 {bookings.map((b) => (
                   <tr key={b.reference} className="align-middle">
-                    <td className="py-3 pr-4 font-mono text-xs text-white/70">{b.reference}</td>
+                    <td className="py-3 pr-4 font-mono text-xs text-body">{b.reference}</td>
                     <td className="py-3 pr-4">
-                      <span className="block text-white">{b.name}</span>
-                      <span className="block truncate text-xs text-white/65">{b.email}</span>
+                      <span className="block text-strong">{b.name}</span>
+                      <span className="block truncate text-xs text-muted">{b.email}</span>
                     </td>
-                    <td className="py-3 pr-4 text-white/75">
+                    <td className="py-3 pr-4 text-body">
                       {b.seatsText || `${b.seats} seats`}
-                      <span className="block text-xs text-white/65">{b.eventTitle}</span>
+                      <span className="block text-xs text-muted">{b.eventTitle}</span>
                     </td>
-                    <td className="py-3 pr-4 text-white/75">{lkr(b.total)}</td>
+                    <td className="py-3 pr-4 text-body">{lkr(b.total)}</td>
                     <td className="py-3 pr-4">
                       {b.admittedAt ? (
                         <Pill tone="ok">{new Date(b.admittedAt).toLocaleString("en-GB")}</Pill>
