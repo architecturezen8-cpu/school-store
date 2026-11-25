@@ -147,7 +147,7 @@ await page.screenshot({ path: `${OUT}/04-gate.png`, fullPage: false });
 await step("admin: wrong password is refused", async () => {
   await page.goto(BASE + "/admin", { waitUntil: "domcontentloaded" });
   await page.fill('input[type="password"]', "definitely-wrong");
-  await page.click('button[type="submit"]');
+  await page.locator('form:has(input[type="password"]) button[type="submit"]').click();
   await page
     .waitForFunction(() => /That password is not right/i.test(document.body.innerText), null, {
       timeout: 15000,
@@ -162,7 +162,7 @@ await page.screenshot({ path: `${OUT}/05-admin-login.png`, fullPage: false });
 await step("admin: sign in", async () => {
   await page.goto(BASE + "/admin", { waitUntil: "domcontentloaded" });
   await page.fill('input[type="password"]', PASSWORD);
-  await page.click('button[type="submit"]');
+  await page.locator('form:has(input[type="password"]) button[type="submit"]').click();
   await page.waitForURL(/\/admin(\?|$)/, { timeout: 15000 }).catch(() => {});
   await page.waitForTimeout(800);
   const text = (await page.locator("body").innerText()).replace(/\s+/g, " ");

@@ -48,7 +48,7 @@ const check = (label, ok, detail = "") => {
 
 await page.goto(`${BASE}/admin`, { waitUntil: "domcontentloaded" });
 await page.fill('input[type="password"]', "thomian2026");
-await page.click('button[type="submit"]');
+await page.locator('form:has(input[type="password"]) button[type="submit"]').click();
 await page.waitForTimeout(2500);
 
 async function upload(file, name, slug) {
@@ -57,7 +57,9 @@ async function upload(file, name, slug) {
   await page.fill('input[name="slug"]', slug);
   await page.selectOption('select[name="event"]', "the-big-match").catch(() => {});
   await page.locator('input[type="file"]').setInputFiles(file);
-  await page.locator('form button[type="submit"]').first().click();
+  // Scoped to the upload form: the sidebar has its own submit button (sign out),
+  // and `form button` would find that one first.
+  await page.locator('form:has(input[name="design"]) button[type="submit"]').click();
   await page.waitForTimeout(3500);
   return page.url().replace(BASE, "");
 }

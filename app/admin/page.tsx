@@ -1,17 +1,26 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { adminConfigured, isAdmin } from "@/lib/admin/auth";
+import { isAdmin, adminConfigured } from "@/lib/admin/auth";
 import { hasDatabase } from "@/lib/db";
-import { signIn, signOut } from "./actions";
+import { signIn } from "./actions";
 import { listBookings } from "@/lib/bookings";
 import { lkr } from "@/lib/format";
-import { LayoutTemplate, ScanLine, Ticket, Mail } from "lucide-react";
+import {
+  Empty,
+  Notice,
+  PageHeader,
+  Panel,
+  Pill,
+  Stat,
+  buttonClass,
+  inputClass,
+} from "@/components/admin/ui";
+import { ArrowRight, CalendarCheck, LayoutTemplate, Mail, ScanLine } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Admin",
+  title: "Overview",
   robots: { index: false, follow: false },
 };
 
@@ -21,6 +30,33 @@ const ERRORS: Record<string, string> = {
   database: "No database is configured, so there is nothing to administer.",
 };
 
+const SECTIONS = [
+  {
+    href: "/admin/bookings",
+    icon: CalendarCheck,
+    title: "Bookings",
+    body: "Every ticket sold, who paid, and who has walked through the gate.",
+  },
+  {
+    href: "/admin/templates",
+    icon: LayoutTemplate,
+    title: "Ticket designs",
+    body: "Upload the artwork with a white square; the QR is pasted into it.",
+  },
+  {
+    href: "/admin/mail",
+    icon: Mail,
+    title: "Ticket email",
+    body: "The message, and a preview of the exact mail a buyer receives.",
+  },
+  {
+    href: "/admin/gate",
+    icon: ScanLine,
+    title: "Gate scanner",
+    body: "Scan at the door. One scan, one admission — the same code twice is refused.",
+  },
+];
+
 export default async function AdminPage({
   searchParams,
 }: {
@@ -29,151 +65,138 @@ export default async function AdminPage({
   const { error, next } = await searchParams;
   const signedIn = await isAdmin();
 
+  /* ---------------- signed out: the door ---------------- */
   if (!signedIn) {
     return (
-      <section className="mx-auto flex min-h-[80vh] max-w-md flex-col justify-center px-6 py-32">
-        <p className="text-[11px] uppercase tracking-[0.3em] text-gold">St. Thomas&apos; College Matale</p>
-        <h1 className="mt-3 font-display text-3xl font-semibold text-white">Store admin</h1>
-
-        {!adminConfigured() && (
-          <div className="mt-5 rounded-xl border border-amber-400/40 bg-amber-500/10 p-4 text-sm text-amber-100">
-            <p className="font-semibold">Admin is not configured yet.</p>
-            <p className="mt-1 text-amber-100/80">
-              Add <code className="rounded bg-black/30 px-1">ADMIN_PASSWORD</code> to{" "}
-              <code className="rounded bg-black/30 px-1">.env.local</code>, then restart{" "}
-              <code className="rounded bg-black/30 px-1">npm run dev</code>.
-            </p>
-          </div>
-        )}
-
-        {error && ERRORS[error] && (
-          <p className="mt-5 rounded-xl border border-red-400/40 bg-red-500/10 p-3 text-sm text-red-200">
-            {ERRORS[error]}
+      <div className="flex min-h-screen items-center justify-center bg-ink px-4 py-16">
+        <div className="w-full max-w-sm">
+          <p className="text-[11px] uppercase tracking-[0.28em] text-gold">
+            St. Thomas&apos; College Matale
           </p>
-        )}
+          <h1 className="mt-2 font-display text-3xl font-semibold text-white">Store admin</h1>
+          <p className="mt-2 text-sm text-white/65">
+            Sign in to manage tickets, designs and the gate.
+          </p>
 
-        <form action={signIn} className="mt-6 space-y-3">
-          <input type="hidden" name="next" value={next ?? "/admin"} />
-          <label className="block">
-            <span className="text-[11px] uppercase tracking-[0.2em] text-white/65">Password</span>
-            <input
-              type="password"
-              name="password"
-              autoComplete="current-password"
-              required
-              className="mt-1 w-full rounded-xl border border-white/15 bg-white/[0.04] px-4 py-3 text-white outline-none focus:border-gold/60"
-            />
-          </label>
-          <button
-            type="submit"
-            className="w-full rounded-xl bg-gold px-4 py-3 text-sm font-semibold text-navy-950"
-          >
-            Sign in
-          </button>
-        </form>
-      </section>
+          <div className="mt-6 space-y-3">
+            {!adminConfigured() && (
+              <Notice tone="warn">
+                Add <code className="rounded bg-black/30 px-1">ADMIN_PASSWORD</code> to{" "}
+                <code className="rounded bg-black/30 px-1">.env.local</code>, then restart{" "}
+                <code className="rounded bg-black/30 px-1">npm run dev</code>.
+              </Notice>
+            )}
+            {error && ERRORS[error] && <Notice tone="error">{ERRORS[error]}</Notice>}
+          </div>
+
+          <form action={signIn} className="mt-5 space-y-3">
+            <input type="hidden" name="next" value={next ?? "/admin"} />
+            <label className="block">
+              <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-white/65">
+                Password
+              </span>
+              <input
+                type="password"
+                name="password"
+                autoComplete="current-password"
+                required
+                autoFocus
+                className={inputClass}
+              />
+            </label>
+            <button type="submit" className={`${buttonClass("primary")} w-full`}>
+              Sign in
+            </button>
+          </form>
+
+          <Link href="/" className="mt-6 inline-block text-sm text-white/65 hover:text-white">
+            ← Back to the store
+          </Link>
+        </div>
+      </div>
     );
   }
 
-  const bookings = hasDatabase() ? await listBookings(8) : [];
+  /* ---------------- signed in: the overview ---------------- */
+  const bookings = hasDatabase() ? await listBookings(200) : [];
   const admitted = bookings.filter((b) => b.admittedAt).length;
+  const taken = bookings.reduce((n, b) => n + b.total, 0);
+  const seats = bookings.reduce((n, b) => n + b.seats, 0);
+  const latest = bookings.slice(0, 6);
 
   return (
-    <section className="mx-auto max-w-4xl px-6 pb-20 pt-32 md:pt-36">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-[11px] uppercase tracking-[0.3em] text-gold">St. Thomas&apos; College Matale</p>
-          <h1 className="mt-2 font-display text-3xl font-semibold text-white">Store admin</h1>
-        </div>
-        <form action={signOut}>
-          <button type="submit" className="rounded-lg border border-white/15 px-4 py-2 text-sm text-white/70">
-            Sign out
-          </button>
-        </form>
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-10 lg:py-10">
+      <PageHeader
+        eyebrow="Overview"
+        title="Today at the store"
+        description="Tickets sold, money taken and who is through the gate. Everything else is in the sidebar."
+      />
+
+      <dl className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Stat label="Bookings" value={String(bookings.length)} note={`${seats} seats`} />
+        <Stat label="Admitted" value={String(admitted)} note={`${bookings.length - admitted} still to come`} />
+        <Stat label="Taken" value={lkr(taken)} note="ticket sales" />
+        <Stat
+          label="Paid per booking"
+          value={bookings.length ? lkr(Math.round(taken / bookings.length)) : lkr(0)}
+          note="average"
+        />
+      </dl>
+
+      <div className="mt-8 grid gap-3 sm:grid-cols-2">
+        {SECTIONS.map(({ href, icon: Icon, title, body }) => (
+          <Link
+            key={href}
+            href={href}
+            className="group flex items-start gap-4 rounded-xl border border-navy-700 bg-navy-900 p-5 transition-colors hover:border-navy-600 hover:bg-navy-800"
+          >
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-navy-800 text-gold group-hover:bg-navy-700">
+              <Icon className="h-5 w-5" />
+            </span>
+            <span className="min-w-0">
+              <span className="flex items-center gap-2 text-white">
+                <span className="font-display text-lg">{title}</span>
+                <ArrowRight className="h-4 w-4 text-white/30 transition-transform group-hover:translate-x-0.5 group-hover:text-gold" />
+              </span>
+              <span className="mt-1 block text-sm leading-relaxed text-white/65">{body}</span>
+            </span>
+          </Link>
+        ))}
       </div>
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-2">
-        <Link
-          href="/admin/templates"
-          className="group rounded-2xl border border-white/10 bg-white/[0.03] p-6 transition-colors hover:border-gold/40"
-        >
-          <LayoutTemplate className="h-6 w-6 text-gold" />
-          <p className="mt-3 font-display text-lg text-white">Ticket designs</p>
-          <p className="mt-1 text-sm text-white/70">
-            Upload artwork with a white square; the QR is pasted into it automatically.
-          </p>
-        </Link>
-
-        <Link
-          href="/gate"
-          className="group rounded-2xl border border-white/10 bg-white/[0.03] p-6 transition-colors hover:border-gold/40"
-        >
-          <ScanLine className="h-6 w-6 text-gold" />
-          <p className="mt-3 font-display text-lg text-white">Gate scanner</p>
-          <p className="mt-1 text-sm text-white/70">
-            Scan a ticket to admit one entry. Works on a phone camera.
-          </p>
-        </Link>
-
-        <Link
-          href="/admin/mail"
-          className="group rounded-2xl border border-white/10 bg-white/[0.03] p-6 transition-colors hover:border-gold/40"
-        >
-          <Mail className="h-6 w-6 text-gold" />
-          <p className="mt-3 font-display text-lg text-white">Ticket email</p>
-          <p className="mt-1 text-sm text-white/70">
-            Customise the subject and message customers receive.
-          </p>
-        </Link>
-
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-          <Ticket className="h-6 w-6 text-gold" />
-          <p className="mt-3 font-display text-lg text-white">Recent bookings</p>
-          <p className="mt-1 text-sm text-white/70">
-            {bookings.length} shown · {admitted} admitted
-          </p>
-        </div>
-      </div>
-
-      <section className="mt-10">
-        <h2 className="font-display text-xl text-white">Latest bookings</h2>
-        {bookings.length === 0 ? (
-          <p className="mt-3 text-sm text-white/65">
-            No bookings yet. They appear here the moment someone reserves a ticket.
-          </p>
+      <Panel
+        className="mt-8"
+        title="Latest bookings"
+        description="Newest first."
+        actions={
+          <Link href="/admin/bookings" className={buttonClass("ghost")}>
+            All bookings
+          </Link>
+        }
+      >
+        {latest.length === 0 ? (
+          <Empty>No bookings yet — they appear the moment someone reserves a ticket.</Empty>
         ) : (
-          <ul className="mt-4 space-y-2">
-            {bookings.map((b) => (
-              <li
-                key={b.reference}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 px-4 py-3 text-sm"
-              >
+          <ul className="divide-y divide-navy-700">
+            {latest.map((b) => (
+              <li key={b.reference} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
                 <div className="min-w-0">
-                  <p className="truncate text-white">{b.name}</p>
-                  <p className="truncate text-white/65">
-                    {b.eventTitle} · {b.reference}
+                  <p className="truncate text-sm text-white">{b.name}</p>
+                  <p className="truncate text-xs text-white/60">
+                    {b.eventTitle} · <span className="font-mono">{b.reference}</span>
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-white/60">{lkr(b.total)}</span>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[11px] ${
-                      b.admittedAt
-                        ? "bg-emerald-500/15 text-emerald-300"
-                        : "bg-white/10 text-white/60"
-                    }`}
-                  >
+                  <span className="text-sm text-white/70">{lkr(b.total)}</span>
+                  <Pill tone={b.admittedAt ? "ok" : "muted"}>
                     {b.admittedAt ? "admitted" : "not scanned"}
-                  </span>
+                  </Pill>
                 </div>
               </li>
             ))}
           </ul>
         )}
-        <Link href="/admin/bookings" className="mt-4 inline-block text-sm text-gold">
-          See all bookings →
-        </Link>
-      </section>
-    </section>
+      </Panel>
+    </div>
   );
 }

@@ -139,34 +139,34 @@ export default function GateScanner() {
 
   const tone =
     result?.status === "admitted"
-      ? "border-emerald-400/50 bg-emerald-500/15"
+      ? "border-emerald-500/50 bg-emerald-900/50"
       : result?.status === "already"
-        ? "border-amber-400/50 bg-amber-500/15"
+        ? "border-amber-500/50 bg-amber-900/50"
         : result
-          ? "border-red-400/50 bg-red-500/15"
-          : "border-white/10 bg-white/[0.03]";
+          ? "border-red-500/50 bg-red-900/50"
+          : "border-navy-700 bg-navy-950";
 
   return (
     <div className="space-y-5">
       <label className="block">
-        <span className="text-[11px] uppercase tracking-[0.2em] text-white/65">Gate</span>
+        <span className="text-[11px] uppercase tracking-[0.18em] text-white/65">Gate</span>
         <input
           value={by}
           onChange={(e) => setBy(e.target.value)}
-          className="mt-1 w-full rounded-xl border border-white/15 bg-white/[0.04] px-4 py-3 text-white outline-none focus:border-gold/60"
+          className="mt-1.5 w-full rounded-lg border border-navy-600 bg-navy-900 px-3.5 py-2.5 text-white outline-none focus:border-gold"
           placeholder="Gate 1"
         />
       </label>
 
-      <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-black">
+      <div className="relative overflow-hidden rounded-lg border border-navy-700 bg-black">
         <video
           ref={videoRef}
           playsInline
           muted
-          className={`aspect-square w-full object-cover ${camera === "on" ? "" : "hidden"}`}
+          className={`aspect-[4/3] max-h-[420px] w-full object-cover ${camera === "on" ? "" : "hidden"}`}
         />
         {camera !== "on" && (
-          <div className="grid aspect-square w-full place-items-center gap-3 p-6 text-center">
+          <div className="grid aspect-[4/3] max-h-[420px] w-full place-items-center gap-3 p-6 text-center">
             <Camera className="h-10 w-10 text-white/25" />
             {camera === "unsupported" ? (
               <p className="text-sm text-white/70">
@@ -178,7 +178,7 @@ export default function GateScanner() {
                 type="button"
                 onClick={startCamera}
                 disabled={camera === "starting"}
-                className="rounded-xl bg-gold px-5 py-3 text-sm font-semibold text-navy-950 disabled:opacity-60"
+                className="rounded-lg bg-gold px-5 py-3 text-sm font-semibold text-navy-950 hover:bg-[#ffe066] disabled:opacity-60"
               >
                 {camera === "starting" ? "Starting camera…" : "Start camera"}
               </button>
@@ -191,7 +191,7 @@ export default function GateScanner() {
         <button
           type="button"
           onClick={stopCamera}
-          className="w-full rounded-xl border border-white/15 px-4 py-3 text-sm text-white/80"
+          className="w-full rounded-lg border border-navy-600 px-4 py-3 text-sm text-white/80 hover:bg-navy-800"
         >
           Stop camera
         </button>
@@ -205,27 +205,27 @@ export default function GateScanner() {
         className="space-y-2"
       >
         <label className="block">
-          <span className="flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-white/65">
+          <span className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-white/65">
             <Keyboard className="h-3.5 w-3.5" /> Paste link or type reference
           </span>
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="https://…/t/…?s=…  or  BM-ABC123"
-            className="mt-1 w-full rounded-xl border border-white/15 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none focus:border-gold/60"
+            className="mt-1.5 w-full rounded-lg border border-navy-600 bg-navy-900 px-3.5 py-2.5 text-sm text-white outline-none focus:border-gold"
           />
         </label>
         <button
           type="submit"
           disabled={busy || !text.trim()}
-          className="w-full rounded-xl bg-white px-4 py-3 text-sm font-semibold text-navy-950 disabled:opacity-40"
+          className="w-full rounded-lg bg-white px-4 py-3 text-sm font-semibold text-navy-950 hover:bg-white/90 disabled:opacity-40"
         >
           {busy ? "Checking…" : "Check ticket"}
         </button>
       </form>
 
       {result && (
-        <div className={`rounded-2xl border p-5 ${tone}`}>
+        <div className={`rounded-lg border p-5 ${tone}`}>
           <div className="flex items-center gap-2">
             {result.status === "admitted" ? (
               <CheckCircle2 className="h-5 w-5 text-emerald-400" />

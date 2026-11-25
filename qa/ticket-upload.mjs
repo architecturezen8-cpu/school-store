@@ -31,7 +31,7 @@ const { browser, page, errors } = await open({ width: 1440, height: 1200 });
 // sign in
 await page.goto(`${BASE}/admin`, { waitUntil: "domcontentloaded" });
 await page.fill('input[type="password"]', "thomian2026");
-await page.click('button[type="submit"]');
+await page.locator('form:has(input[type="password"]) button[type="submit"]').click();
 await page.waitForTimeout(2500);
 console.log("signed in:", page.url());
 
@@ -42,7 +42,7 @@ await page.fill('input[name="slug"]', "qa-big-match");
 await page.selectOption('select[name="event"]', "the-big-match").catch(() => {});
 const fileInput = page.locator('input[type="file"]');
 await fileInput.setInputFiles(design);
-await page.locator('form button[type="submit"]').first().click();
+await page.locator('form:has(input[name="design"]) button[type="submit"]').click();
 await page.waitForTimeout(4000);
 const text = (await page.locator("body").innerText()).replace(/\s+/g, " ");
 console.log("after upload:", page.url());
