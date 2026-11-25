@@ -75,13 +75,16 @@ white circle, the date and the event on a gold band, the message, one code per
 seat, a three-column details row and one wide button. There is no "pick a
 design" step, because a school sending one kind of ticket does not need one.
 
-**One email per sale, one code per seat.** Buying four tickets sends *one*
-message with four codes in it, numbered "Ticket 1" to "Ticket 4" (with the tier
-under each), **plus the finished ticket as an attachment** — the school's own
-uploaded design with the code pasted into its white square. Each code admits one
-person, once, so the gate still sees four admissions. Mailing four separate
-messages made a four-seat booking wait on SMTP four times before the buyer saw
-"Booked", and left them hunting four emails.
+**One email per sale, one attached ticket per seat.** Buying four tickets sends
+*one* message with **four attachments** — `BM-XXXX-ticket-1.png` to
+`-ticket-4.png`, each the school's own uploaded design with that person's code
+pasted into its white square. One file per person, not one per sale: a single
+file for a ten-seat booking would leave nine people with nothing to show at the
+gate, and forwarding a picture by hand is the thing nobody does.
+
+The message body has no grid of codes. A wall of QR squares is not a ticket, and
+the artwork already carries the code where the design put it; the body says how
+many files are attached and points at them.
 
 **The hero is the event's photograph, washed into the navy.** A `background-image`
 on the header cell under a fixed navy gradient, so the crest and the school name

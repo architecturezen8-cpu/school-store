@@ -96,18 +96,31 @@ export async function GET(req: Request) {
     );
   }
 
-  // The attached ticket is not part of the HTML — a mail client shows it as a
-  // file under the message. The frame has no such area, so append the same PNG
-  // at the end, labelled, which is what the admin needs to check: that the design
-  // arrived with the code in it.
-  if (mail.artwork) {
-    const dataUri = `data:image/png;base64,${mail.artwork.toString("base64")}`;
+  // The attached tickets are not part of the HTML — a mail client shows them as
+  // files under the message. The frame has no such area, so append them at the
+  // end, labelled, which is what the admin needs to check: that the design
+  // arrived with a code in it, once per person.
+  if (mail.artworks.length) {
+    const blocks = mail.artworks
+      .map((a, i) => {
+        const dataUri = `data:image/png;base64,${a.buffer.toString("base64")}`;
+        const label =
+          mail.artworks.length > 1
+            ? `Attachment ${i + 1} of ${mail.artworks.length} &middot; ${a.filename}`
+            : `Attachment &middot; ${a.filename}`;
+        return `<div style="padding-top:22px">
+             <div style="color:#8b9ab5;font-size:10px;letter-spacing:2px;text-transform:uppercase;padding-bottom:10px;text-align:center">${label}</div>
+             <img src="${dataUri}" alt="An attached ticket" style="display:block;width:100%;height:auto;border:1px solid #1d2740">
+           </div>`;
+      })
+      .join("");
+
     html = html.replace(
       "</table>\n</body>",
       `</table>
        <div style="max-width:600px;margin:0 auto;padding:18px 12px 0">
-         <div style="color:#8b9ab5;font-size:10px;letter-spacing:3px;text-transform:uppercase;padding-bottom:10px;text-align:center">Also attached as a file</div>
-         <img src="${dataUri}" alt="The attached ticket" style="display:block;width:100%;height:auto;border:1px solid #1d2740">
+         <div style="color:#ffd444;font-size:10px;letter-spacing:3px;text-transform:uppercase;text-align:center">Also attached as files</div>
+         ${blocks}
        </div>
       </body>`
     );
