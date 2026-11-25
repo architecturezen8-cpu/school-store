@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createOrder, createOrderSchema } from "@/lib/orders";
 import { hasDatabase } from "@/lib/db";
+import { errorMessage } from "@/lib/errors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,7 +35,7 @@ export async function POST(req: Request) {
     const order = await createOrder(parsed.data);
     return NextResponse.json({ order }, { status: 201 });
   } catch (err) {
-    const message = (err as Error).message;
+    const message = errorMessage(err);
     const status = /Unknown product/.test(message) ? 400 : 500;
     console.error("[api/orders] failed:", message);
     return NextResponse.json({ error: message }, { status });

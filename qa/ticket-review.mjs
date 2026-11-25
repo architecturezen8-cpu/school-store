@@ -49,7 +49,7 @@ await step("home", async () => {
   const res = await page.goto(BASE + "/", { waitUntil: "domcontentloaded" });
   return `HTTP ${res.status()} — ${await page.title()}`;
 });
-await page.screenshot({ path: `${OUT}/01-home.png`, fullPage: false });
+await page.screenshot({ path: `${OUT}/01-home.png`, fullPage: false, caret: "initial" });
 
 await step("/tickets", async () => {
   const res = await page.goto(BASE + "/tickets", { waitUntil: "domcontentloaded" });
@@ -60,7 +60,7 @@ await step("/tickets", async () => {
     .catch(() => "(none)");
   return `HTTP ${res.status()} — h1 "${h1.replace(/\s+/g, " ").slice(0, 70)}"`;
 });
-await page.screenshot({ path: `${OUT}/02-tickets.png`, fullPage: false });
+await page.screenshot({ path: `${OUT}/02-tickets.png`, fullPage: false, caret: "initial" });
 
 // ------------------------------------------------------------------ book
 const booking = await step("POST /api/bookings", async () => {
@@ -127,7 +127,7 @@ await step("/t/<token> signed", async () => {
   const shown = /Nimal Perera|BM-|Big Match/.test(text);
   return `HTTP ${res.status()} imgs=${imgs} details=${shown} — "${text.slice(0, 150)}"`;
 });
-await page.screenshot({ path: `${OUT}/03-ticket.png`, fullPage: true });
+await page.screenshot({ path: `${OUT}/03-ticket.png`, fullPage: true, caret: "initial" });
 
 // ------------------------------------------------------------------ gate
 await step("/gate refuses a non-admin scanner", async () => {
@@ -141,7 +141,7 @@ await step("/gate page loads", async () => {
   const text = (await page.locator("body").innerText()).replace(/\s+/g, " ");
   return `HTTP ${res.status()} — "${text.slice(0, 120)}"`;
 });
-await page.screenshot({ path: `${OUT}/04-gate.png`, fullPage: false });
+await page.screenshot({ path: `${OUT}/04-gate.png`, fullPage: false, caret: "initial" });
 
 // ------------------------------------------------------------------ admin login
 await step("admin: wrong password is refused", async () => {
@@ -157,7 +157,7 @@ await step("admin: wrong password is refused", async () => {
   if (!/not right|incorrect|invalid/i.test(text)) throw new Error("no error shown: " + text.slice(0, 120));
   return "refused";
 });
-await page.screenshot({ path: `${OUT}/05-admin-login.png`, fullPage: false });
+await page.screenshot({ path: `${OUT}/05-admin-login.png`, fullPage: false, caret: "initial" });
 
 await step("admin: sign in", async () => {
   await page.goto(BASE + "/admin", { waitUntil: "domcontentloaded" });
@@ -169,7 +169,7 @@ await step("admin: sign in", async () => {
   if (/Enter the password/i.test(text)) throw new Error("still on the sign-in screen");
   return `"${text.slice(0, 130)}"`;
 });
-await page.screenshot({ path: `${OUT}/06-admin.png`, fullPage: true });
+await page.screenshot({ path: `${OUT}/06-admin.png`, fullPage: true, caret: "initial" });
 
 for (const path of ["/admin/templates", "/admin/mail", "/admin/bookings"]) {
   await step("admin " + path, async () => {
@@ -178,7 +178,7 @@ for (const path of ["/admin/templates", "/admin/mail", "/admin/bookings"]) {
     if (res.status() !== 200) throw new Error("HTTP " + res.status());
     return `${(await page.locator("h1").first().innerText()).replace(/\s+/g, " ")} — "${text.slice(0, 120)}"`;
   });
-  await page.screenshot({ path: `${OUT}/admin${path.replace(/\//g, "-")}.png`, fullPage: true });
+  await page.screenshot({ path: `${OUT}/admin${path.replace(/\//g, "-")}.png`, fullPage: true, caret: "initial" });
 }
 
 // ------------------------------------------------------------------ gate admits (API, as the logged-in admin)
@@ -209,7 +209,7 @@ await step("/t/<token> after admission shows the used banner", async () => {
   if (!/already|used|admitted/i.test(text)) throw new Error("no used banner: " + text.slice(0, 120));
   return `"${text.slice(text.indexOf("ADMISSION") + 130, text.indexOf("ADMISSION") + 300)}"`;
 });
-await page.screenshot({ path: `${OUT}/07-ticket-used.png`, fullPage: true });
+await page.screenshot({ path: `${OUT}/07-ticket-used.png`, fullPage: true, caret: "initial" });
 
 await step("gate: undo restores the ticket", async () => {
   const res = await page.request.post(BASE + "/api/gate", { data: { token, reopen: true } });

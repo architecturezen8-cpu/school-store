@@ -60,7 +60,7 @@ export async function open({ width = 1440, height = 1000 } = {}) {
 export async function shot(page, name, full = true) {
   await page.waitForTimeout(400);
   try {
-    await page.screenshot({ path: `${OUT}/${name}.png`, fullPage: full });
+    await page.screenshot({ path: `${OUT}/${name}.png`, fullPage: full, caret: "initial" });
   } catch {
     // This Chromium build's compositor can wedge after a long session, making
     // Playwright's surface capture hang. Grab the frame over CDP instead so a

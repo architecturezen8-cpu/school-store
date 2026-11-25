@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ArrowRight, Check, Loader2, X } from "lucide-react";
 import { useCart } from "@/components/context/CartContext";
 import { lkr } from "@/lib/format";
+import { errorMessage } from "@/lib/errors";
 
 type Result = {
   reference: string;
@@ -63,7 +64,7 @@ export default function CheckoutForm({ onClose }: { onClose: () => void }) {
       setDone(data.order);
       clear();
     } catch (err) {
-      setError((err as Error).message);
+      setError(errorMessage(err));
     } finally {
       setBusy(false);
     }

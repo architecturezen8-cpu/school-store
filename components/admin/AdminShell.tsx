@@ -55,10 +55,10 @@ export default function AdminShell({
   const current = NAV.find((n) => isActive(n.href));
 
   const navTile = (
-    <div className="flex h-full flex-col rounded-2xl bg-navy-900 p-3">
+    <div className="flex h-full flex-col rounded-2xl bg-panel p-3">
       {/* the school, at the top */}
       <div className="flex items-center gap-3 px-2 py-2">
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-navy-800">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-panel-2">
           <CrestLogo className="h-8 w-8 text-white" decorative />
         </span>
         <div className="min-w-0">
@@ -88,7 +88,7 @@ export default function AdminShell({
                   className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors ${
                     active
                       ? "bg-white font-semibold text-black"
-                      : "text-white/70 hover:bg-navy-800 hover:text-white"
+                      : "text-white/70 hover:bg-panel-2 hover:text-white"
                   }`}
                 >
                   <Icon className="h-4 w-4 shrink-0" />
@@ -102,7 +102,7 @@ export default function AdminShell({
         <div className="mt-4">
           <Link
             href="/"
-            className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-white/65 transition-colors hover:bg-navy-800 hover:text-white"
+            className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-white/65 transition-colors hover:bg-panel-2 hover:text-white"
           >
             <ExternalLink className="h-4 w-4 shrink-0" />
             View the store
@@ -111,7 +111,7 @@ export default function AdminShell({
       </nav>
 
       {/* who is signed in */}
-      <div className="mt-4 rounded-xl bg-navy-950 p-3">
+      <div className="mt-4 rounded-xl bg-well p-3">
         <div className="flex items-center gap-3">
           <span
             aria-hidden
@@ -128,7 +128,7 @@ export default function AdminShell({
               type="submit"
               aria-label="Sign out"
               title="Sign out"
-              className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white/60 transition-colors hover:bg-navy-800 hover:text-white"
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white/60 transition-colors hover:bg-panel-2 hover:text-white"
             >
               <LogOut className="h-4 w-4" />
             </button>
@@ -143,7 +143,7 @@ export default function AdminShell({
       {/* ---------- mobile top bar ---------- */}
       <header className="sticky top-0 z-30 flex items-center justify-between gap-3 bg-black px-4 py-3 lg:hidden">
         <div className="flex min-w-0 items-center gap-3">
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-navy-900">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-panel">
             <CrestLogo className="h-7 w-7 text-white" decorative />
           </span>
           <div className="min-w-0">
@@ -159,7 +159,7 @@ export default function AdminShell({
           aria-label={open ? "Close menu" : "Open menu"}
           aria-expanded={open}
           aria-controls="admin-nav"
-          className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-navy-900 text-white/80"
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-panel text-white/80"
         >
           {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>

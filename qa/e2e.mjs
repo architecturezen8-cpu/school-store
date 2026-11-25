@@ -11,7 +11,7 @@ const BASE = process.env.BASE ?? "http://localhost:3000";
 /** Screenshots must never abort a flow — see qa/browser.mjs shot(). */
 async function snap(page, path) {
   try {
-    await page.screenshot({ path, timeout: 5000 });
+    await page.screenshot({ path, timeout: 5000, caret: "initial" });
   } catch {
     /* environment can wedge its compositor; the checks below still matter */
   }

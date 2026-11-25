@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { isAdmin } from "@/lib/admin/auth";
-import { hasDatabase } from "@/lib/db";
+import { databaseProblem } from "@/lib/admin/db-guard";
+import { databaseDown, hasDatabase } from "@/lib/db";
 import { listBookings } from "@/lib/bookings";
 import { lkr } from "@/lib/format";
 import { safeDecode } from "@/lib/safe-decode";
@@ -25,19 +26,28 @@ export default async function BookingsPage({
   if (!hasDatabase()) redirect("/admin?error=database");
 
   const { ok, error } = await searchParams;
-  const bookings = await listBookings(300);
+  // A database that has already failed is not asked again: one timeout per
+  // process is a diagnosis, three hundred is a hung page.
+  const problem = databaseProblem();
+  const bookings = databaseDown() ? [] : await listBookings(300);
   const admitted = bookings.filter((b) => b.admittedAt).length;
   const revenue = bookings.reduce((n, b) => n + b.total, 0);
   const seats = bookings.reduce((n, b) => n + b.seats, 0);
 
   return (
     <div className="space-y-3">
-      <section className="rounded-2xl bg-navy-900 p-6">
+      <section className="rounded-2xl bg-panel p-6">
         <PageHeader
           eyebrow="Tickets"
           title="Bookings"
           description="Everyone who has bought a ticket, what they paid and whether the code has been used at the gate."
         />
+        {problem && (
+          <div className="mt-4">
+            <Notice tone="warn">{problem}</Notice>
+          </div>
+        )}
+
         {(ok || error) && (
           <div className="mt-4 space-y-2">
             {ok && <Notice tone="ok">Ticket re-sent for {safeDecode(ok)}.</Notice>}

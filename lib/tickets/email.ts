@@ -7,6 +7,7 @@ import { getTemplateForEvent } from "./templates";
 import { composeTicket, detectWhiteSquare } from "./detect";
 import type { Ticket } from "../bookings";
 import { getMailTemplate } from "./mail-settings";
+import { errorMessage } from "../errors";
 
 /**
  * Delivering the ticket by email.
@@ -296,7 +297,7 @@ export async function sendTicketEmail(
       const json = (await res.json()) as { id?: string };
       return { sent: true, provider: "resend", id: json.id ?? "" };
     } catch (err) {
-      return { sent: false, reason: "failed", error: (err as Error).message };
+      return { sent: false, reason: "failed", error: errorMessage(err) };
     }
   }
 
@@ -334,7 +335,7 @@ export async function sendTicketEmail(
       });
       return { sent: true, provider: "smtp", id: info.messageId ?? "" };
     } catch (err) {
-      return { sent: false, reason: "failed", error: (err as Error).message };
+      return { sent: false, reason: "failed", error: errorMessage(err) };
     }
   }
 

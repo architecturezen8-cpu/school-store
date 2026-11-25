@@ -75,28 +75,32 @@ message, the ticket, a three-column details row and one wide button. There is no
 "pick a design" step, because a school sending one kind of ticket does not need
 one.
 
-`/admin/mail` edits the words:
+`/admin/mail` does exactly two things: it **shows** the message and it **sends a
+test**. There is no wording editor. The ticket is a default — subject, heading,
+message and footer are the ones in `lib/tickets/email.ts` — because a ticket is
+the one thing a school sends thousands of times and every variation of it is a
+chance to ship a typo to a buyer. What the admin gets instead is certainty:
 
-| Field | Where it lands |
-| --- | --- |
-| Subject | the line in the inbox |
-| Heading | the big line over the photo (default `{{event}}`) |
-| Message | between the heading and the ticket |
-| Footer | small print under the button |
+1. **Preview** — rendered by `buildTicketMail()`, the same function that sends,
+   for a real booking, so the QR shown is the QR that will be scanned. Pick which
+   booking to preview from the reference chips above the frame.
+2. **Send a test** — type any address and the real ticket lands in that inbox.
+   The same booking's artwork and QR, nothing changed on the booking. If no mail
+   transport is configured the page says so in one line rather than failing
+   silently.
 
-Any of `{{name}} {{event}} {{reference}} {{seats}} {{total}} {{venue}} {{date}}`
-can be used in all four. Clearing a box restores the shipped default rather than
-sending an empty message.
+The preview is bound to a real booking on purpose: the artwork and the QR are
+per-booking, so a mocked-up one would prove nothing about what a customer sees.
 
-**The rest is not editable, on purpose.** Reference, seats, amount, date, venue
-and the QR are the facts someone checks at the gate; letting them be typed by
-hand would eventually put the wrong number in front of a customer.
+**Nothing on the ticket is editable, on purpose.** Reference, seats, amount,
+date, venue and the QR are the facts someone checks at the gate; letting them be
+typed by hand would eventually put the wrong number in front of a customer.
 
 The message, top to bottom:
 
-1. **Cover** — the event photo under a flat navy wash, with `EST. 1873`,
+1. **Cover** — the event photo under a flat dark wash, with `EST. 1873`,
    `ST. THOMAS' COLLEGE`, `MATALE · SRI LANKA`, a gold rule, the date, the event
-   name and the message. Outlook ignores the photo and keeps the navy, so
+   name and the message. Outlook ignores the photo and keeps the wash, so
    nothing depends on the photograph for contrast.
 2. **Your entry code** — the QR at 220 px, drawn from the ticket's own link and
    embedded in the message (so it shows even when a mail client blocks remote
@@ -111,7 +115,8 @@ The message, top to bottom:
 
 The preview on `/admin/mail` is the real message, not a mock-up: it is rendered
 by `buildTicketMail()` — the same function that sends — inside an iframe, with
-the inline QR swapped for its public URL.
+the inline QR swapped for its public URL. The test send goes through the same
+`sendTicketEmail()`, to the address the admin types instead of the buyer's.
 
 Resend is used when `RESEND_API_KEY` is set; otherwise plain SMTP. With neither,
 bookings still succeed, the mail is logged to the server console, and the
@@ -119,20 +124,29 @@ confirmation screen says the ticket is below instead of claiming it was emailed.
 
 ![The ticket email](docs/screens/ticket-email.png)
 
+![The ticket email page: preview and a test send, nothing to edit](docs/screens/admin-mail.png)
+
 ### The admin is a separate app
 
 `/admin` does not render inside the store. It has its own layout
 (`app/admin/layout.tsx`), its own sidebar and its own palette: **bento** — a tray
 of rounded tiles where separation comes from the fill and the gap, **never from a
-border** — and **navy, white and black only**, with no gold, no gradients and no
-glassmorphism anywhere. Emphasis is white-on-navy or navy-on-white, so a state is
-carried by words rather than by a colour the palette does not have. And
+border** — and **black, white and yellow only**: a true near-black page, neutral
+grey tiles stepping up from it, and the school's gold as the single accent (one
+filled action per screen, one live state). No gradients, no glassmorphism, no
+blur. State is carried by words and by that one accent, never by a red or green
+the palette does not have. On a desktop the overview is one four-column grid:
+hero and live list in row one, four equal stats in row two, four equal section
+tiles in row three, so every cell starts and ends on the same line. And
 `components/SiteChrome.tsx` bails out before drawing the navbar, footer, bag or
 search overlay. The sidebar (below) carries the school crest at the top, the sections in
 the middle (Overview, Bookings, Ticket designs, Ticket email, Gate scanner) and
 the signed-in profile with sign-out at the bottom. Below `lg` it becomes a top
 bar with a menu button. Every admin route is `noindex`. Screenshots of the
-finished panel live in `docs/screens/`.
+finished panel live in `docs/screens/` — `admin-overview.png`, `admin-bookings.png`,
+`admin-templates.png`, `admin-mail.png`, `admin-gate.png`, `admin-mobile.png`.
+
+![The admin overview: one four-column grid](docs/screens/admin-overview.png)
 
 ## 3. Selling and scanning
 
@@ -159,20 +173,41 @@ scanned, and a **Resend** button that re-sends that customer's ticket.
 | `lib/tickets/sign.ts` | Signs and checks the token; builds the QR URL. |
 | `lib/tickets/templates.ts` | Upload, list, activate and delete designs. |
 | `lib/tickets/email.ts` | The message HTML and the Resend/SMTP send. |
-| `lib/tickets/mail-settings.ts` | The admin's saved wording, with defaults. |
+| `lib/tickets/mail-settings.ts` | The message wording and its shipped defaults. |
 | `lib/admin/auth.ts` | The password and the signed session cookie. |
+| `lib/db.ts` | Backend choice, pool, and the recorded failure the admin reports. |
+| `lib/errors.ts` | Turning anything thrown — even an `AggregateError` with no message — into a sentence. |
+| `lib/admin/db-guard.tsx` | What the admin is told when the database is not answering. |
 | `lib/bookings.ts` | Booking, ticket lookup, admission, reopen. |
 | `app/admin/layout.tsx` | The admin's own layout — the storefront chrome stays out. |
 | `components/admin/AdminShell.tsx` | The sidebar, the mobile bar, the profile block. |
 | `components/admin/ui.tsx` | The bento primitives: tiles, stat cells, fields, pills. |
 | `app/admin/mail/preview` | The real mail, rendered for the iframe on `/admin/mail`. |
-| `app/admin/` | Dashboard, designs, email editor, bookings, gate. |
+| `app/admin/` | Dashboard, designs, ticket email, bookings, gate. |
 | `app/gate/` | The volunteer's scanner. |
 | `app/t/[token]/` | The page a customer's camera opens. |
 | `app/api/tickets/[token]/image` | Renders the artwork; needs a valid signature. |
 | `app/api/tickets/[token]/qr` | The QR alone, for the mail and its preview. |
 
 ## 5. If something is wrong
+
+**The admin says "The database did not answer".** `DATABASE_URL` is set, but that
+host is not reachable: Supabase paused, the project ref is wrong, the password was
+rotated, or the pooler port is 6543 instead of 5432. The panel deliberately keeps
+rendering — it reads nothing from the database, prints the reason at the top of
+every admin page, and the shop falls back to its built-in catalogue. Check
+`npm run db:check` against the same URL; it prints the connection error in plain
+words.
+
+**The admin says "DATABASE_URL is set but is not a usable Postgres URL".** The
+variable has no host — a bare `postgres://`, or a password with an unencoded `@`
+that swallowed the host. Percent-encode special characters (`@` → `%40`) and
+restart.
+
+Neither case takes a page down or kills the server process: a failed connection is
+recorded once, reported in the panel, and not retried on every page load.
+
+## 6. If something is wrong with an upload or an email
 
 **"Email is not configured"** — set `RESEND_API_KEY` or the `SMTP_*` variables
 and restart.

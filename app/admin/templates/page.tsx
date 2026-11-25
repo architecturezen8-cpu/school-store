@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { isAdmin } from "@/lib/admin/auth";
+import { databaseProblem } from "@/lib/admin/db-guard";
+import { databaseDown } from "@/lib/db";
 import { hasDatabase } from "@/lib/db";
 import { listTemplates } from "@/lib/tickets/templates";
 import { getEvents } from "@/lib/store";
@@ -35,16 +37,28 @@ export default async function TemplatesPage({
   if (!hasDatabase()) redirect("/admin?error=database");
 
   const { error, ok } = await searchParams;
-  const [templates, events] = await Promise.all([listTemplates(), getEvents()]);
+  const problem = databaseProblem();
+  // The design list is the one read here that has no seed fallback, so a dead
+  // database would otherwise mean an empty page with no explanation.
+  const [templates, events] = await Promise.all([
+    databaseDown() ? Promise.resolve([]) : listTemplates(),
+    getEvents(),
+  ]);
 
   return (
     <div className="space-y-3">
-      <section className="rounded-2xl bg-navy-900 p-6">
+      <section className="rounded-2xl bg-panel p-6">
         <PageHeader
           eyebrow="Tickets"
           title="Ticket designs"
           description="Upload the artwork the customer receives. Leave a solid white square where the QR belongs — the code is detected and pasted in automatically."
         />
+        {problem && (
+          <div className="mt-4">
+            <Notice tone="warn">{problem}</Notice>
+          </div>
+        )}
+
         {(ok || error) && (
           <div className="mt-4 space-y-2">
             {ok && <Notice tone="ok">Saved “{safeDecode(ok)}”. New bookings use it.</Notice>}
@@ -121,7 +135,7 @@ export default async function TemplatesPage({
           ) : (
             <ul className="grid gap-3 sm:grid-cols-2">
               {templates.map((t) => (
-                <li key={t.id} className="flex flex-col rounded-xl bg-navy-950 p-3">
+                <li key={t.id} className="flex flex-col rounded-xl bg-well p-3">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={t.file}

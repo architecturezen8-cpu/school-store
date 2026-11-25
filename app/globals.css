@@ -60,6 +60,16 @@
   --color-navy-700: #16244a;
   --color-navy-600: #1e3060;
 
+  /* ---- admin surfaces -------------------------------------------------------
+     The admin wears no navy: it steps up through neutral greys on black, with
+     the existing `gold` as its only accent. These names are used only by
+     components/admin, so the storefront is untouched. */
+  --color-well: #0a0a0a;
+  --color-panel: #111111;
+  --color-panel-2: #1a1a1a;
+  --color-line: #262626;
+  --color-gold-bright: #ffe066;
+
   --font-display: "Poppins", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
