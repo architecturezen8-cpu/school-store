@@ -30,6 +30,11 @@ export default function SubmitButton({
   disabled = false,
   title,
   ariaLabel,
+  /**
+   * Ask before the form is posted. A delete has no undo, and a mis-click in a
+   * list of eight identical rows is one row away from the wrong ticket.
+   */
+  confirm,
 }: {
   children: ReactNode;
   /** What the button says while the form is in flight. */
@@ -40,6 +45,7 @@ export default function SubmitButton({
   disabled?: boolean;
   title?: string;
   ariaLabel?: string;
+  confirm?: string;
 }) {
   const { pending: working } = useFormStatus();
 
@@ -48,6 +54,9 @@ export default function SubmitButton({
       type="submit"
       disabled={disabled || working}
       aria-busy={working}
+      onClick={(event) => {
+        if (confirm && !window.confirm(confirm)) event.preventDefault();
+      }}
       aria-label={ariaLabel}
       title={title}
       className={className}

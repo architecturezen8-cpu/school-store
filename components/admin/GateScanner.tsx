@@ -3,7 +3,7 @@
 import { Spinner } from "@/components/Spinner";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Camera, CheckCircle2, Keyboard, RotateCcw, XCircle } from "lucide-react";
+import { Ban, Camera, CheckCircle2, Keyboard, RotateCcw, XCircle } from "lucide-react";
 import { errorMessage } from "@/lib/errors";
 
 /**
@@ -31,11 +31,16 @@ type ScanTicket = {
   /** Which person this is, and how many the booking holds. */
   seq: number;
   of: number;
+  /** This ticket's own reference, e.g. `BM-ABC12345-03`. */
+  code: string;
+  tierName: string;
 };
 
 type ScanResult =
   | { status: "admitted"; ticket: ScanTicket }
   | { status: "already"; ticket: ScanTicket }
+  /** Stopped by the admin: this code exists, and must not open the door. */
+  | { status: "blocked"; ticket: ScanTicket }
   | { status: "invalid"; message: string }
   | { status: "error"; message: string };
 
@@ -149,8 +154,10 @@ export default function GateScanner() {
   const tone =
     result?.status === "admitted"
       ? "bg-gold text-black"
-      : result?.status === "already"
-        ? "bg-panel-2 text-strong"
+      : result?.status === "blocked"
+        ? "bg-panel-2 text-strong ring-1 ring-gold"
+        : result?.status === "already"
+          ? "bg-panel-2 text-strong"
         : result
           ? "bg-well text-strong"
           : "bg-well text-strong";
@@ -244,17 +251,21 @@ export default function GateScanner() {
           <div className="flex items-center gap-2">
             {result.status === "admitted" ? (
               <CheckCircle2 className="h-5 w-5" />
+            ) : result.status === "blocked" ? (
+              <Ban className="h-5 w-5" />
             ) : (
               <XCircle className="h-5 w-5" />
             )}
             <p className="font-display text-lg font-semibold">
               {result.status === "admitted"
                 ? "Admitted"
-                : result.status === "already"
-                  ? "Already admitted"
-                  : result.status === "invalid"
-                    ? "Invalid ticket"
-                    : "Error"}
+                : result.status === "blocked"
+                  ? "Blocked — do not admit"
+                  : result.status === "already"
+                    ? "Already admitted"
+                    : result.status === "invalid"
+                      ? "Invalid ticket"
+                      : "Error"}
             </p>
           </div>
 
@@ -274,6 +285,12 @@ export default function GateScanner() {
                   Ticket {result.ticket.seq} of {result.ticket.of} — admit one person
                 </p>
               )}
+              {/* The ticket's own code first: it names this one seat, which is
+                  what the office needs when a code has to be stopped or the
+                  person has to be written down in the incident book. */}
+              {result.ticket.code && (
+                <p className="font-mono text-xs opacity-70">{result.ticket.code}</p>
+              )}
               <p className="font-mono text-xs opacity-60">Ref {result.ticket.reference}</p>
               {result.status === "already" && result.ticket.admittedAt && (
                 <p className="mt-2 rounded-lg bg-page px-3 py-2 text-strong">
@@ -281,6 +298,12 @@ export default function GateScanner() {
                   {new Date(result.ticket.admittedAt).toLocaleString("en-GB")}
                   {result.ticket.admittedBy ? ` at ${result.ticket.admittedBy}` : ""}. Do
                   not admit again — {result.ticket.of > 1 ? "the other people on this booking have their own codes." : "one scan, one entry."}
+                </p>
+              )}
+              {result.status === "blocked" && (
+                <p className="mt-2 rounded-lg bg-page px-3 py-2 text-strong">
+                  The school has stopped this ticket. Turn the person away and send
+                  them to the office — do not let them in on somebody else&apos;s code.
                 </p>
               )}
               {result.status === "already" && (
