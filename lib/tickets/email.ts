@@ -576,6 +576,10 @@ export async function sampleTicket(): Promise<Ticket> {
     tiers,
     admittedAt: null,
     admittedBy: "",
+    blockedAt: null,
+    blockedBy: "",
+    code: "BM-SAMPLE-01",
+  tierName: "Grandstand Seat",
   };
 }
 

@@ -63,7 +63,30 @@ export type Ticket = {
   tiers: { id: string; name: string; price: number; qty: number }[];
   admittedAt: string | null;
   admittedBy: string;
+  /** Set when the admin has stopped this one ticket — the gate refuses it. */
+  blockedAt: string | null;
+  blockedBy: string;
+  /**
+   * This ticket's own reference, printed on the bill and typed at the gate:
+   * `BM-ABC12345-03`. The sale's reference is shared by everybody in the party,
+   * so it cannot name one person; this can.
+   */
+  code: string;
+  /** The ticket type this particular person holds, e.g. "Grandstand Seat". */
+  tierName: string;
 };
+
+/**
+ * The code for one ticket.
+ *
+ * Derived from the sale's reference and the seat number, not stored: the
+ * reference is already unique and the seat number already exists, so a third
+ * identifier would be a third thing that can disagree with the other two.
+ * `-03` is zero-padded so the codes line up in a list and sort as numbers.
+ */
+export function ticketCode(reference: string, seq: number): string {
+  return `${reference}-${String(seq).padStart(2, "0")}`;
+}
 
 const MAX_PER_TIER = 8;
 
@@ -248,7 +271,17 @@ async function tiersFor(bookingIds: string[]): Promise<Map<string, Ticket["tiers
 function toTicket(
   row: TicketRow,
   tiers: Ticket["tiers"],
-  seat: { seq: number; of: number; token: string; admittedAt: string | null; admittedBy: string }
+  seat: {
+    seq: number;
+    of: number;
+    token: string;
+    /** The ticket's own type, where it is known. */
+    tierName?: string;
+    admittedAt: string | null;
+    admittedBy: string;
+    blockedAt?: string | null;
+    blockedBy?: string;
+  }
 ): Ticket {
   return {
     reference: row.reference,
@@ -269,6 +302,10 @@ function toTicket(
     tiers,
     admittedAt: seat.admittedAt,
     admittedBy: seat.admittedBy,
+    blockedAt: seat.blockedAt ?? null,
+    blockedBy: seat.blockedBy ?? "",
+    code: ticketCode(row.reference, seat.seq),
+    tierName: seat.tierName ?? "",
   };
 }
 
@@ -276,13 +313,17 @@ function toTicket(
 type Seat = {
   seq: number;
   token: string;
+  /** The type this one ticket was bought as — a party can mix them. */
+  tier: string;
   admitted_at: string | null;
   admitted_by: string;
+  blocked_at: string | null;
+  blocked_by: string;
 };
 
 async function seatsFor(bookingId: string): Promise<Seat[]> {
   return query<Seat>(
-    `select seq, token, admitted_at, admitted_by
+    `select seq, token, tier, admitted_at, admitted_by, blocked_at, blocked_by
        from booking_tickets
       where booking = $1
       order by seq`,
@@ -311,8 +352,11 @@ async function ticketForSeat(
       seq: seat.seq,
       of: seats.length,
       token: seat.token,
+      tierName: tiers.find((t) => t.id === seat.tier)?.name ?? "",
       admittedAt: seat.admitted_at,
       admittedBy: seat.admitted_by,
+      blockedAt: seat.blocked_at,
+      blockedBy: seat.blocked_by,
     });
   }
 
@@ -321,6 +365,7 @@ async function ticketForSeat(
       seq: 1,
       of: Math.max(1, seats.length),
       token,
+      tierName: tiers[0]?.name ?? "",
       admittedAt: row.booking_admitted_at,
       admittedBy: row.booking_admitted_by,
     });
@@ -370,6 +415,7 @@ export async function ticketsForBooking(reference: string): Promise<Ticket[]> {
             seq: 1,
             of: 1,
             token: row.ticket_token,
+            tierName: tiers[0]?.name ?? "",
             admittedAt: row.booking_admitted_at,
             admittedBy: row.booking_admitted_by,
           }),
@@ -381,8 +427,11 @@ export async function ticketsForBooking(reference: string): Promise<Ticket[]> {
       seq: seat.seq,
       of: seats.length,
       token: seat.token,
+      tierName: tiers.find((t) => t.id === seat.tier)?.name ?? "",
       admittedAt: seat.admitted_at,
       admittedBy: seat.admitted_by,
+      blockedAt: seat.blocked_at,
+      blockedBy: seat.blocked_by,
     })
   );
 }
@@ -397,10 +446,16 @@ export async function ticketsForBooking(reference: string): Promise<Ticket[]> {
 export async function getTicketByReference(
   reference: string
 ): Promise<Ticket | null> {
-  // The first ticket that is still unadmitted, so typing a reference at the gate
-  // admits the next person entitled to enter rather than always the same seat.
+  // The next person entitled to enter, not always the same seat: the first
+  // ticket that is neither used nor blocked. If every one is blocked the gate
+  // gets a blocked ticket back and says so, which is the honest answer.
   const all = await ticketsForBooking(reference);
-  return all.find((t) => !t.admittedAt) ?? all[0] ?? null;
+  return (
+    all.find((t) => !t.admittedAt && !t.blockedAt) ??
+    all.find((t) => !t.admittedAt) ??
+    all[0] ??
+    null
+  );
 }
 
 /** Either the token from the QR, or the reference a volunteer types in. */
@@ -411,6 +466,8 @@ export async function findTicketForGate(scan: string): Promise<Ticket | null> {
 export type AdmitResult =
   | { status: "admitted"; ticket: Ticket }
   | { status: "already"; ticket: Ticket }
+  /** The admin stopped this one ticket. Reported, not admitted. */
+  | { status: "blocked"; ticket: Ticket }
   | { status: "not-found" };
 
 /**
@@ -430,6 +487,12 @@ export async function admitTicket(
 ): Promise<AdmitResult> {
   const before = await getTicketByToken(token);
   if (!before) return { status: "not-found" };
+
+  // A blocked ticket is a decision the admin already made. Checked before the
+  // update so a blocked code cannot be admitted by a second scanner racing the
+  // first, and reported as its own answer so the volunteer at the door is told
+  // to stop the person rather than that the code is a repeat.
+  if (before.blockedAt) return { status: "blocked", ticket: before };
 
   const admitted = await query<{ id: string; booking: string }>(
     `update booking_tickets
@@ -502,6 +565,162 @@ async function syncBookingAdmission(reference: string): Promise<void> {
       where b.id = open.id and open.total > 0`,
     [reference, "gate"]
   );
+}
+
+/* ------------------------------------------------------------------ *
+ *  Stopping one ticket, and issuing one by hand.
+ * ------------------------------------------------------------------ */
+
+/**
+ * Block one ticket.
+ *
+ * The whole point of a per-ticket code: when a QR is forwarded to somebody who
+ * should not be in the hall, the sale's reference cannot name the ticket that
+ * leaked — everybody in the party shares it. The token can, and it is what this
+ * takes. Blocking is reversible and never touches the money: the sale still
+ * exists, the bill still says what was paid, and the other seven people walk in.
+ */
+export async function blockTicket(
+  token: string,
+  by: string,
+  note = ""
+): Promise<{ ok: true; ticket: Ticket } | { ok: false; error: string }> {
+  const rows = await query<{ booking: string }>(
+    `update booking_tickets
+        set blocked_at = now(), blocked_by = $2, blocked_note = $3
+      where token = $1
+      returning booking`,
+    [token, by.slice(0, 80), note.slice(0, 300)]
+  );
+  if (!rows[0]) return { ok: false, error: "That ticket is not on any booking." };
+
+  const ticket = await getTicketByToken(token);
+  if (!ticket) return { ok: false, error: "That ticket is not on any booking." };
+  return { ok: true, ticket };
+}
+
+/** Let a blocked ticket back in. */
+export async function unblockTicket(
+  token: string
+): Promise<{ ok: true; ticket: Ticket } | { ok: false; error: string }> {
+  const rows = await query<{ booking: string }>(
+    `update booking_tickets
+        set blocked_at = null, blocked_by = '', blocked_note = ''
+      where token = $1
+      returning booking`,
+    [token]
+  );
+  if (!rows[0]) return { ok: false, error: "That ticket is not on any booking." };
+
+  const ticket = await getTicketByToken(token);
+  if (!ticket) return { ok: false, error: "That ticket is not on any booking." };
+  return { ok: true, ticket };
+}
+
+/**
+ * Remove one ticket from a booking.
+ *
+ * For the ticket that should never have existed — a double click, a seat typed
+ * twice at the counter — not for a ticket that has been shared: that one is
+ * blocked, because a deleted ticket leaves nothing behind to explain itself.
+ *
+ * The sale is untouched. `booking_items` keeps what was bought and `bookings.total`
+ * keeps what was paid, so the bill and the takings still add up after a seat has
+ * been taken off the list.
+ */
+export async function deleteTicket(
+  token: string
+): Promise<{ ok: true; reference: string } | { ok: false; error: string }> {
+  const before = await getTicketByToken(token);
+  if (!before) return { ok: false, error: "That ticket is not on any booking." };
+
+  const rows = await query<{ booking: string }>(
+    "delete from booking_tickets where token = $1 returning booking",
+    [token]
+  );
+  if (!rows[0]) return { ok: false, error: "That ticket is not on any booking." };
+
+  // Everybody already in? Recompute: removing the last open ticket can complete
+  // the party, and removing an admitted one must not leave the sale marked "in".
+  await syncBookingAdmission(before.reference);
+  return { ok: true, reference: before.reference };
+}
+
+/** What the admin supplies when they issue a ticket at the counter. */
+export type IssueTicketInput = {
+  /** The ticket type decides the event; one select cannot disagree with itself. */
+  tier: string;
+  name: string;
+  email?: string;
+  /** Blank = the tier's own price. 0 = complimentary. */
+  price?: number | null;
+  note?: string;
+  by?: string;
+};
+
+/**
+ * A ticket the admin makes by hand: a comp for the headmaster, a sponsor's seat,
+ * cash taken at the door.
+ *
+ * Deliberately the same shape as a sale — a booking with a reference, one item,
+ * one ticket — so it is admitted by the same gate, prints the same bill, and
+ * shows up in the same list. Anything else would be a second kind of ticket the
+ * gate has to know about at eleven o'clock at night.
+ */
+export async function issueTicket(
+  input: IssueTicketInput
+): Promise<{ ok: true; booking: Booking } | { ok: false; error: string }> {
+  const name = input.name.trim() || "Counter ticket";
+  const email = (input.email ?? "").trim();
+
+  return transaction(async (c) => {
+    const { rows: tiers } = await c.query<{
+      id: string;
+      event: string;
+      name: string;
+      price: number;
+    }>("select id, event, name, price from ticket_tiers where id = $1", [input.tier]);
+    const tier = tiers[0];
+    if (!tier) return { ok: false as const, error: "Pick a ticket type." };
+
+    const price =
+      input.price === null || input.price === undefined || Number.isNaN(input.price)
+        ? Number(tier.price)
+        : Math.max(0, Math.round(input.price));
+
+    const ref = reference();
+    const { rows: created } = await c.query<{ id: string }>(
+      `insert into bookings (reference, event, name, email, total, channel, note)
+       values ($1, $2, $3, $4, $5, 'counter', $6) returning id`,
+      [ref, tier.event, name, email, price, (input.note ?? "").slice(0, 300)]
+    );
+    const bookingId = created[0].id;
+
+    await c.query("insert into booking_items (booking, tier, qty) values ($1, $2, 1)", [
+      bookingId,
+      tier.id,
+    ]);
+    await c.query("update ticket_tiers set sold = sold + 1 where id = $1", [tier.id]);
+
+    const token = ticketToken();
+    await c.query(
+      "insert into booking_tickets (booking, seq, token, tier) values ($1, 1, $2, $3)",
+      [bookingId, token, tier.id]
+    );
+    await c.query("update bookings set ticket_token = $2 where id = $1", [bookingId, token]);
+
+    return {
+      ok: true as const,
+      booking: {
+        reference: ref,
+        event: tier.event,
+        total: price,
+        token,
+        tickets: [{ seq: 1, token, tier: tier.id }],
+        tiers: [{ id: tier.id, name: tier.name, price, qty: 1 }],
+      },
+    };
+  });
 }
 
 /** Undo an admission — a mis-scan at the gate should be fixable. */

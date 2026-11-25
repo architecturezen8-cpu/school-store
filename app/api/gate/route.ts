@@ -111,6 +111,12 @@ export async function POST(req: Request) {
             // "already" on ticket 2 of 4 is one specific person who has been in.
             seq: result.ticket.seq,
             of: result.ticket.of,
+            // This ticket's own reference. The sale's reference is shared by the
+            // whole party, so it cannot say *which* code the door is looking at —
+            // which is the one thing the volunteer has to write down when a
+            // blocked ticket turns up.
+            code: result.ticket.code,
+            tierName: result.ticket.tierName,
           }
         : null,
   });

@@ -6,12 +6,13 @@ import { databaseDown, hasDatabase } from "@/lib/db";
 import { listBookings } from "@/lib/bookings";
 import { lkr } from "@/lib/format";
 import { safeDecode } from "@/lib/safe-decode";
+import Link from "next/link";
 import ParamToast from "@/components/admin/ParamToast";
 import DownloadReceipt from "@/components/DownloadReceipt";
 import SubmitButton from "@/components/SubmitButton";
 import { resendTicketAction } from "../actions";
 import { Empty, Notice, PageHeader, Panel, Pill, Stat, buttonClass } from "@/components/admin/ui";
-import { Mail } from "lucide-react";
+import { Mail, TicketPlus } from "lucide-react";
 import { asset } from "@/lib/assets";
 import { signTicket } from "@/lib/tickets/sign";
 
@@ -50,6 +51,11 @@ export default async function BookingsPage({
         <PageHeader
           eyebrow="Tickets"
           title="Bookings"
+          actions={
+            <Link href="/admin/bookings/new" className={buttonClass("primary")}>
+              <TicketPlus className="h-4 w-4" /> Issue a ticket
+            </Link>
+          }
           description="Everyone who has bought a ticket, what they paid and whether the code has been used at the gate."
         />
         {problem && (
@@ -100,8 +106,19 @@ export default async function BookingsPage({
                   <tr key={b.reference} className="align-middle">
                     <td className="py-3 pr-4 font-mono text-xs text-body">{b.reference}</td>
                     <td className="py-3 pr-4">
-                      <span className="block text-strong">{b.name}</span>
+                      <Link
+                        href={`/admin/bookings/${encodeURIComponent(b.reference)}`}
+                        className="block text-strong underline-offset-4 hover:underline"
+                      >
+                        {b.name}
+                      </Link>
                       <span className="block truncate text-xs text-muted">{b.email}</span>
+                      <Link
+                        href={`/admin/bookings/${encodeURIComponent(b.reference)}`}
+                        className="mt-0.5 block font-mono text-[11px] text-faint underline-offset-4 hover:underline"
+                      >
+                        {b.reference}
+                      </Link>
                     </td>
                     <td className="py-3 pr-4 text-body">
                       {b.seatsText || `${b.seats} seats`}

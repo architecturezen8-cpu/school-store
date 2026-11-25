@@ -231,13 +231,19 @@ await step("gate: forged token is invalid", async () => {
   return `status ${body.status}`;
 });
 
-await step("/t/<token> after admission shows the used banner", async () => {
+await step("/t/<token> says nothing about admission", async () => {
+  // The page used to turn red and say "already admitted". That is the one fact a
+  // stranger holding a photo of somebody's QR wants, so it is gone — the gate
+  // still knows, the page does not say.
   await page.goto(`${BASE}/t/${token}/${sig}`, { waitUntil: "networkidle" });
   const text = (await page.locator("body").innerText()).replace(/\s+/g, " ");
-  if (!/already|used|admitted/i.test(text)) throw new Error("no used banner: " + text.slice(0, 120));
-  return `"${text.slice(text.indexOf("ADMISSION") + 130, text.indexOf("ADMISSION") + 300)}"`;
+  if (/already admitted|not yet scanned|scanned on/i.test(text))
+    throw new Error("admission status shown: " + text.slice(0, 160));
+  if (/download (the )?bill/i.test(text)) throw new Error("bill link on the public page");
+  if (!/ticket code/i.test(text)) throw new Error("no per-ticket code: " + text.slice(0, 160));
+  return "no status, no bill, code present";
 });
-await page.screenshot({ path: `${OUT}/07-ticket-used.png`, fullPage: true, caret: "initial" });
+await page.screenshot({ path: `${OUT}/07-ticket-after-scan.png`, fullPage: true, caret: "initial" });
 
 await step("gate: undo restores the ticket", async () => {
   const res = await page.request.post(BASE + "/api/gate", { data: { token, reopen: true } });
@@ -246,11 +252,11 @@ await step("gate: undo restores the ticket", async () => {
   return JSON.stringify(body).slice(0, 160);
 });
 
-await step("/t/<token> after undo is valid again", async () => {
+await step("/t/<token> after undo is unchanged", async () => {
   await page.goto(`${BASE}/t/${token}/${sig}`, { waitUntil: "networkidle" });
   const text = (await page.locator("body").innerText()).replace(/\s+/g, " ");
   if (/already admitted/i.test(text)) throw new Error("still marked used after undo");
-  return "valid again";
+  return "still just a ticket";
 });
 
 fs.writeFileSync(

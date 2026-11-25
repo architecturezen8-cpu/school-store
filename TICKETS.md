@@ -211,9 +211,43 @@ finished panel live in `docs/screens/` — `admin-overview.png`, `admin-bookings
 - A mis-scan can be undone from the gate screen; the ticket becomes valid again.
 - A QR with a wrong signature is refused before the database is touched. A typed
   reference is accepted because only a signed-in admin can reach `/gate`.
+- The customer's ticket page (`/t/<token>`) deliberately says **nothing** about
+  whether the ticket has been scanned, and offers no bill: the person holding a
+  photo of somebody else's QR must not be able to learn whether it is still good,
+  and the receipt stays on the confirmation screen and in the admin.
+
+### One code per ticket, and stopping one
+
+A booking reference is shared by everybody in the party (`BM-ABC12345`), so it
+cannot name the one QR that was forwarded to a stranger. Every ticket therefore
+carries its own code — `BM-ABC12345-03` — printed on the bill, shown on the
+ticket page, and returned by the gate.
+
+`/admin/bookings/<reference>` is the page for one sale: every ticket in it, its
+code, whether it has been used, and two buttons.
+
+| Button | What it does | Use it when |
+| --- | --- | --- |
+| **Block** | The ticket stays on the sale and on the bill; the gate answers *blocked — do not admit*. Reversible. | A code was forwarded, a refund is being argued, somebody is barred. |
+| **Delete** | The ticket is removed; its QR stops existing. The sale, its items and its total are untouched. | The ticket should never have existed — a double click, a seat typed twice. |
+
+Blocking is the tool for a shared code: it leaves proof of what was sold and a
+door that will not open. Deleting leaves nothing to explain.
+
+### Issuing a ticket by hand
+
+`/admin/bookings/new` creates a comp, a sponsor's seat or cash taken at the door:
+pick the ticket type, a name, optionally an email, and a price (blank = the
+tier's price, `0` = complimentary). It becomes an ordinary booking — its own
+reference, one ticket, one code, the same QR, the same gate, the same bill — so
+there is one kind of ticket in the building and not two.
+
+`bookings.channel` records where a sale came from (`shop` or `counter`) and
+`bookings.note` holds the line the paperwork always needs ("Comp — headmaster").
 
 `/admin/bookings` lists every booking: what was paid, whether it has been
-scanned, and a **Resend** button that re-sends that customer's ticket.
+scanned, a **Resend** button that re-sends that customer's ticket, and a link to
+the booking's own page.
 
 ## 4. Where the pieces live
 
@@ -228,12 +262,12 @@ scanned, and a **Resend** button that re-sends that customer's ticket.
 | `lib/db.ts` | Backend choice, pool, and the recorded failure the admin reports. |
 | `lib/errors.ts` | Turning anything thrown — even an `AggregateError` with no message — into a sentence. |
 | `lib/admin/db-guard.tsx` | What the admin is told when the database is not answering. |
-| `lib/bookings.ts` | Booking, ticket lookup, admission, reopen. |
+| `lib/bookings.ts` | Booking, ticket lookup, admission, reopen, block/unblock, delete one ticket, issue one by hand. |
 | `app/admin/layout.tsx` | The admin's own layout — the storefront chrome stays out. |
 | `components/admin/AdminShell.tsx` | The sidebar, the mobile bar, the profile block. |
 | `components/admin/ui.tsx` | The bento primitives: tiles, stat cells, fields, pills. |
 | `app/admin/mail/preview` | The real mail, rendered for the iframe on `/admin/mail`. |
-| `app/admin/` | Dashboard, designs, ticket email, bookings, gate. |
+| `app/admin/` | Dashboard, designs, ticket email, bookings (list, one sale, issue), gate. |
 | `app/gate/` | The volunteer's scanner. |
 | `app/t/[token]/` | The page a customer's camera opens. |
 | `app/api/tickets/[token]/image` | Renders the artwork; needs a valid signature. |

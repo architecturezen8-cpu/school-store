@@ -337,3 +337,35 @@ drop trigger if exists site_settings_touch_updated_at on site_settings;
 create trigger site_settings_touch_updated_at
   before update on site_settings
   for each row execute function set_updated_at();
+
+-- ---------- blocking a single ticket -----------------------------------------
+-- A ticket is a bearer document: a screenshot of a QR can be forwarded to a
+-- stranger, and the booking reference cannot tell you which of the eight
+-- tickets was shared — it is one reference for the whole sale. Each ticket
+-- already has its own token; these columns give the admin a way to stop *that
+-- one* at the gate without touching the rest of the party.
+--
+-- Blocked is not the same as deleted. A blocked ticket still exists — it shows
+-- on the bill, in the bookings list and in the gate's answer ("blocked, do not
+-- admit") — which is what a school wants when a code has gone astray: proof of
+-- what was sold, and a door that will not open.
+alter table booking_tickets
+  add column if not exists blocked_at   timestamptz,
+  add column if not exists blocked_by   text not null default '',
+  add column if not exists blocked_note text not null default '';
+
+create index if not exists booking_tickets_blocked_idx
+  on booking_tickets (booking) where blocked_at is not null;
+
+-- ---------- tickets issued by hand -------------------------------------------
+-- Not every ticket is sold through the shop: the headmaster wants two seats at
+-- the door, a sponsor's name is written down on paper, a parent pays cash to the
+-- bursar. Those need a real ticket — same QR, same gate, same PDF — so they are
+-- bookings with a reference like any other, entered from the admin.
+--
+-- `channel` says where a sale came from — 'shop' or 'counter' — so the takings
+-- can tell shop revenue from seats given away, and `note` is the one thing
+-- paperwork always needs.
+alter table bookings
+  add column if not exists channel text not null default 'shop',
+  add column if not exists note    text not null default '';
