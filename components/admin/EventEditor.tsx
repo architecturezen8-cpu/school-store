@@ -105,14 +105,18 @@ export default function EventEditor({
    * this, which is also why the setState-in-effect warning below is expected.
    */
   const adopt = rescue.read;
-  const [adopted, setAdopted] = useState(false);
+  const adopted = useRef(false);
   useEffect(() => {
-    if (adopted) return;
-    setAdopted(true);
+    // A ref, not state: this is bookkeeping, and setting state here would both
+    // cause a second render for nothing and earn a legitimate lint warning.
+    if (adopted.current) return;
+    adopted.current = true;
     const saved = adopt();
-    if (saved) setDraft(saved);
-    // Edge: a refresh arriving before this ran would re-run it once more, which
-    // is harmless — the copy is still the newest thing on disk.
+    if (!saved) return;
+    // The one setState here is the point of the effect: put the rescued copy on
+    // screen. It happens once, and only when a copy exists.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDraft(saved);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

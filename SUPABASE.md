@@ -215,6 +215,48 @@ npm run db:migrate   # db/schema.sql  (idempotent)
 npm run db:seed      # data/seed.ts   (upserts, re-reads reviews)
 ```
 
+### After pulling new code, run `db:migrate`
+
+This catches people out, so it is worth saying plainly. New versions add
+columns, and a database that was set up before the version existed does not
+have them. The symptom is the build printing, over and over:
+
+```
+[store] query failed, serving seed data: column "tagline" does not exist
+```
+
+That means the shop is rendering `data/seed.ts` instead of your database — the
+products and prices on the deployed site are the demo ones. The build used to
+exit 0 anyway and publish it; now `npm run build` stops with that error in one
+line instead of a hundred. Either way the fix is the same:
+
+```bash
+npm run db:migrate
+```
+
+and if the tables are empty as well, `npm run db:seed` after it. `npm run
+db:check` tells you which of the two it is, including the exact column that is
+missing.
+
+### If the build says ETIMEDOUT
+
+```
+[store] query failed, serving seed data: connect ETIMEDOUT
+        fd00:…:5432; connect ETIMEDOUT 127.200.0.106:5432
+```
+
+The database was not reachable — this is a network or project state problem,
+not a password one. In order of likelihood:
+
+1. **The Supabase project is paused.** Free projects pause when idle. Open the
+   dashboard and it wakes up.
+2. **You are on the direct host.** `db.<ref>.supabase.co` is IPv6-only and many
+   networks cannot reach it. Use the **Session pooler** address instead — the
+   whole story is further up this page.
+3. A firewall or proxy between you and the host.
+
+`npm run db:check` names which of these it is.
+
 `data/seed.ts` is the single source of truth for the catalogue. Edit it, run
 `npm run db:seed`, and both the storefront and the database follow.
 

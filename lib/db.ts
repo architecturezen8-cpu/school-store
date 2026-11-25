@@ -61,6 +61,7 @@ export const backend: Backend = url
       : "pglite";
 
 declare global {
+  var __dbQueryCount: number | undefined;
   var __pgPool: Promise<Pool> | undefined;
   var __pglite: Promise<PGliteLike> | undefined;
   var __pgliteReady: boolean | undefined;
@@ -81,9 +82,58 @@ declare global {
 export const databaseDown = () =>
   backend === "pg" && Boolean(url) && Boolean(global.__dbFailure);
 
+/**
+ * How many failed queries have been logged this process.
+ *
+ * A build that falls back to the seed catalogue prints one line per query — 128
+ * of them on a 34-page build — and the one line that says what is actually
+ * wrong gets buried. This counts them so the tail can be summarised once.
+ */
+declare global {
+  var __dbFailCount: number | undefined;
+}
+
 /** Cleared on a successful query, so a recovered database stops warning. */
 function noteFailure(err: unknown) {
   global.__dbFailure = { message: errorMessage(err), at: Date.now() };
+  global.__dbFailCount = (global.__dbFailCount ?? 0) + 1;
+}
+
+/** The distinct reasons a query has failed with, for the end-of-build summary. */
+declare global {
+  var __dbFailReasons: Set<string> | undefined;
+}
+
+function noteReason(err: unknown) {
+  const reason = errorMessage(err);
+  global.__dbFailReasons ??= new Set<string>();
+  global.__dbFailReasons.add(reason);
+  return reason;
+}
+
+/**
+ * What went wrong, in one place, for a script to print when it finishes.
+ * `queryCount` is what makes silence meaningful: zero queries means the build
+ * never asked the database anything, which is its own kind of wrong.
+ */
+export function databaseReport() {
+  return {
+    backend,
+    target: url ? safeTarget() : "",
+    queries: global.__dbQueryCount ?? 0,
+    failures: global.__dbFailCount ?? 0,
+    reasons: [...(global.__dbFailReasons ?? [])],
+  };
+}
+
+/** The host:port the app is pointed at, never the password. */
+export function safeTarget(): string {
+  try {
+    const u = new URL(url);
+    return `${u.hostname}:${u.port || "5432"}${u.pathname}`;
+  } catch {
+    return "(unparseable DATABASE_URL)";
+  }
 }
 
 /**
@@ -305,6 +355,7 @@ export async function query<T extends object>(
       return res.rows;
     } catch (err) {
       noteFailure(err);
+      noteReason(err);
       // Re-thrown with the underlying reason attached: pool-level failures are
       // AggregateErrors with an empty message, which are unreadable in a log and
       // were crashing the very handler meant to report them.
@@ -329,6 +380,7 @@ export async function transaction<T>(
     if (!pool) throw new Error("DATABASE_URL is not configured");
     const client = await (await pool).connect().catch((err) => {
       noteFailure(err);
+      noteReason(err);
       throw new Error(errorMessage(err), { cause: err });
     });
     try {
