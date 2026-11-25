@@ -13,16 +13,33 @@ import { createContext, useContext } from "react";
  * Empty string means "no logo uploaded": every consumer falls back to the
  * built-in crest, so the site is never missing its mark.
  */
-const BrandContext = createContext<string>("");
+export type Brand = {
+  /** Path under public/, or "" for the built-in crest. */
+  logo: string;
+  /** How much of the white circle an uploaded logo fills, 0.3-1. */
+  scale: number;
+};
+
+const DEFAULT_BRAND: Brand = { logo: "", scale: 0.86 };
+
+const BrandContext = createContext<Brand>(DEFAULT_BRAND);
 
 export function BrandProvider({
   logo,
+  scale = DEFAULT_BRAND.scale,
   children,
 }: {
   logo: string;
+  scale?: number;
   children: React.ReactNode;
 }) {
-  return <BrandContext.Provider value={logo}>{children}</BrandContext.Provider>;
+  return (
+    <BrandContext.Provider value={{ logo, scale }}>{children}</BrandContext.Provider>
+  );
 }
 
-export const useBrandLogo = () => useContext(BrandContext);
+/** The logo, for a `<LogoBadge src>` — the common case. */
+export const useBrandLogo = () => useContext(BrandContext).logo;
+
+/** The logo and the size the admin set for it. */
+export const useBrand = () => useContext(BrandContext);

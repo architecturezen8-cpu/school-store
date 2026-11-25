@@ -41,11 +41,14 @@ const NAV = [
 export default function AdminShell({
   signedIn,
   logo = "",
+  logoScale,
   children,
 }: {
   signedIn: boolean;
   /** The uploaded school logo, or "" for the built-in crest. */
   logo?: string;
+  /** How much of the white circle it fills, as set on the School logo page. */
+  logoScale?: number;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -64,7 +67,7 @@ export default function AdminShell({
     <div className="flex h-full flex-col rounded-2xl bg-panel p-3">
       {/* the school, at the top */}
       <div className="flex items-center gap-3 px-2 py-2">
-        <LogoBadge src={logo} size={44} />
+        <LogoBadge src={logo} size={44} scale={logoScale} />
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold leading-tight text-strong">
             St. Thomas&apos; College
@@ -148,7 +151,7 @@ export default function AdminShell({
       {/* ---------- mobile top bar ---------- */}
       <header className="sticky top-0 z-30 flex items-center justify-between gap-3 bg-page px-4 py-3 lg:hidden">
         <div className="flex min-w-0 items-center gap-3">
-          <LogoBadge src={logo} size={36} />
+          <LogoBadge src={logo} size={36} scale={logoScale} />
           <div className="min-w-0">
             <p className="truncate text-[10px] uppercase tracking-[0.22em] text-muted">
               Store admin

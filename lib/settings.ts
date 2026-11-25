@@ -13,9 +13,24 @@ import { asset } from "./assets";
 export type SiteSettings = {
   /** Path under public/, or "" for the built-in crest. */
   logo: string;
+  /**
+   * How much of the white circle the mark fills, 0.3-1.
+   *
+   * Not every crest is drawn to the same edge: one fills its canvas, another has
+   * a wide white margin baked in and looks lost inside a circle that insets it
+   * again. The admin sets this by eye and every surface follows.
+   */
+  logoScale: number;
 };
 
-export const DEFAULT_SETTINGS: SiteSettings = { logo: "" };
+export const DEFAULT_SETTINGS: SiteSettings = { logo: "", logoScale: 0.86 };
+
+/** Clamped, because the value comes from a form and drives a layout. */
+export function clampScale(n: unknown): number {
+  const v = typeof n === "number" ? n : Number(n);
+  if (!Number.isFinite(v)) return DEFAULT_SETTINGS.logoScale;
+  return Math.min(1, Math.max(0.3, Math.round(v * 100) / 100));
+}
 
 /**
  * Cheap enough to call per request, and never throws: a settings row that cannot
@@ -25,10 +40,13 @@ export const DEFAULT_SETTINGS: SiteSettings = { logo: "" };
 export async function getSettings(): Promise<SiteSettings> {
   if (databaseDown()) return DEFAULT_SETTINGS;
   try {
-    const rows = await query<{ logo: string | null }>(
-      "select logo from site_settings where id = 1"
+    const rows = await query<{ logo: string | null; logo_scale: string | null }>(
+      "select logo, logo_scale from site_settings where id = 1"
     );
-    return { logo: (rows[0]?.logo ?? "").trim() };
+    return {
+      logo: (rows[0]?.logo ?? "").trim(),
+      logoScale: clampScale(rows[0]?.logo_scale ?? DEFAULT_SETTINGS.logoScale),
+    };
   } catch {
     return DEFAULT_SETTINGS;
   }
@@ -39,6 +57,15 @@ export async function saveLogo(path: string): Promise<void> {
     `insert into site_settings (id, logo) values (1, $1)
      on conflict (id) do update set logo = excluded.logo, updated_at = now()`,
     [path.trim()]
+  );
+}
+
+/** How much of the circle the mark fills, on every surface. */
+export async function saveLogoScale(scale: number): Promise<void> {
+  await query(
+    `insert into site_settings (id, logo_scale) values (1, $1)
+     on conflict (id) do update set logo_scale = excluded.logo_scale, updated_at = now()`,
+    [clampScale(scale)]
   );
 }
 

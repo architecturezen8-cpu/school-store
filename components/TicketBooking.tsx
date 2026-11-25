@@ -156,6 +156,8 @@ export default function TicketBooking({
           : [{ seq: 1, token: data.booking.token, signature: data.booking.signature ?? "" }]
       );
       setEmailsSent(Number(data.email?.tickets ?? 0));
+      // One message now carries every code, so this is no longer "one per
+      // person" — it is one email with all of them in it.
       setEmailSent(Boolean(data.email?.sent));
       setStep(3);
     } catch (err) {
@@ -436,8 +438,8 @@ export default function TicketBooking({
                 <p className="text-[13px] text-white/60">
                   {emailSent
                     ? emailsSent > 1
-                      ? `${emailsSent} tickets sent to ${email || "your email"} — one per person`
-                      : `Sent to ${email || "your email"}`
+                      ? `All ${emailsSent} tickets emailed to ${email || "your email"} — one code each, in one message`
+                      : `Emailed to ${email || "your email"}`
                     : `Booked for ${email || "your email"} — the ${tickets.length > 1 ? "tickets are" : "ticket is"} below`}
                 </p>
               </div>

@@ -1,13 +1,13 @@
 "use client";
 
 import LogoBadge from "@/components/LogoBadge";
-import { useBrandLogo } from "@/components/context/BrandContext";
+import { useBrand } from "@/components/context/BrandContext";
 import Reveal from "@/components/Reveal";
 
 const marks = ["Est. 1873", "150+ years", "6,000+ Thomians"];
 
 export default function Motto() {
-  const logo = useBrandLogo();
+  const { logo, scale: logoScale } = useBrand();
   return (
     <section className="relative overflow-hidden py-24 md:py-32">
       {/* soft navy halo behind the crest */}
@@ -34,6 +34,7 @@ export default function Motto() {
             <LogoBadge
               src={logo}
               size={176}
+              scale={logoScale}
               decorative={false}
               className="relative shadow-[0_0_70px_rgba(255,255,255,0.4),0_0_150px_rgba(30,48,96,0.85)] md:!h-44 md:!w-44"
             />

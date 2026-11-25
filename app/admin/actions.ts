@@ -14,7 +14,7 @@ import {
   listBookings,
   ticketsForBooking,
 } from "@/lib/bookings";
-import { saveLogo } from "@/lib/settings";
+import { saveLogo, saveLogoScale } from "@/lib/settings";
 import { sendTicketEmail, sendTicketEmails, sampleTicket } from "@/lib/tickets/email";
 import { friendlyError } from "@/lib/errors";
 import { query } from "@/lib/db";
@@ -117,7 +117,7 @@ export async function resendTicketAction(formData: FormData) {
   // wants all of them back — the reason they are asking is usually that one of
   // four did not arrive.
   const all = await ticketsForBooking(ticket.reference);
-  const result = all.length ? await sendTicketEmails(all) : await sendTicketEmail(ticket);
+  const result = await sendTicketEmails(all.length ? all : [ticket]);
   revalidatePath("/admin/bookings");
   redirect(
     result.sent
@@ -188,7 +188,7 @@ export async function sendTestMailAction(
   const sending = { ...(ticket ?? sample!), email: to };
   let result: Awaited<ReturnType<typeof sendTicketEmail>>;
   try {
-    result = await sendTicketEmail(sending);
+    result = await sendTicketEmail([sending]);
   } catch (err) {
     redirect(`/admin/mail?error=${encodeURIComponent(friendlyError(err))}`);
   }
@@ -279,6 +279,26 @@ export async function uploadLogoAction(formData: FormData) {
   revalidatePath("/", "layout");
   revalidatePath("/admin", "layout");
   return { ok: true as const, url: result.url };
+}
+
+/**
+ * How much of the white circle the crest fills.
+ *
+ * Separately saved from the upload: an admin trying three sizes should not have
+ * to upload the file three times, and re-encoding the image on every nudge would
+ * soften it. Clamped in one place (`clampScale`), so a stray form value cannot
+ * shrink the mark to nothing or blow it past the circle.
+ */
+export async function saveLogoScaleAction(value: number) {
+  await requireAdmin();
+  try {
+    await saveLogoScale(value);
+  } catch (err) {
+    return { ok: false as const, error: friendlyError(err) };
+  }
+  revalidatePath("/", "layout");
+  revalidatePath("/admin", "layout");
+  return { ok: true as const };
 }
 
 /** Fall back to the built-in crest. */
