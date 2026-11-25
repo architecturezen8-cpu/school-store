@@ -9,10 +9,14 @@ import {
   uploadTemplate,
 } from "@/lib/tickets/templates";
 import {
+  blockTicket,
+  deleteTicket,
   getTicketByReference,
   getTicketByToken,
+  issueTicket,
   listBookings,
   ticketsForBooking,
+  unblockTicket,
 } from "@/lib/bookings";
 import { saveLogo, saveLogoScale } from "@/lib/settings";
 import { sendTicketEmail, sendTicketEmails, sampleTicket } from "@/lib/tickets/email";
@@ -447,4 +451,109 @@ export async function deleteEventDesignAction(id: string) {
   revalidatePath("/admin/events");
   revalidatePath("/admin/templates");
   return { ok: true as const };
+}
+
+/* ---------- one ticket at a time ------------------------------------- */
+
+/**
+ * Stop one ticket.
+ *
+ * The case this exists for: a parent forwards a screenshot of their QR, and the
+ * person who received it turns up at the gate. The sale's reference is the same
+ * for all of them, so it cannot name the ticket that escaped — the ticket's own
+ * code can, and blocking it leaves the rest of the party walking in.
+ */
+export async function blockTicketAction(formData: FormData) {
+  await requireAdmin();
+  const token = String(formData.get("token") ?? "");
+  const reference = String(formData.get("reference") ?? "");
+  const note = String(formData.get("note") ?? "");
+  const back = reference ? `/admin/bookings/${encodeURIComponent(reference)}` : "/admin/bookings";
+  if (!token) redirect(`${back}?error=${encodeURIComponent("No ticket given.")}`);
+
+  const result = await blockTicket(token, "admin", note);
+  revalidatePath("/admin/bookings");
+  revalidatePath(back);
+  redirect(
+    result.ok
+      ? `${back}?ok=${encodeURIComponent(`${result.ticket.code} blocked`)}`
+      : `${back}?error=${encodeURIComponent(result.error)}`
+  );
+}
+
+/** Let it back in — a block made in the wrong row should not need a new ticket. */
+export async function unblockTicketAction(formData: FormData) {
+  await requireAdmin();
+  const token = String(formData.get("token") ?? "");
+  const reference = String(formData.get("reference") ?? "");
+  const back = reference ? `/admin/bookings/${encodeURIComponent(reference)}` : "/admin/bookings";
+
+  const result = await unblockTicket(token);
+  revalidatePath("/admin/bookings");
+  revalidatePath(back);
+  redirect(
+    result.ok
+      ? `${back}?ok=${encodeURIComponent(`${result.ticket.code} is valid again`)}`
+      : `${back}?error=${encodeURIComponent(result.error)}`
+  );
+}
+
+/** Remove a ticket that should never have existed. Blocking is for the rest. */
+export async function deleteTicketAction(formData: FormData) {
+  await requireAdmin();
+  const token = String(formData.get("token") ?? "");
+  const reference = String(formData.get("reference") ?? "");
+  const back = reference ? `/admin/bookings/${encodeURIComponent(reference)}` : "/admin/bookings";
+  if (!token) redirect(`${back}?error=${encodeURIComponent("No ticket given.")}`);
+
+  const ticket = await getTicketByToken(token);
+  const code = ticket?.code ?? "The ticket";
+  const result = await deleteTicket(token);
+  revalidatePath("/admin/bookings");
+  revalidatePath(back);
+  redirect(
+    result.ok
+      ? `${back}?ok=${encodeURIComponent(`${code} deleted`)}`
+      : `${back}?error=${encodeURIComponent(result.error)}`
+  );
+}
+
+/**
+ * Issue a ticket from the admin: a comp, a sponsor's seat, cash at the door.
+ *
+ * It becomes an ordinary booking — same reference, same QR, same gate, same bill
+ * — so there is one kind of ticket in the building and not two.
+ */
+export async function issueTicketAction(formData: FormData) {
+  await requireAdmin();
+  const tier = String(formData.get("tier") ?? "");
+  const name = String(formData.get("name") ?? "");
+  const email = String(formData.get("email") ?? "");
+  const priceRaw = String(formData.get("price") ?? "").trim();
+  const note = String(formData.get("note") ?? "");
+  const send = String(formData.get("send") ?? "") === "on";
+
+  const price = priceRaw === "" ? null : Number(priceRaw);
+  if (price !== null && (!Number.isFinite(price) || price < 0)) {
+    redirect(`/admin/bookings/new?error=${encodeURIComponent("That price is not a number.")}`);
+  }
+
+  const result = await issueTicket({ tier, name, email, price, note });
+  if (!result.ok) {
+    redirect(`/admin/bookings/new?error=${encodeURIComponent(result.error)}`);
+  }
+
+  const created = result.booking;
+  // The ticket exists whether or not anyone can be emailed; a failure here is
+  // reported in the same breath as the success, because the seat is real either
+  // way and the admin needs to know whether to hand over a printout instead.
+  let mailNote = "";
+  if (send && email) {
+    const tickets = await ticketsForBooking(created.reference);
+    const sent = await sendTicketEmails(tickets);
+    mailNote = sent.sent ? " and emailed" : " — email not sent (check the mail settings)";
+  }
+
+  revalidatePath("/admin/bookings");
+  redirect(`/admin/bookings/${encodeURIComponent(created.reference)}?ok=${encodeURIComponent(`Ticket issued${mailNote}`)}`);
 }

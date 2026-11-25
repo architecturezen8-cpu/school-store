@@ -5,7 +5,6 @@ import { hasDatabase } from "@/lib/db";
 import { verifyTicketSignature } from "@/lib/tickets/sign";
 import { fullDate } from "@/lib/dates";
 import { lkr } from "@/lib/format";
-import DownloadReceipt from "@/components/DownloadReceipt";
 import { asset } from "@/lib/assets";
 import { safeDecode } from "@/lib/safe-decode";
 
@@ -68,7 +67,6 @@ export default async function TicketPage({
   }
 
   const seats = ticket.tiers.reduce((n, t) => n + t.qty, 0);
-  const used = Boolean(ticket.admittedAt);
 
   return (
     <section className="mx-auto max-w-2xl px-6 pb-20 pt-32 md:pt-36">
@@ -97,29 +95,36 @@ export default async function TicketPage({
         className="mt-8 w-full rounded-2xl border border-white/10 shadow-2xl"
       />
 
+      {/*
+        What this page does *not* say: whether the ticket has been scanned.
+        It used to, in a green "valid" or a red "already admitted" panel, and that
+        is the one fact a stranger who photographs somebody's QR most wants —
+        "has this been used yet?" is the question a shared screenshot asks. The
+        holder does not need it either: the gate tells them. So the page states
+        what the ticket is for and nothing about its state.
+      */}
       <div
         className={`mt-6 rounded-2xl border p-5 ${
-          used
+          ticket.blockedAt
             ? "border-red-400/40 bg-red-500/10"
-            : "border-emerald-400/30 bg-emerald-500/10"
+            : "border-gold/25 bg-white/[0.03]"
         }`}
       >
         <p className="font-display text-lg font-semibold text-white">
-          {used ? "Already admitted" : "Valid · not yet scanned at the gate"}
+          {ticket.blockedAt ? "This ticket has been cancelled" : "Show this at the gate"}
         </p>
         <p className="mt-1 text-sm text-white/70">
-          {used
-            ? `Scanned on ${new Date(ticket.admittedAt!).toLocaleString("en-GB")}${
-                ticket.admittedBy ? ` by ${ticket.admittedBy}` : ""
-              }. One entry per ticket.`
+          {ticket.blockedAt
+            ? "The school has stopped this ticket, so the gate will not admit it. If you bought it, contact the store with the code above — the rest of the booking is unaffected."
             : ticket.of > 1
-              ? `Show the QR above at the gate. It admits one person — this is ticket ${ticket.seq} of ${ticket.of} on the booking, and each of the ${ticket.of} was emailed separately.`
-              : "Show the QR above at the gate. Staff will scan it once to admit you."}
+              ? `It admits one person — this is ticket ${ticket.seq} of ${ticket.of} on the booking, and each of the ${ticket.of} arrived in its own email. Keep it to yourself: a screenshot is how somebody gets in on your seat.`
+              : "It admits one person, once. Keep it to yourself: a screenshot is how somebody gets in on your seat."}
         </p>
       </div>
 
       <dl className="mt-8 grid grid-cols-2 gap-5 rounded-2xl border border-white/10 bg-white/[0.02] p-6 sm:grid-cols-3">
         <Seat label="Reference" value={ticket.reference} />
+        <Seat label="Ticket code" value={ticket.code} />
         <Seat label="Name" value={ticket.name} />
         <Seat
           label={ticket.of > 1 ? "Ticket" : "Seats"}
@@ -127,7 +132,6 @@ export default async function TicketPage({
         />
         <Seat label="Doors" value={ticket.doors || "—"} />
         <Seat label="Paid" value={lkr(ticket.total)} />
-        <Seat label="Email" value={ticket.email} />
       </dl>
 
       <ul className="mt-6 space-y-2">
@@ -143,22 +147,6 @@ export default async function TicketPage({
           </li>
         ))}
       </ul>
-
-      {/* The receipt, for anyone who needs proof of payment on paper — a claim,
-          a bursar, a school trip. A ticket is a bearer document and gets scanned;
-          this is the thing that gets filed. */}
-      <div className="mt-8">
-        <DownloadReceipt
-          href={asset(
-            `/api/tickets/${encodeURIComponent(ticket.token)}/receipt?s=${encodeURIComponent(signature!)}`
-          )}
-          className="flex w-full items-center justify-center gap-2.5 rounded-full border border-gold/45 px-6 py-4 text-[11px] font-bold uppercase tracking-[0.22em] text-gold transition-colors duration-300 enabled:hover:bg-gold enabled:hover:text-ink disabled:cursor-progress disabled:opacity-80"
-        />
-      </div>
-
-      <p className="mt-6 text-center text-xs text-white/65">
-        The bill covers the whole booking — {ticket.of > 1 ? `all ${ticket.of} tickets` : "this ticket"} and what was paid.
-      </p>
 
       <p className="mt-8 text-center text-xs text-white/65">
         St. Thomas&apos; College Matale · Animo et Fide · Est. 1873

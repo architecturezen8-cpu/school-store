@@ -226,16 +226,15 @@ export async function buildTicketReceipt(
   }
 
   /* ---------- how many tickets, then the total ---------- */
-  // The order the buyer asked for, twice: the items first, then how many
-  // tickets were bought and what they paid — under the items, not above them,
-  // and not as a page of one-line-per-seat rows.
+  // The order the buyer asked for: the items, then how many tickets were bought
+  // and what was paid — under the items, not above them.
   //
-  // A per-seat list used to sit here (16 rows of "Ticket 4 of 16 · Code …").
-  // It was the wrong document: this is proof of payment, the school's books do
-  // not need a code per head, and sixteen rows pushed the whole thing onto a
-  // second page where the thing the bursar looks for — the total — was on page
-  // one and the tail was on page two. The count is what matters here; the codes
-  // live on the tickets themselves.
+  // A per-seat list used to sit here (16 rows of "Ticket 4 of 16 · Code …"),
+  // and it was the wrong document: sixteen status rows pushed the whole thing
+  // onto a second page, with the total stranded on the first. The codes are
+  // back, because each ticket now has its own reference and the bill has to say
+  // which is which — but as a compact two-column block under the total, not a
+  // table of admissions. No status column: a receipt records what was sold.
   const totalQty = items.reduce((n, t) => n + t.qty, 0);
 
   y -= 2;
@@ -272,6 +271,77 @@ export async function buildTicketReceipt(
     font: bold,
     color: INK,
   });
+
+  /* ---------- one reference per ticket ---------- */
+  // Every ticket has its own code — `BM-ABC12345-03` — and the buyer needs to
+  // know which code is which before they tear the sheets apart, because that is
+  // the only name the office will accept for one seat. Two columns, so a party of
+  // sixteen costs eight lines instead of sixteen and still fits on this page.
+  const codes = tickets.map((t) => ({ code: t.code, blocked: Boolean(t.blockedAt) }));
+  if (codes.length) {
+    y -= 40;
+    page.drawText(
+      codes.length > 1 ? "TICKETS ON THIS BILL — ONE REFERENCE EACH" : "TICKET REFERENCE",
+      { x: MARGIN, y, size: 7, font: bold, color: MUTED }
+    );
+
+    // Right column starts past the middle, so the two halves never collide even
+    // when a reference is long.
+    const half = Math.ceil(codes.length / 2);
+    const colRight = MARGIN + (right - MARGIN) / 2 + 8;
+    const line = 13;
+    let rowY = y - 16;
+
+    const drawCode = (code: { code: string; blocked: boolean }, x: number, rowY: number) => {
+      page.drawText(code.code, { x, y: rowY, size: 9, font: bold, color: code.blocked ? MUTED : INK });
+      if (code.blocked) {
+        // Struck through, not coloured red: a receipt is printed, often on a
+        // school photocopier, and red is the first thing a mono print loses.
+        const w = bold.widthOfTextAtSize(code.code, 9);
+        page.drawLine({
+          start: { x, y: rowY + 3 },
+          end: { x: x + w, y: rowY + 3 },
+          thickness: 0.7,
+          color: MUTED,
+        });
+      }
+    };
+
+    for (let i = 0; i < half; i++) {
+      page.drawText(String(i + 1).padStart(2, "0"), {
+        x: MARGIN,
+        y: rowY,
+        size: 7.5,
+        font: regular,
+        color: MUTED,
+      });
+      drawCode(codes[i], MARGIN + 20, rowY);
+
+      const rightCode = codes[i + half];
+      if (rightCode) {
+        page.drawText(String(i + half + 1).padStart(2, "0"), {
+          x: colRight,
+          y: rowY,
+          size: 7.5,
+          font: regular,
+          color: MUTED,
+        });
+        drawCode(rightCode, colRight + 20, rowY);
+      }
+      rowY -= line;
+    }
+
+    if (codes.some((c) => c.blocked)) {
+      page.drawText("Struck through = stopped by the school; the gate will not admit it.", {
+        x: MARGIN,
+        y: rowY - 2,
+        size: 7,
+        font: regular,
+        color: MUTED,
+        maxWidth: PAGE.width - MARGIN * 2,
+      });
+    }
+  }
 
   /* ---------- footer ---------- */
   const footerY = MARGIN + 46;

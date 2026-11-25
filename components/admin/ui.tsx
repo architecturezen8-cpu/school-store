@@ -285,13 +285,16 @@ export function Pill({
   tone = "muted",
   children,
 }: {
-  tone?: "ok" | "muted" | "invert";
+  tone?: "ok" | "muted" | "invert" | "stop";
   children: ReactNode;
 }) {
   const tones = {
     ok: "bg-gold text-black",
     muted: "bg-panel-2 text-body",
     invert: "bg-well text-strong",
+    // Stopped, not merely inactive: the same gold outline the gate scanner uses
+    // for a blocked ticket, so the two screens say it the same way.
+    stop: "bg-well text-gold ring-1 ring-gold/40",
   } as const;
   return (
     <span
