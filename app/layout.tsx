@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { CartProvider } from "@/components/context/CartContext";
 import SiteChrome from "@/components/SiteChrome";
+import { BrandProvider } from "@/components/context/BrandContext";
+import { logoUrl } from "@/lib/settings";
 import { getProducts } from "@/lib/store";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://the-thomian-store.vercel.app";
@@ -48,7 +50,10 @@ const searchFields = (p: { slug: string; name: string; price: number; image: str
 });
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const products = await getProducts();
+  // The logo the admin uploaded, read once here and handed to every surface that
+  // shows a mark. One read per request, and no client-side fetch for an image
+  // that changes about once a year.
+  const [products, logo] = await Promise.all([getProducts(), logoUrl()]);
   const searchIndex = products.map((p) => ({
     ...searchFields(p),
     rating: 0,
@@ -61,7 +66,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="bg-ink text-white">
         <div className="grain-overlay" aria-hidden />
         <CartProvider>
-          <SiteChrome searchIndex={searchIndex}>{children}</SiteChrome>
+          <BrandProvider logo={logo}>
+            <SiteChrome searchIndex={searchIndex}>{children}</SiteChrome>
+          </BrandProvider>
         </CartProvider>
       </body>
     </html>

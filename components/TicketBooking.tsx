@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
+  Download,
   Minus,
   Plus,
   X,
@@ -30,8 +31,16 @@ export default function TicketBooking({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [ref, setRef] = useState("");
-  const [ticket, setTicket] = useState<{ token: string; signature: string } | null>(null);
+  /**
+   * One entry per person. Four seats is four QRs, each admitting one, so the
+   * confirmation screen shows all of them — the same codes that were emailed.
+   */
+  const [tickets, setTickets] = useState<
+    { seq: number; token: string; signature: string }[]
+  >([]);
   const [emailSent, setEmailSent] = useState(false);
+  /** How many ticket emails went out — one per person, so usually the seat count. */
+  const [emailsSent, setEmailsSent] = useState(0);
   const [tried, setTried] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -135,10 +144,18 @@ export default function TicketBooking({
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Could not complete the booking.");
       setRef(data.booking.reference);
-      setTicket({
-        token: data.booking.token,
-        signature: data.booking.signature ?? "",
-      });
+      setTickets(
+        Array.isArray(data.booking.tickets) && data.booking.tickets.length
+          ? data.booking.tickets.map(
+              (t: { seq: number; token: string; signature?: string }) => ({
+                seq: t.seq,
+                token: t.token,
+                signature: t.signature ?? "",
+              })
+            )
+          : [{ seq: 1, token: data.booking.token, signature: data.booking.signature ?? "" }]
+      );
+      setEmailsSent(Number(data.email?.tickets ?? 0));
       setEmailSent(Boolean(data.email?.sent));
       setStep(3);
     } catch (err) {
@@ -148,12 +165,13 @@ export default function TicketBooking({
     }
   }
 
-  /** The real ticket artwork, rendered by the server with this booking's QR. */
-  const ticketImage = ticket
-    ? `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/tickets/${encodeURIComponent(
-        ticket.token
-      )}/image?s=${encodeURIComponent(ticket.signature)}`
-    : null;
+  /** Each ticket's artwork, rendered by the server with that ticket's own QR. */
+  const ticketImages = tickets.map((t) => ({
+    seq: t.seq,
+    src: `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/tickets/${encodeURIComponent(
+      t.token
+    )}/image?s=${encodeURIComponent(t.signature)}`,
+  }));
 
   return createPortal(
     <div
@@ -417,8 +435,10 @@ export default function TicketBooking({
                 <p className="font-display text-xl font-semibold">Booked.</p>
                 <p className="text-[13px] text-white/60">
                   {emailSent
-                    ? `Sent to ${email || "your email"}`
-                    : `Booked for ${email || "your email"} — the ticket is below`}
+                    ? emailsSent > 1
+                      ? `${emailsSent} tickets sent to ${email || "your email"} — one per person`
+                      : `Sent to ${email || "your email"}`
+                    : `Booked for ${email || "your email"} — the ${tickets.length > 1 ? "tickets are" : "ticket is"} below`}
                 </p>
               </div>
             </div>
@@ -486,20 +506,48 @@ export default function TicketBooking({
               </div>
             </div>
 
-            {/* The artwork the customer was emailed, QR and all. Shown whole so
-                the QR is the size the design intended, not a cropped corner. */}
-            {ticketImage && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={ticketImage}
-                alt={`Admission ticket for ${ref} — this is also in your email`}
-                className="mt-4 w-full rounded-2xl border border-white/10"
-              />
+            {/* The artwork the customer was emailed, QR and all — one per
+                person, because each QR admits exactly one. Shown whole so the
+                code is the size the design intended, not a cropped corner. */}
+            {ticketImages.map((t) => (
+              <div key={t.seq} className="mt-4">
+                {ticketImages.length > 1 && (
+                  <p className="mb-2 text-[9px] font-bold uppercase tracking-[0.22em] text-white/50">
+                    Ticket {t.seq} of {ticketImages.length}
+                  </p>
+                )}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={t.src}
+                  alt={
+                    ticketImages.length > 1
+                      ? `Admission ticket ${t.seq} of ${ticketImages.length} for ${ref} — this is also in your email`
+                      : `Admission ticket for ${ref} — this is also in your email`
+                  }
+                  className="w-full rounded-2xl border border-white/10"
+                />
+              </div>
+            ))}
+
+            {/* The bill for the whole booking — the thing people print, forward
+                to the bursar, or keep when the ticket itself has been scanned and
+                binned. */}
+            {tickets[0] && (
+              <a
+                href={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/tickets/${encodeURIComponent(
+                  tickets[0].token
+                )}/receipt?s=${encodeURIComponent(tickets[0].signature)}`}
+                download
+                className="mt-4 flex w-full items-center justify-center gap-2.5 rounded-full border border-gold/50 py-4 text-[11px] font-bold uppercase tracking-[0.22em] text-gold transition-colors duration-300 hover:bg-gold hover:text-ink"
+              >
+                <Download size={15} strokeWidth={2.5} />
+                Download the bill (PDF)
+              </a>
             )}
 
             <button
               onClick={onClose}
-              className="mt-6 w-full rounded-full bg-white py-4 text-[11px] font-bold uppercase tracking-[0.22em] text-ink transition-all duration-300 hover:shadow-[0_0_36px_rgba(255,255,255,0.2)]"
+              className="mt-3 w-full rounded-full bg-white py-4 text-[11px] font-bold uppercase tracking-[0.22em] text-ink transition-all duration-300 hover:shadow-[0_0_36px_rgba(255,255,255,0.2)]"
             >
               Done
             </button>

@@ -7,6 +7,7 @@ import { hasDatabase } from "@/lib/db";
 import { listTemplates } from "@/lib/tickets/templates";
 import { getEvents } from "@/lib/store";
 import { safeDecode } from "@/lib/safe-decode";
+import ParamToast from "@/components/admin/ParamToast";
 import { uploadTemplateAction, toggleTemplateAction, deleteTemplateAction } from "../actions";
 import {
   Empty,
@@ -37,6 +38,9 @@ export default async function TemplatesPage({
   if (!hasDatabase()) redirect("/admin?error=database");
 
   const { error, ok, event: forEvent } = await searchParams;
+
+  const okText = ok ? `Saved “${safeDecode(ok)}”. New bookings use it.` : "";
+  const errorText = error ? safeDecode(error) : "";
   const problem = databaseProblem();
   // The design list is the one read here that has no seed fallback, so a dead
   // database would otherwise mean an empty page with no explanation.
@@ -61,8 +65,8 @@ export default async function TemplatesPage({
 
         {(ok || error) && (
           <div className="mt-4 space-y-2">
-            {ok && <Notice tone="ok">Saved “{safeDecode(ok)}”. New bookings use it.</Notice>}
-            {error && <Notice tone="error">{safeDecode(error)}</Notice>}
+            <ParamToast ok={okText} error={errorText} />
+            
           </div>
         )}
       </section>

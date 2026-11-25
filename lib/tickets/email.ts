@@ -9,6 +9,7 @@ import type { Ticket } from "../bookings";
 import { getMailTemplate } from "./mail-settings";
 import { errorMessage } from "../errors";
 import { listAllEvents } from "../events";
+import { absoluteLogoUrl } from "../settings";
 
 /**
  * Delivering the ticket by email.
@@ -177,7 +178,8 @@ export type BuiltMail = {
  */
 export async function buildTicketMail(
   ticket: Ticket,
-  overrides: Partial<MailTemplate> = {}
+  overrides: Partial<MailTemplate> = {},
+  of = ticket.of
 ): Promise<BuiltMail> {
   // Whatever the admin saved wins; anything they left blank falls back to the
   // shipped default, so a half-filled editor can never send an empty email.
@@ -203,7 +205,10 @@ export async function buildTicketMail(
     date: new Date(ticket.eventDate).toDateString(),
   };
 
-  const subject = renderTemplate(mail.subject, values);
+  // "Ticket 2 of 4" belongs in the subject: someone with four people's tickets in
+  // an inbox needs to know which one this is before opening it.
+  const ticketNumber = of > 1 ? ` (${ticket.seq} of ${of})` : "";
+  const subject = renderTemplate(mail.subject, values) + ticketNumber;
   const body = renderTemplate(mail.body, values);
   const heading = renderTemplate(mail.heading, values);
   const footer = renderTemplate(mail.footer, values);
@@ -228,12 +233,18 @@ export async function buildTicketMail(
     // the gate, so they are not left to the editable wording.
     event: ticket.eventTitle,
     reference: ticket.reference,
-    seats: String(seats),
+    // One ticket admits one person, so this is 1. The sale as a whole is what has
+    // several seats, and that is `seatsText`.
+    seats: "1",
     seatsText: seatsText || `${seats} seat${seats === 1 ? "" : "s"}`,
+    seq: ticket.seq,
+    of,
+    totalSeats: seats,
     date: longDate(ticket.eventDate),
     venue: `${ticket.venue}, ${ticket.city}`,
     coverSrc: coverImageUrl(ticket.image),
     paid: lkr(ticket.total),
+    logo: await absoluteLogoUrl(),
   });
 
   return {
@@ -277,6 +288,8 @@ export async function sampleTicket(): Promise<Ticket> {
 
   return {
     reference: "BM-SAMPLE",
+    seq: 1,
+    of: 1,
     token: Buffer.from(
       Array.from({ length: 16 }, () => Math.floor(Math.random() * 256))
     ).toString("base64url"),
@@ -296,11 +309,60 @@ export async function sampleTicket(): Promise<Ticket> {
   };
 }
 
-export async function sendTicketEmail(
-  ticket: Ticket,
+/**
+ * A booking of four seats is four emails — one ticket each.
+ *
+ * Every ticket is a separate person with a separate QR, so bundling them into one
+ * message left the second, third and fourth holder with nothing they could show
+ * at the gate that had not already been scanned. Sending them one at a time is
+ * also what the customer expects: forward the email to the person it is for.
+ *
+ * Deliberately sequential rather than `Promise.all`: a school sending forty
+ * tickets should not open forty SMTP connections at once, and one failure should
+ * not abort the rest.
+ */
+export async function sendTicketEmails(
+  tickets: Ticket[],
   overrides: Partial<MailTemplate> = {}
 ): Promise<MailResult> {
-  const built = await buildTicketMail(ticket, overrides);
+  let sent = 0;
+  let lastError = "";
+  let reason: "not-configured" | "failed" = "failed";
+  let provider: "resend" | "smtp" = "smtp";
+  let lastId = "";
+
+  for (const ticket of tickets) {
+    const result = await sendTicketEmail(ticket, overrides, tickets.length);
+    if (result.sent) {
+      sent++;
+      provider = result.provider;
+      lastId = result.id;
+    } else {
+      reason = result.reason;
+      if (result.error) lastError = result.error;
+    }
+  }
+
+  if (sent === tickets.length && sent > 0) return { sent: true, provider, id: lastId };
+  if (sent > 0) {
+    // Partial: say so rather than pretending. The booking stands; the ones that
+    // went are in the customer's inbox and the rest can be resent.
+    return {
+      sent: false,
+      reason: "failed",
+      error: `${sent} of ${tickets.length} tickets were sent. ${lastError}`.trim(),
+    };
+  }
+  return { sent: false, reason, error: lastError || undefined };
+}
+
+export async function sendTicketEmail(
+  ticket: Ticket,
+  overrides: Partial<MailTemplate> = {},
+  /** How many tickets this booking has, so the message can say "2 of 4". */
+  of = ticket.of
+): Promise<MailResult> {
+  const built = await buildTicketMail(ticket, overrides, of);
   const { subject, html, text: body, artwork: image, qr } = built;
 
   // Resend: one POST, no SMTP. Preferred when the key is set.
@@ -433,6 +495,10 @@ export function ticketHtml({
   venue,
   coverSrc,
   paid,
+  logo,
+  seq,
+  of,
+  totalSeats,
 }: {
   heading: string;
   body: string;
@@ -444,10 +510,16 @@ export function ticketHtml({
   /** Event name, shown in the cover and repeated in the details row. */
   event: string;
   reference: string;
-  /** How many people the booking admits, e.g. "3". */
+  /** One ticket admits one person, so this is "1". */
   seats: string;
-  /** What those seats are, e.g. "Grandstand Seat × 2, Stand × 1". */
+  /** What the whole booking bought, e.g. "Grandstand Seat × 2, Stand × 1". */
   seatsText: string;
+  /** Which ticket this is, 1-based. */
+  seq: number;
+  /** How many tickets the booking has. */
+  of: number;
+  /** Seats on the whole booking. */
+  totalSeats: number;
   /** Already formatted, e.g. "Saturday, 9 January 2027". */
   date: string;
   venue: string;
@@ -455,6 +527,8 @@ export function ticketHtml({
   coverSrc: string;
   /** e.g. "LKR 3,000" — the amount actually charged. */
   paid: string;
+  /** Absolute URL of the school logo, or "" to fall back to the crest wordmark. */
+  logo: string;
 }): string {
   const paragraphs = body
     .split(/\n{2,}/)
@@ -494,48 +568,84 @@ export function ticketHtml({
    * flat navy and still shows everything, because nothing relies on the photo
    * for contrast.
    */
+  /**
+   * The identity block: the school's logo in a white circle, then the name.
+   *
+   * The circle is not decoration. A crest is usually a dark badge with thin
+   * lines, and set straight on the navy hero it disappears; on white it reads at
+   * any size, which is why the site puts it in one too. The white is a solid
+   * `bgcolor` as well as a CSS background, because Outlook drops the latter.
+   *
+   * No logo uploaded yet? The white circle keeps its shape and shows the same
+   * wordmark the site uses, so the mail never has a hole in it.
+   */
+  const badge = `
+         <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 auto">
+           <tr><td width="72" height="72" align="center" valign="middle" bgcolor="#ffffff"
+                   style="width:72px;height:72px;background:#ffffff;border-radius:36px">
+             ${
+               logo
+                 ? `<img src="${escapeHtml(
+                     logo
+                   )}" alt="College crest" width="72" height="72"
+                     style="display:block;width:72px;height:72px;border-radius:36px;object-fit:cover">`
+                 : `<div style="width:72px;height:72px;line-height:72px;color:#0a1224;font-family:Georgia,'Times New Roman',serif;font-size:20px;letter-spacing:2px">STC</div>`
+             }
+           </td></tr>
+         </table>`;
+
+  /**
+   * "Ticket 2 of 4" — the one thing this email has to say that the booking
+   * confirmation did not. Four seats means four emails, and a person holding two
+   * of them needs to know which one is theirs without scanning both at the gate.
+   */
+  const ticketLine =
+    of > 1
+      ? `<div style="padding-top:14px;color:#0a1224;font-size:9px;letter-spacing:3px;text-transform:uppercase">
+           Ticket ${seq} of ${of}
+         </div>`
+      : "";
+
   const hero = `
-   <tr><td background="${escapeHtml(
-     coverSrc
-   )}" bgcolor="#0a1224" valign="top" style="background-color:#0a1224;${
-    coverSrc ? `background-image:url('${escapeHtml(coverSrc)}');` : ""
-  }background-size:cover;background-position:center top;">
-     <!--[if mso]>
-     <v:rect xmlns:v="urn:schemas-microsoft-com:vml" fill="true" stroke="false" style="width:600px;">
-       <v:fill type="frame" src="${escapeHtml(coverSrc)}" color="#0a1224" />
-       <v:textbox style="mso-fit-shape-to-text:true" inset="0">
-     <![endif]-->
-     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:rgba(4,6,13,0.62)">
-       <tr><td align="center" style="padding:34px 30px 30px">
+   <tr><td bgcolor="#0a1224" valign="top" style="background:#0a1224">
+     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
+       <tr><td align="center" style="padding:30px 30px 26px">
 
-         <!-- brand, set on the photograph -->
-         <div style="color:#ffffff;font-size:10px;letter-spacing:5px;text-transform:uppercase;opacity:0.85">Est. 1873</div>
-         <div style="color:#ffffff;font-size:24px;letter-spacing:4px;text-transform:uppercase;font-family:Georgia,'Times New Roman',serif;padding-top:8px;line-height:1.3">St. Thomas&rsquo; College</div>
-         <div style="color:#ffd444;font-size:9px;letter-spacing:7px;text-transform:uppercase;padding-top:6px">Matale &middot; Sri Lanka</div>
-         <div style="height:1px;width:46px;background:#ffd444;margin:18px auto"></div>
+         ${badge}
 
-         <!-- the date, then the event, then what the admin wrote -->
-         <div style="color:#ffd444;font-size:10px;letter-spacing:3px;text-transform:uppercase">${escapeHtml(
-           date
-         )}</div>
-         <h1 style="margin:8px 0 0;color:#ffffff;font-size:26px;line-height:1.25;font-family:Georgia,'Times New Roman',serif;font-weight:normal">${escapeHtml(
-           heading
-         )}</h1>
-
-         <div style="color:#e4eaf5;font-size:14px;line-height:1.7;padding-top:16px;max-width:400px">${paragraphs}</div>
+         <div style="color:#ffffff;font-size:22px;letter-spacing:4px;text-transform:uppercase;font-family:Georgia,'Times New Roman',serif;padding-top:16px;line-height:1.3">St. Thomas&rsquo; College</div>
+         <div style="color:#ffd444;font-size:9px;letter-spacing:7px;text-transform:uppercase;padding-top:7px">Matale &middot; Sri Lanka</div>
        </td></tr>
      </table>
-     <!--[if mso]>
-       </v:textbox>
-     </v:rect>
-     <![endif]-->
+   </td></tr>
+
+   <!-- the event, as the gold tile the site would give it -->
+   <tr><td style="background:#0a1224;padding:0 16px">
+     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#ffd444">
+       <tr><td style="padding:22px 24px 20px">
+         <div style="color:#5c4a00;font-size:9px;letter-spacing:3px;text-transform:uppercase">${escapeHtml(
+           date
+         )}</div>
+         <div style="color:#0a1224;font-size:26px;line-height:1.2;font-family:Georgia,'Times New Roman',serif;padding-top:8px">${escapeHtml(
+           heading
+         )}</div>
+         ${ticketLine}
+       </td></tr>
+     </table>
+   </td></tr>
+
+   <!-- the message, in a soft dark tile -->
+   <tr><td style="background:#0a1224;padding:12px 16px 0">
+     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#121a30">
+       <tr><td style="padding:22px 24px;color:#e4eaf5;font-size:14px;line-height:1.75">${paragraphs}</td></tr>
+     </table>
    </td></tr>`;
 
   return `<!doctype html>
 <html lang="en"><body style="margin:0;padding:0;background:#04060d;color:#111;font-family:Arial,Helvetica,sans-serif">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0">Your ${escapeHtml(
     event
-  )} ticket &middot; ${escapeHtml(reference)}</div>
+  )} ticket${of > 1 ? ` ${seq} of ${of}` : ""} &middot; ${escapeHtml(reference)}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#04060d;padding:28px 12px">
  <tr><td align="center">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#0a1224;border-collapse:collapse">
@@ -564,9 +674,9 @@ export function ticketHtml({
    <tr><td style="background:#0a1224;padding:28px 24px 0">
      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#060a16;border-top:1px solid #2a3450;border-bottom:1px solid #2a3450;border-collapse:collapse">
        <tr>
-         ${cell("Reference", reference, "booking", true, 17)}
-         ${cell("Seats", String(seats), seatsText, false, 26)}
-         ${cell("Paid", paid, "payment done", false, 19)}
+         ${cell("Ticket", of > 1 ? `${seq} of ${of}` : "1", "one person", true, 20)}
+         ${cell("Reference", reference, "booking", false, 16)}
+         ${cell("Paid", paid, "payment done", false, 17)}
        </tr>
      </table>
      <div style="padding-top:14px;font-family:'Courier New',Courier,monospace;font-size:11px;letter-spacing:1.2px;color:#93a3c0">
@@ -574,6 +684,17 @@ export function ticketHtml({
          paid.toUpperCase()
        )} &middot; REF ${escapeHtml(reference.toUpperCase())}
      </div>
+     ${
+       // The sale bought several seats; this email is one of them. Say which,
+       // and say what the whole booking holds, so nobody is surprised at the gate.
+       totalSeats > 1
+         ? `<div style="padding-top:10px;color:#93a3c0;font-size:12px;line-height:1.6">
+              This is one of <strong style="color:#ffffff">${totalSeats} tickets</strong> on booking ${escapeHtml(
+                reference
+              )} — <span style="color:#c3cde0">${escapeHtml(seatsText)}</span>. Each is emailed separately and each admits one person.
+            </div>`
+         : ""
+     }
    </td></tr>
 
    <!-- one wide, solid button -->

@@ -1,9 +1,13 @@
-import CrestLogo from "@/components/CrestLogo";
+"use client";
+
+import LogoBadge from "@/components/LogoBadge";
+import { useBrandLogo } from "@/components/context/BrandContext";
 import Reveal from "@/components/Reveal";
 
 const marks = ["Est. 1873", "150+ years", "6,000+ Thomians"];
 
 export default function Motto() {
+  const logo = useBrandLogo();
   return (
     <section className="relative overflow-hidden py-24 md:py-32">
       {/* soft navy halo behind the crest */}
@@ -25,9 +29,14 @@ export default function Motto() {
             <span className="absolute inset-0 animate-[ring-pulse_4.5s_ease-out_infinite_2.2s] rounded-full border border-white/15" />
             <span className="absolute -inset-4 animate-[spin-slow_34s_linear_infinite] rounded-full border border-dashed border-white/20" />
 
-            <div className="relative grid h-40 w-40 place-items-center rounded-full bg-white shadow-[0_0_70px_rgba(255,255,255,0.4),0_0_150px_rgba(30,48,96,0.85)] md:h-44 md:w-44">
-              <CrestLogo className="h-20 w-20 text-ink md:h-[5.5rem] md:w-[5.5rem]" />
-            </div>
+            {/* The big mark, in the same white circle the navbar uses — so an
+                uploaded logo looks deliberate here rather than pasted in. */}
+            <LogoBadge
+              src={logo}
+              size={176}
+              decorative={false}
+              className="relative shadow-[0_0_70px_rgba(255,255,255,0.4),0_0_150px_rgba(30,48,96,0.85)] md:!h-44 md:!w-44"
+            />
           </div>
         </Reveal>
 

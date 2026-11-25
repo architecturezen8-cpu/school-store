@@ -5,6 +5,7 @@ import { hasDatabase } from "@/lib/db";
 import { verifyTicketSignature } from "@/lib/tickets/sign";
 import { fullDate } from "@/lib/dates";
 import { lkr } from "@/lib/format";
+import { Download } from "lucide-react";
 import { asset } from "@/lib/assets";
 import { safeDecode } from "@/lib/safe-decode";
 
@@ -71,7 +72,12 @@ export default async function TicketPage({
 
   return (
     <section className="mx-auto max-w-2xl px-6 pb-20 pt-32 md:pt-36">
-      <p className="text-[11px] uppercase tracking-[0.3em] text-gold">Admission ticket</p>
+      <p className="text-[11px] uppercase tracking-[0.3em] text-gold">
+        Admission ticket
+        {ticket.of > 1 && (
+          <span className="text-white/50"> · ticket {ticket.seq} of {ticket.of}</span>
+        )}
+      </p>
       <h1 className="mt-3 font-display text-4xl font-semibold text-white">
         {ticket.eventTitle}
       </h1>
@@ -106,14 +112,19 @@ export default async function TicketPage({
             ? `Scanned on ${new Date(ticket.admittedAt!).toLocaleString("en-GB")}${
                 ticket.admittedBy ? ` by ${ticket.admittedBy}` : ""
               }. One entry per ticket.`
-            : "Show the QR above at the gate. Staff will scan it once to admit you."}
+            : ticket.of > 1
+              ? `Show the QR above at the gate. It admits one person — this is ticket ${ticket.seq} of ${ticket.of} on the booking, and each of the ${ticket.of} was emailed separately.`
+              : "Show the QR above at the gate. Staff will scan it once to admit you."}
         </p>
       </div>
 
       <dl className="mt-8 grid grid-cols-2 gap-5 rounded-2xl border border-white/10 bg-white/[0.02] p-6 sm:grid-cols-3">
         <Seat label="Reference" value={ticket.reference} />
         <Seat label="Name" value={ticket.name} />
-        <Seat label="Seats" value={String(seats)} />
+        <Seat
+          label={ticket.of > 1 ? "Ticket" : "Seats"}
+          value={ticket.of > 1 ? `${ticket.seq} of ${ticket.of}` : String(seats)}
+        />
         <Seat label="Doors" value={ticket.doors || "—"} />
         <Seat label="Paid" value={lkr(ticket.total)} />
         <Seat label="Email" value={ticket.email} />
@@ -133,7 +144,24 @@ export default async function TicketPage({
         ))}
       </ul>
 
-      <p className="mt-10 text-center text-xs text-white/65">
+      {/* The receipt, for anyone who needs proof of payment on paper — a claim,
+          a bursar, a school trip. A ticket is a bearer document and gets scanned;
+          this is the thing that gets filed. */}
+      <a
+        href={asset(
+          `/api/tickets/${encodeURIComponent(ticket.token)}/receipt?s=${encodeURIComponent(signature!)}`
+        )}
+        className="mt-8 flex items-center justify-center gap-2.5 rounded-full border border-gold/45 px-6 py-4 text-[11px] font-bold uppercase tracking-[0.22em] text-gold transition-colors duration-300 hover:bg-gold hover:text-ink"
+      >
+        <Download size={15} strokeWidth={2.5} />
+        Download the bill (PDF)
+      </a>
+
+      <p className="mt-6 text-center text-xs text-white/65">
+        The bill covers the whole booking — {ticket.of > 1 ? `all ${ticket.of} tickets` : "this ticket"} and what was paid.
+      </p>
+
+      <p className="mt-8 text-center text-xs text-white/65">
         St. Thomas&apos; College Matale · Animo et Fide · Est. 1873
       </p>
     </section>

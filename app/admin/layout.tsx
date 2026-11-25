@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { isAdmin } from "@/lib/admin/auth";
 import AdminShell from "@/components/admin/AdminShell";
+import { logoUrl } from "@/lib/settings";
 
 /**
  * The admin is its own app.
@@ -24,5 +25,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // other admin route does its own check and redirects. The shell only decides
   // whether to draw the sidebar.
   const signedIn = await isAdmin();
-  return <AdminShell signedIn={signedIn}>{children}</AdminShell>;
+  // The same mark the storefront shows: the admin is part of the school, and a
+  // different logo in here would look like a different site.
+  const logo = signedIn ? await logoUrl() : "";
+  return (
+    <AdminShell signedIn={signedIn} logo={logo}>
+      {children}
+    </AdminShell>
+  );
 }

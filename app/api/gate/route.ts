@@ -106,6 +106,11 @@ export async function POST(req: Request) {
             tiers: result.ticket.tiers.map((t) => `${t.name} × ${t.qty}`),
             admittedAt: result.ticket.admittedAt,
             admittedBy: result.ticket.admittedBy,
+            // Which person this is. The gate needs it in both directions: a
+            // fresh "admitted" on ticket 2 of 4 is not a duplicate, and an
+            // "already" on ticket 2 of 4 is one specific person who has been in.
+            seq: result.ticket.seq,
+            of: result.ticket.of,
           }
         : null,
   });

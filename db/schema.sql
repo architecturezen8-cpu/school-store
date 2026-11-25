@@ -256,3 +256,78 @@ alter table events
 drop index if exists events_featured_idx;
 create index if not exists events_featured_idx on events (featured) where published;
 create index if not exists events_position_idx on events (position, starts_at);
+
+-- ---------- one ticket per person admitted ----------------------------------
+-- A booking of four seats is four people through the gate, so it is four
+-- tickets — each with its own QR, its own admission and its own PDF. Before
+-- this, four seats produced one QR, so the second, third and fourth person were
+-- turned away on a code that had already been scanned.
+--
+-- The booking is still the sale: one reference, one payment, one row in the
+-- bookings list. The tickets are what the gate touches, so `bookings.admitted_at`
+-- stays as the roll-up ("has everybody been in?" — true when every ticket has),
+-- and `bookings.ticket_token` is kept for the emails already in customers'
+-- inboxes, mapped to ticket #1 when this is first applied.
+create table if not exists booking_tickets (
+  id          uuid primary key default gen_random_uuid(),
+  booking     uuid not null references bookings (id) on delete cascade,
+  -- 1-based: "ticket 2 of 4" is what the email and the gate both say.
+  seq         integer not null check (seq > 0),
+  token       text not null unique,
+  tier        text,
+  admitted_at timestamptz,
+  admitted_by text not null default '',
+  created_at  timestamptz not null default now(),
+  unique (booking, seq)
+);
+
+create index if not exists booking_tickets_booking_idx on booking_tickets (booking);
+create index if not exists booking_tickets_open_idx
+  on booking_tickets (booking) where admitted_at is null;
+
+-- Bookings that predate this table get their tickets now, so an existing sale is
+-- not stuck with a QR the gate cannot find. The count comes from the seats that
+-- were actually paid for, and one person is the floor.
+insert into booking_tickets (booking, seq, token, tier)
+select b.id,
+       g.seq,
+       -- The old single token belongs to ticket #1: that is the one printed in
+       -- every email sent before this change, and it must keep working.
+       case when g.seq = 1 then coalesce(b.ticket_token, 'legacy-' || b.id::text || '-1')
+            else 'legacy-' || b.id::text || '-' || g.seq::text end,
+       (select bi.tier from booking_items bi where bi.booking = b.id order by bi.id limit 1)
+  from bookings b
+  cross join lateral generate_series(
+         1,
+         greatest(1, coalesce((select sum(bi.qty) from booking_items bi where bi.booking = b.id), 1))
+       ) as g(seq)
+ where not exists (select 1 from booking_tickets bt where bt.booking = b.id)
+on conflict do nothing;
+
+-- Everybody in? The roll-up the admin list shows.
+update bookings b
+   set admitted_at = case
+         when exists (select 1 from booking_tickets bt
+                       where bt.booking = b.id and bt.admitted_at is null) then null
+         else coalesce(b.admitted_at, now())
+       end
+ where exists (select 1 from booking_tickets bt where bt.booking = b.id)
+   and (b.admitted_at is null) <> exists (select 1 from booking_tickets bt
+                                           where bt.booking = b.id and bt.admitted_at is null);
+
+-- ---------- the school's own settings ---------------------------------------
+-- One row. Today this is the logo the admin uploads: the same image is used on
+-- the site (in the white circle in the navbar and the footer) and at the top of
+-- every ticket email, so there is one place to change it and no risk of the email
+-- carrying last year's crest.
+create table if not exists site_settings (
+  id         integer primary key check (id = 1),
+  -- Path under public/, e.g. /uploads/brand/logo.png . Empty = built-in crest.
+  logo       text not null default '',
+  updated_at timestamptz not null default now()
+);
+
+drop trigger if exists site_settings_touch_updated_at on site_settings;
+create trigger site_settings_touch_updated_at
+  before update on site_settings
+  for each row execute function set_updated_at();

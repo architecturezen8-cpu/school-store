@@ -28,7 +28,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
       type: "website",
       title: `${event.title} · The Thomian Store`,
       description,
-      images: [event.heroImage ?? event.image].filter(Boolean),
+      images: [event.heroImage || event.image].filter(Boolean),
     },
   };
 }

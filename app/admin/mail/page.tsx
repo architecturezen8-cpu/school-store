@@ -12,6 +12,7 @@ import {
 } from "@/lib/tickets/email";
 import { safeDecode } from "@/lib/safe-decode";
 import { sendTestMailAction } from "../actions";
+import ParamToast from "@/components/admin/ParamToast";
 import {
   Eyebrow,
   Field,
@@ -159,8 +160,10 @@ export default async function MailPage({
 
       {(ok || error || !configured) && (
         <div className="space-y-2 xl:col-span-4">
-          {ok && <Notice tone="ok">{safeDecode(ok)}</Notice>}
-          {error && <Notice tone="error">{safeDecode(error)}</Notice>}
+          <ParamToast
+            ok={ok ? safeDecode(ok) : ""}
+            error={error ? safeDecode(error) : ""}
+          />
           {!configured && (
             <Notice tone="warn">
               No mail transport yet — add{" "}
