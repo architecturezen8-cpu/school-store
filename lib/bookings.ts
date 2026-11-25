@@ -53,7 +53,10 @@ export type Ticket = {
   venue: string;
   city: string;
   doors: string;
+  /** The card photo — what the ticket page and the storefront grid show. */
   image: string;
+  /** The event's hero photograph, for the mail header wash. */
+  heroImage: string;
   name: string;
   email: string;
   total: number;
@@ -193,6 +196,8 @@ type TicketRow = {
   city: string;
   doors: string;
   image: string;
+  /** The event's hero photograph, preferred over the card photo in a mail. */
+  hero_image: string;
 };
 
 /**
@@ -207,7 +212,12 @@ type TicketRow = {
 const ticketSelect = `
   select b.id, b.reference, b.ticket_token, b.event, b.name, b.email, b.total,
          b.admitted_at as booking_admitted_at, b.admitted_by as booking_admitted_by,
-         e.title, e.starts_at, e.venue, e.city, e.doors, e.image
+         e.title, e.starts_at, e.venue, e.city, e.doors,
+         -- The card photo first, then the hero, then nothing. An event created
+         -- in the admin with only a hero photograph has an empty card image,
+         -- and the email header then had no picture at all.
+         coalesce(nullif(e.image, ''), nullif(e.hero_image, ''), '') as image,
+         coalesce(nullif(e.hero_image, ''), nullif(e.image, ''), '') as hero_image
     from bookings b
     join events e on e.slug = b.event`;
 
@@ -252,6 +262,7 @@ function toTicket(
     city: row.city,
     doors: row.doors,
     image: row.image,
+    heroImage: row.hero_image || row.image,
     name: row.name,
     email: row.email,
     total: Number(row.total),

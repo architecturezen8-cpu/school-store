@@ -215,12 +215,12 @@ export async function buildTicketReceipt(
     });
     // The unit price, quietly, because "2 × LKR 1,500" is the sum people check.
     page.drawText(`${lkr(t.price)} each`, { x: MARGIN, y: y - 12, size: 7.5, font: regular, color: MUTED });
-    y -= 28;
+    y -= 26;
   }
 
-  y -= 4;
+  y -= 2;
   page.drawLine({ start: { x: colQty - 20, y }, end: { x: right, y }, thickness: 0.7, color: LINE });
-  y -= 20;
+  y -= 19;
 
   const totalLabel = "TOTAL PAID";
   page.drawText(totalLabel, { x: colQty - 20, y, size: 8, font: bold, color: MUTED });
@@ -234,19 +234,40 @@ export async function buildTicketReceipt(
   });
 
   /* ---------- the tickets on this booking ---------- */
-  y -= 48;
+  // Straight after the money, and on the same page whenever it fits.
+  //
+  // The order was already right — items, total, then admission — but the gap
+  // above the section was large enough that a five-seat booking pushed it onto
+  // page two, so a receipt whose item table ended two thirds of the way down the
+  // page still appeared to have nothing after it. The heading now sits close
+  // under the total, and rows are drawn from here while they fit.
+  y -= 40;
+  const headingY = y;
+  const rowHeight = 23;
+  // Leave the last page room for its footer; a row that would land on top of it
+  // starts a new page instead.
+  const footerRoom = MARGIN + 74;
+  // How many rows fit after this heading on this page, for the "of N" note.
+  const firstPageRows = Math.max(0, Math.floor((headingY - 18 - footerRoom) / rowHeight));
+  const continuesOnNext = tickets.length > firstPageRows;
+
   page.drawText(
     tickets.length > 1
       ? `ADMISSION — ${tickets.length} TICKETS, ONE PERSON EACH`
       : "ADMISSION — ONE TICKET, ONE PERSON",
     { x: MARGIN, y, size: 7, font: bold, color: MUTED }
   );
+  if (continuesOnNext) {
+    const note = `${firstPageRows} here, ${tickets.length - firstPageRows} overleaf`;
+    page.drawText(note, {
+      x: PAGE.width - MARGIN - regular.widthOfTextAtSize(note, 7),
+      y,
+      size: 7,
+      font: regular,
+      color: MUTED,
+    });
+  }
   y -= 18;
-
-  // The footer needs room on the last page, so a row is only drawn if it fits
-  // above it.
-  const footerRoom = MARGIN + 70;
-  const rowHeight = 26;
 
   for (const [i, t] of tickets.entries()) {
     if (y - rowHeight < footerRoom) {
