@@ -111,9 +111,7 @@ The message, top to bottom:
 
 The preview on `/admin/mail` is the real message, not a mock-up: it is rendered
 by `buildTicketMail()` — the same function that sends — inside an iframe, with
-the inline QR swapped for its public URL. The same page can send a **test email**
-to your own address, using a real booking, so the artwork and the QR are real
-too. Do that before the first customer buys.
+the inline QR swapped for its public URL.
 
 Resend is used when `RESEND_API_KEY` is set; otherwise plain SMTP. With neither,
 bookings still succeed, the mail is logged to the server console, and the
@@ -124,8 +122,11 @@ confirmation screen says the ticket is below instead of claiming it was emailed.
 ### The admin is a separate app
 
 `/admin` does not render inside the store. It has its own layout
-(`app/admin/layout.tsx`), its own sidebar and its own palette — flat navy fills,
-one gold accent, **no gradients and no glassmorphism anywhere** — and
+(`app/admin/layout.tsx`), its own sidebar and its own palette: **bento** — a tray
+of rounded tiles where separation comes from the fill and the gap, **never from a
+border** — and **navy, white and black only**, with no gold, no gradients and no
+glassmorphism anywhere. Emphasis is white-on-navy or navy-on-white, so a state is
+carried by words rather than by a colour the palette does not have. And
 `components/SiteChrome.tsx` bails out before drawing the navbar, footer, bag or
 search overlay. The sidebar (below) carries the school crest at the top, the sections in
 the middle (Overview, Bookings, Ticket designs, Ticket email, Gate scanner) and
@@ -163,7 +164,7 @@ scanned, and a **Resend** button that re-sends that customer's ticket.
 | `lib/bookings.ts` | Booking, ticket lookup, admission, reopen. |
 | `app/admin/layout.tsx` | The admin's own layout — the storefront chrome stays out. |
 | `components/admin/AdminShell.tsx` | The sidebar, the mobile bar, the profile block. |
-| `components/admin/ui.tsx` | The admin's flat-colour panels, fields, buttons and pills. |
+| `components/admin/ui.tsx` | The bento primitives: tiles, stat cells, fields, pills. |
 | `app/admin/mail/preview` | The real mail, rendered for the iframe on `/admin/mail`. |
 | `app/admin/` | Dashboard, designs, email editor, bookings, gate. |
 | `app/gate/` | The volunteer's scanner. |

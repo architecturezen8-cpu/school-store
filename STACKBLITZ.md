@@ -7,10 +7,12 @@ why the repo is set up to need nothing but `npm install`:
   app uses **PGlite**: a real Postgres compiled to WebAssembly, storing its data
   in `.pglite/`. Same `db/schema.sql`, same SQL, real transactions. It is created
   and seeded automatically on the first request.
-- **Turbopack is off** — its native binary cannot run in a WebContainer.
-  `npm run dev` already uses webpack.
-- **Tailwind's native oxide binary** is swapped for the WASM build inside a
-  browser IDE (see `postcss.config.mjs`).
+- **Turbopack is the default** everywhere else, but its native binary cannot run
+  in a WebContainer: in StackBlitz use `npm run dev:webpack` instead of
+  `npm run dev`. That is the only difference.
+- **Tailwind's native oxide binary** cannot load in a WebContainer either. Set
+  `TAILWIND_ENGINE=wasm` and it uses the WASM build (the package is already in
+  `devDependencies`); with `npm run dev:webpack` that combination works.
 
 ---
 
@@ -23,7 +25,8 @@ why the repo is set up to need nothing but `npm install`:
    dev server starts on port 3000 and opens in the preview pane.
 
 First load takes a minute: webpack compiles, PGlite initialises, and the
-catalogue is seeded. After that, reloads are instant.
+catalogue is seeded. After that, reloads are instant. (Turbopack is ~5x faster on
+a normal machine, which is why it is the default everywhere else.)
 
 ---
 
@@ -62,10 +65,11 @@ permanent public site**: for the real store, use Vercel (see `DEPLOY.md`).
 | --- | --- |
 | `Cannot find module '@tailwindcss/oxide-…'` | The WASM fallback was not picked up. Run `npm install @tailwindcss/oxide-wasm32-wasi`. |
 | Styles missing entirely | Check the terminal for a PostCSS error; `postcss.config.mjs` must export the plugin object. |
-| `Turbopack` errors in the terminal | Something is running `next dev` without `--webpack`. Use `npm run dev`. |
+| `Turbopack` errors in the terminal | Inside a browser IDE only: use `npm run dev:webpack`, not `npm run dev`. |
+| `Cannot find module '@tailwindcss/oxide-…'` (again) | Set `TAILWIND_ENGINE=wasm` before starting. |
 | Page says "database is not configured" | A `.env` sets `STORE_BACKEND=none`. Delete that line (or set it to `pglite`). |
 | `WebAssembly` errors | Reload the tab once — the WASM memory was likely exhausted during the first compile. |
-| Slow first page | Normal: webpack + WASM Postgres boot. Subsequent navigations are fast. |
+| Slow first page | Normal under `dev:webpack`: webpack + WASM Postgres boot. Subsequent navigations are fast. |
 
 The dev server log in StackBlitz is the same one you would see locally, so any
 error there is worth pasting back to me.

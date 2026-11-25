@@ -8,7 +8,7 @@ import {
   setTemplateActive,
   uploadTemplate,
 } from "@/lib/tickets/templates";
-import { getTicketByReference, getTicketByToken, listBookings } from "@/lib/bookings";
+import { getTicketByToken, listBookings } from "@/lib/bookings";
 import { sendTicketEmail } from "@/lib/tickets/email";
 import { saveMailTemplate, withDefaults } from "@/lib/tickets/mail-settings";
 
@@ -138,44 +138,6 @@ export async function saveMailTemplateAction(formData: FormData) {
 
   revalidatePath("/admin/mail");
   redirect("/admin/mail?ok=1");
-}
-
-/**
- * One test message to the admin's own address — the only sane way to check a
- * design and a mail server before a real customer sees either.
- */
-export async function sendTestMailAction(formData: FormData) {
-  await requireAdmin();
-
-  const to = String(formData.get("email") ?? "").trim();
-  const reference = String(formData.get("reference") ?? "").trim();
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) {
-    redirect("/admin/mail?error=Add a valid email address first.");
-  }
-
-  // Preview with a booking the admin names, or the most recent one — either
-  // way it is a real ticket, so the artwork and the QR are real too.
-  const ticket = reference
-    ? await getTicketByReference(reference)
-    : await (async () => {
-        const latest = (await listBookings(1))[0];
-        return latest ? getTicketByToken(latest.token) : null;
-      })();
-
-  if (!ticket) {
-    redirect("/admin/mail?error=No booking to preview with — sell one ticket first.");
-  }
-
-  const result = await sendTicketEmail({ ...ticket, email: to });
-  redirect(
-    result.sent
-      ? `/admin/mail?ok=${encodeURIComponent(`Sent to ${to}`)}`
-      : `/admin/mail?error=${encodeURIComponent(
-          result.reason === "not-configured"
-            ? "Email is not configured — set RESEND_API_KEY or SMTP_HOST."
-            : result.error ?? "Send failed."
-        )}`
-  );
 }
 
 export async function loadBookings() {

@@ -5,17 +5,8 @@ import { hasDatabase } from "@/lib/db";
 import { signIn } from "./actions";
 import { listBookings } from "@/lib/bookings";
 import { lkr } from "@/lib/format";
-import {
-  Empty,
-  Notice,
-  PageHeader,
-  Panel,
-  Pill,
-  Stat,
-  buttonClass,
-  inputClass,
-} from "@/components/admin/ui";
-import { ArrowRight, CalendarCheck, LayoutTemplate, Mail, ScanLine } from "lucide-react";
+import { Notice, Pill, Stat, buttonClass, inputClass } from "@/components/admin/ui";
+import { ArrowUpRight, CalendarCheck, LayoutTemplate, Mail, ScanLine } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -68,9 +59,9 @@ export default async function AdminPage({
   /* ---------------- signed out: the door ---------------- */
   if (!signedIn) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-ink px-4 py-16">
-        <div className="w-full max-w-sm">
-          <p className="text-[11px] uppercase tracking-[0.28em] text-gold">
+      <div className="flex min-h-screen items-center justify-center bg-black px-4 py-16">
+        <div className="w-full max-w-sm rounded-3xl bg-navy-900 p-7">
+          <p className="text-[11px] uppercase tracking-[0.28em] text-white/65">
             St. Thomas&apos; College Matale
           </p>
           <h1 className="mt-2 font-display text-3xl font-semibold text-white">Store admin</h1>
@@ -78,12 +69,12 @@ export default async function AdminPage({
             Sign in to manage tickets, designs and the gate.
           </p>
 
-          <div className="mt-6 space-y-3">
+          <div className="mt-6 space-y-2">
             {!adminConfigured() && (
               <Notice tone="warn">
-                Add <code className="rounded bg-black/30 px-1">ADMIN_PASSWORD</code> to{" "}
-                <code className="rounded bg-black/30 px-1">.env.local</code>, then restart{" "}
-                <code className="rounded bg-black/30 px-1">npm run dev</code>.
+                Add <code className="rounded-md bg-black/40 px-1.5 py-0.5">ADMIN_PASSWORD</code> to{" "}
+                <code className="rounded-md bg-black/40 px-1.5 py-0.5">.env.local</code>, then
+                restart <code className="rounded-md bg-black/40 px-1.5 py-0.5">npm run dev</code>.
               </Notice>
             )}
             {error && ERRORS[error] && <Notice tone="error">{ERRORS[error]}</Notice>}
@@ -117,86 +108,116 @@ export default async function AdminPage({
     );
   }
 
-  /* ---------------- signed in: the overview ---------------- */
+  /* ---------------- signed in: the bento tray ---------------- */
   const bookings = hasDatabase() ? await listBookings(200) : [];
   const admitted = bookings.filter((b) => b.admittedAt).length;
   const taken = bookings.reduce((n, b) => n + b.total, 0);
   const seats = bookings.reduce((n, b) => n + b.seats, 0);
-  const latest = bookings.slice(0, 6);
+  const latest = bookings.slice(0, 5);
+  const outstanding = bookings.length - admitted;
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-10 lg:py-10">
-      <PageHeader
-        eyebrow="Overview"
-        title="Today at the store"
-        description="Tickets sold, money taken and who is through the gate. Everything else is in the sidebar."
-      />
+    <div className="space-y-3">
+      {/* the headline tile */}
+      <section className="rounded-2xl bg-navy-900 p-6 sm:p-8">
+        <p className="text-[11px] uppercase tracking-[0.24em] text-white/65">Overview</p>
+        <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
+          <h1 className="font-display text-3xl font-semibold text-white sm:text-4xl">
+            Today at the store
+          </h1>
+          <Pill tone="invert">{bookings.length ? `${outstanding} still to come` : "no bookings yet"}</Pill>
+        </div>
+        <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/65">
+          Tickets sold, money taken and who is through the gate. Everything else is in the
+          sidebar.
+        </p>
+      </section>
 
-      <dl className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {/* the four numbers, in a tray */}
+      <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Stat label="Bookings" value={String(bookings.length)} note={`${seats} seats`} />
-        <Stat label="Admitted" value={String(admitted)} note={`${bookings.length - admitted} still to come`} />
-        <Stat label="Taken" value={lkr(taken)} note="ticket sales" />
+        <Stat label="Admitted" value={String(admitted)} note={`${outstanding} still to come`} />
+        <Stat label="Taken" value={lkr(taken)} note="ticket sales" tone="invert" />
         <Stat
-          label="Paid per booking"
+          label="Average booking"
           value={bookings.length ? lkr(Math.round(taken / bookings.length)) : lkr(0)}
-          note="average"
+          note="per booking"
         />
       </dl>
 
-      <div className="mt-8 grid gap-3 sm:grid-cols-2">
-        {SECTIONS.map(({ href, icon: Icon, title, body }) => (
+      {/* the sections, as bento cells — the featured one is wider */}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {SECTIONS.map(({ href, icon: Icon, title, body }, i) => (
           <Link
             key={href}
             href={href}
-            className="group flex items-start gap-4 rounded-xl border border-navy-700 bg-navy-900 p-5 transition-colors hover:border-navy-600 hover:bg-navy-800"
+            className={`group flex flex-col justify-between rounded-2xl p-5 transition-colors ${
+              i === 0
+                ? "bg-white text-black hover:bg-white/90 sm:col-span-2 xl:col-span-1"
+                : "bg-navy-900 text-white hover:bg-navy-800"
+            }`}
           >
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-navy-800 text-gold group-hover:bg-navy-700">
-              <Icon className="h-5 w-5" />
-            </span>
-            <span className="min-w-0">
-              <span className="flex items-center gap-2 text-white">
-                <span className="font-display text-lg">{title}</span>
-                <ArrowRight className="h-4 w-4 text-white/30 transition-transform group-hover:translate-x-0.5 group-hover:text-gold" />
+            <div className="flex items-start justify-between gap-3">
+              <span
+                className={`grid h-10 w-10 place-items-center rounded-xl ${
+                  i === 0 ? "bg-black text-white" : "bg-navy-800 text-white"
+                }`}
+              >
+                <Icon className="h-5 w-5" />
               </span>
-              <span className="mt-1 block text-sm leading-relaxed text-white/65">{body}</span>
-            </span>
+              <ArrowUpRight
+                className={`h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 ${
+                  i === 0 ? "text-black/55" : "text-white/55"
+                }`}
+              />
+            </div>
+            <div className="mt-8">
+              <p className="font-display text-lg">{title}</p>
+              <p
+                className={`mt-1 text-sm leading-relaxed ${
+                  i === 0 ? "text-black/70" : "text-white/65"
+                }`}
+              >
+                {body}
+              </p>
+            </div>
           </Link>
         ))}
-      </div>
 
-      <Panel
-        className="mt-8"
-        title="Latest bookings"
-        description="Newest first."
-        actions={
-          <Link href="/admin/bookings" className={buttonClass("ghost")}>
-            All bookings
+        {/* a bento tray wants one more cell than there are sections */}
+        <div className="flex flex-col justify-between rounded-2xl bg-navy-900 p-5 sm:col-span-2 xl:col-span-1">
+          <p className="text-[11px] uppercase tracking-[0.16em] text-white/65">Latest</p>
+          <div className="mt-3">
+            {latest.length === 0 ? (
+              <p className="text-sm text-white/65">
+                No bookings yet — they appear the moment someone reserves a ticket.
+              </p>
+            ) : (
+              <ul className="space-y-2.5">
+                {latest.slice(0, 3).map((b) => (
+                  <li key={b.reference} className="flex items-center justify-between gap-2">
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm text-white">{b.name}</span>
+                      <span className="block truncate font-mono text-[11px] text-white/65">
+                        {b.reference}
+                      </span>
+                    </span>
+                    <Pill tone={b.admittedAt ? "ok" : "muted"}>
+                      {b.admittedAt ? "in" : "out"}
+                    </Pill>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <Link
+            href="/admin/bookings"
+            className="mt-4 inline-flex items-center gap-1.5 text-sm text-white/60 hover:text-white"
+          >
+            All bookings <ArrowUpRight className="h-3.5 w-3.5" />
           </Link>
-        }
-      >
-        {latest.length === 0 ? (
-          <Empty>No bookings yet — they appear the moment someone reserves a ticket.</Empty>
-        ) : (
-          <ul className="divide-y divide-navy-700">
-            {latest.map((b) => (
-              <li key={b.reference} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
-                <div className="min-w-0">
-                  <p className="truncate text-sm text-white">{b.name}</p>
-                  <p className="truncate text-xs text-white/60">
-                    {b.eventTitle} · <span className="font-mono">{b.reference}</span>
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-white/70">{lkr(b.total)}</span>
-                  <Pill tone={b.admittedAt ? "ok" : "muted"}>
-                    {b.admittedAt ? "admitted" : "not scanned"}
-                  </Pill>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Panel>
+        </div>
+      </div>
     </div>
   );
 }

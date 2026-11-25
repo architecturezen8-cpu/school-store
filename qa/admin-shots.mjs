@@ -37,7 +37,10 @@ const routes = [
 for (const [path, name] of routes) {
   await page.goto(BASE + path, { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(700);
-  await page.screenshot({ path: `${OUT}/${name}.png`, fullPage: true });
+  // The mail page holds an <iframe>; a full-page screenshot of the parent can
+  // skip cross-document content in this Chromium build, so that one is captured
+  // as a viewport instead.
+  await page.screenshot({ path: `${OUT}/${name}.png`, fullPage: path !== "/admin/mail" });
   // what is actually on the page
   const chrome = await page.locator("nav[aria-label='Primary']").count();
   const side = await page.locator("#admin-nav").count();
@@ -51,7 +54,14 @@ await page.screenshot({ path: `${OUT}/email-full.png`, fullPage: true });
 
 // the mail page itself, at a laptop width, so the embedded preview is visible
 await page.goto(BASE + "/admin/mail", { waitUntil: "domcontentloaded" });
-await page.waitForTimeout(1200);
+// The preview is an iframe that renders the whole mail (sharp + a QR) on the
+// server, so give it room before the frame is captured.
+await page
+  .frameLocator("iframe[title='Ticket email preview']")
+  .locator("body")
+  .waitFor({ timeout: 20000 })
+  .catch(() => {});
+await page.waitForTimeout(1500);
 await page.screenshot({ path: `${OUT}/admin-mail-viewport.png`, fullPage: false });
 
 // mobile: the sidebar collapses
