@@ -31,6 +31,30 @@ alter role thomian_app with password 'your-new-password';
 
 Then paste it into the URL above.
 
+### The one password you need
+
+Everything above needs the app role's password, and it is the only value in this
+document that is not copy-pasteable from the dashboard. If you do not have it,
+set a new one — **do not reset the `postgres` role**, other things may use it:
+
+```sql
+-- Supabase dashboard -> SQL Editor
+alter role thomian_app with password 'your-new-password';
+```
+
+Then paste it into the URL. Nothing else needs creating: the role already has
+`SELECT/INSERT/UPDATE/DELETE` on all twelve tables, the schema is applied, and
+the storefront has events and products in it.
+
+Check the whole thing with one command before starting the app:
+
+```bash
+npm run db:check
+```
+
+It prints the host it resolved, the tables it can read and the columns each one
+is missing — so a stale schema is a sentence, not a mystery.
+
 ## 2. Point the app at it
 
 ```bash
@@ -137,7 +161,7 @@ alter role thomian_app with password 'your-new-password';
 It was created as: `login`, **not** superuser, **not** `createrole`, and
 `bypassrls` (required — Row Level Security is enabled on every table with no
 policies, so without it the storefront would read zero products). It holds
-`select/insert/update/delete` on the 10 store tables and `usage/select` on the
+`select/insert/update/delete` on all twelve tables (verified: 12 of 12) and `usage/select` on the
 sequences, plus matching default privileges for any table added later.
 
 ## 3. Check it actually connected

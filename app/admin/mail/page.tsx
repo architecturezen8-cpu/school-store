@@ -5,7 +5,11 @@ import { isAdmin } from "@/lib/admin/auth";
 import { databaseProblem } from "@/lib/admin/db-guard";
 import { databaseDown, hasDatabase } from "@/lib/db";
 import { listBookings } from "@/lib/bookings";
-import { DEFAULT_MAIL_TEMPLATE, renderTemplate } from "@/lib/tickets/email";
+import {
+  DEFAULT_MAIL_TEMPLATE,
+  renderTemplate,
+  sampleTicket,
+} from "@/lib/tickets/email";
 import { safeDecode } from "@/lib/safe-decode";
 import { sendTestMailAction } from "../actions";
 import {
@@ -52,17 +56,22 @@ export default async function MailPage({
   const problem = databaseProblem();
   const bookings = databaseDown() ? [] : await listBookings(20);
   const chosen = preview ? bookings.find((b) => b.reference === preview.toUpperCase()) : bookings[0];
+  // Nothing sold yet is the normal state on day one, and it is exactly when an
+  // admin wants to check the mail — so the page previews a sample instead of
+  // showing an empty frame. The wording says which it is.
+  const sample = chosen ? null : await sampleTicket();
+  const shown = chosen ?? sample;
   const frameSrc = `/admin/mail/preview${chosen ? `?reference=${encodeURIComponent(chosen.reference)}` : ""}`;
 
   // The subject exactly as this booking will read it.
   const subject = renderTemplate(DEFAULT_MAIL_TEMPLATE.subject, {
-    name: chosen?.name ?? "Nimal Perera",
-    event: chosen?.eventTitle ?? "The Big Match",
-    reference: chosen?.reference ?? "BM-ABC123",
+    name: shown?.name ?? "Nimal Perera",
+    event: shown?.eventTitle ?? "The Big Match",
+    reference: shown?.reference ?? "BM-ABC123",
     seats: chosen?.seatsText || "2",
-    total: String(chosen?.total ?? 3000),
-    venue: chosen ? `${chosen.venue}, ${chosen.city}` : "College Grounds, Matale",
-    date: chosen ? new Date(chosen.eventDate).toDateString() : "",
+    total: String(shown?.total ?? 3000),
+    venue: shown ? `${shown.venue}, ${shown.city}` : "College Grounds, Matale",
+    date: shown ? new Date(shown.eventDate).toDateString() : "",
   });
 
   return (
@@ -86,6 +95,17 @@ export default async function MailPage({
         {problem && (
           <div className="mt-4">
             <Notice tone="warn">{problem}</Notice>
+          </div>
+        )}
+        {sample && !problem && (
+          <div className="mt-4">
+            <Notice tone="warn">
+              No ticket has been sold yet, so the preview below is a{" "}
+              <strong>sample</strong>: a real event, a real layout and a real QR, with the
+              reference <span className="font-mono">BM-SAMPLE</span>. A sample&apos;s QR does
+              not open a live ticket — that is the one thing it cannot show. Once the first
+              ticket is sold this switches to your real booking automatically.
+            </Notice>
           </div>
         )}
 
@@ -127,7 +147,12 @@ export default async function MailPage({
               in the preview.
             </>
           ) : (
-            "Sell one ticket first: the test needs a real booking for its QR code."
+            <>
+              Nothing sold yet, so this sends the{" "}
+              <span className="font-mono text-body">BM-SAMPLE</span> ticket. Delivery, the
+              From: line, the artwork and the QR all behave exactly as they will for a real
+              purchase.
+            </>
           )}
         </p>
       </section>
@@ -179,9 +204,16 @@ export default async function MailPage({
           />
         </div>
         <p className="mt-3 text-xs leading-relaxed text-muted">
-          Rendered by the same code that sends the mail. The QR belongs to{" "}
-          {chosen ? <span className="font-mono text-body">{chosen.reference}</span> : "—"}, so
-          it is the code that will be scanned at the gate.
+          Rendered by the same code that sends the mail.{" "}
+          {chosen ? (
+            <>
+              The QR belongs to{" "}
+              <span className="font-mono text-body">{chosen.reference}</span>, so it is the
+              code that will be scanned at the gate.
+            </>
+          ) : (
+            "The QR is drawn from a fresh random token, exactly as it would be for a sale."
+          )}
         </p>
       </div>
     </div>
