@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { getEvents } from "./store";
 import { databaseDown, query, transaction } from "./db";
 import { errorMessage } from "./errors";
+export { slugify, uniqueSlug } from "./slug";
 import type { CollegeEvent, EventImage, EventLink, EventRule, Tier } from "@/data/seed";
 
 /**
@@ -444,16 +445,6 @@ export async function unsetFeatured(slug: string): Promise<void> {
   await query("update events set featured = false where slug = $1", [slug]);
 }
 
-/** The next free slug, given a title and any others in the way. */
-export function uniqueSlug(base: string, taken: string[]): string {
-  const set = new Set(taken);
-  if (!set.has(base)) return base;
-  for (let i = 2; i < 100; i++) {
-    const candidate = `${base}-${i}`;
-    if (!set.has(candidate)) return candidate;
-  }
-  return `${base}-${randomUUID().slice(0, 6)}`;
-}
 
 /** Used by the admin's "add" form, where no row exists yet. */
 export function blankDraft(): EventDraft {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -16,7 +16,9 @@ import {
 } from "lucide-react";
 import { Field, Notice, buttonClass, inputClass, labelClass } from "@/components/admin/ui";
 import EventDesign, { type DesignSummary } from "@/components/admin/EventDesign";
+import { useFormRescue } from "@/components/admin/useFormRescue";
 import type { AdminEvent, EventDraft } from "@/lib/events";
+import { slugify, uniqueSlug } from "@/lib/slug";
 import type { EventImage, EventLink, EventRule } from "@/data/seed";
 
 /**
@@ -69,13 +71,102 @@ export default function EventEditor({
 }: Props) {
   const router = useRouter();
   const [draft, setDraft] = useState<EventDraft>(initial);
+  const rescueKey = `stc-event-draft:${mode === "create" ? "new" : initial.slug}`;
+  const rescue = useFormRescue<EventDraft>(rescueKey, initial);
+  /**
+   * What the server last sent. `router.refresh()` re-renders this component
+   * with new props, and an effect that re-seeded `draft` from them would throw
+   * away anything typed since the last save — which is exactly what happened
+   * when a save was followed by a slow refresh.
+   */
+  const serverDraft = useRef<EventDraft>(initial);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [uploading, setUploading] = useState<string | null>(null);
+  /**
+   * The address follows the title until the admin types one of their own, then
+   * it stops following. Without this, creating an event meant knowing what a
+   * slug was: type the name, press Create, and get "must be lowercase letters,
+   * numbers and dashes" about a field you never filled in.
+   */
+  const [addressTyped, setAddressTyped] = useState(mode === "update");
 
   const set = <K extends keyof EventDraft>(key: K, value: EventDraft[K]) =>
     setDraft((d) => ({ ...d, [key]: value }));
+
+  /**
+   * A rescued copy wins over what the server sent — once, after mount.
+   *
+   * It has to happen in an effect rather than during render: localStorage does
+   * not exist on the server, so reading it inline renders a different form on
+   * the client than the server sent and React throws the tree away as a
+   * hydration mismatch. Reading it after mount is the only honest way to do
+   * this, which is also why the setState-in-effect warning below is expected.
+   */
+  const adopt = rescue.read;
+  const [adopted, setAdopted] = useState(false);
+  useEffect(() => {
+    if (adopted) return;
+    setAdopted(true);
+    const saved = adopt();
+    if (saved) setDraft(saved);
+    // Edge: a refresh arriving before this ran would re-run it once more, which
+    // is harmless — the copy is still the newest thing on disk.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keep the working copy on disk as it is typed, 400 ms after the last change.
+  useEffect(() => {
+    const id = window.setTimeout(() => rescue.write(draft), 400);
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft]);
+
+  // A save (from anywhere — the button, or a refresh landing) is the new
+  // baseline: compare against it, and forget the rescued copy.
+  useEffect(() => {
+    if (JSON.stringify(initial) === JSON.stringify(serverDraft.current)) return;
+    serverDraft.current = initial;
+    rescue.clear();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initial]);
+
+  function setTitle(title: string) {
+    setDraft((d) => {
+      if (addressTyped) return { ...d, title };
+      // A title with nothing address-shaped in it (Sinhala, emoji) keeps the
+      // last good address instead of blanking the field under the admin.
+      const derived = slugify(title);
+      // Two events can share a name; they cannot share an address. The shop
+      // helper appends -2, -3 … rather than making the admin hunt for a free one.
+      return { ...d, title, slug: derived ? uniqueSlug(derived, takenSlugs) : d.slug };
+    });
+  }
+
+  /**
+   * Called by the address field. Light-touch while typing: a dash is left where
+   * it is, because the admin is probably still in the middle of a word and
+   * deleting it under the cursor is worse than a stray dash for one keystroke.
+   * The tidy-up happens on blur, and again on save.
+   */
+  function setAddress(raw: string) {
+    setAddressTyped(true);
+    set(
+      "slug",
+      raw
+        .toLowerCase()
+        .replace(/[^a-z0-9-]/g, "-")
+        .replace(/-{2,}/g, "-")
+        .replace(/^-+/, "")
+        .slice(0, 60)
+    );
+  }
+
+  /** Trim the address to its final shape once the admin has stopped typing. */
+  function tidyAddress() {
+    setDraft((d) => ({ ...d, slug: slugify(d.slug) || d.slug }));
+  }
 
   /* ---------- lists ---------------------------------------------------- */
 
@@ -106,7 +197,11 @@ export default function EventEditor({
   const blockers = [
     !draft.title.trim() ? "the event needs a name" : "",
     !draft.startsAt ? "set a start date and time" : "",
-    !draft.slug ? "the web address is empty" : "",
+    !draft.slug && draft.title.trim()
+      ? "the title has no letters or numbers the address can be built from — type a web address"
+      : !draft.slug
+        ? "the web address is empty"
+        : "",
     slugTaken ? `the address “${draft.slug}” is already used` : "",
     draft.tiers.some((t) => !t.name.trim()) ? "every ticket type needs a name" : "",
   ].filter(Boolean);
@@ -137,12 +232,17 @@ export default function EventEditor({
     setError(null);
     setNotice(null);
     startTransition(async () => {
-      const result = await saveAction(JSON.stringify({ draft, mode }));
+      const tidy: EventDraft = { ...draft, slug: slugify(draft.slug) || draft.slug };
+      if (tidy.slug !== draft.slug) setDraft(tidy);
+      const result = await saveAction(JSON.stringify({ draft: tidy, mode }));
       if (!result.ok) {
         setError(result.error ?? "Could not save.");
         window.scrollTo({ top: 0, behavior: "smooth" });
         return;
       }
+      // The copy on disk is answered by the save; keeping it would make the
+      // next visit open an old draft over the event it just wrote.
+      rescue.clear();
       setNotice(mode === "create" ? "Event created." : "Saved.");
       // A new event gets its own page; an edit stays put but refetches, so the
       // form shows what was actually written rather than what was typed.
@@ -208,6 +308,25 @@ export default function EventEditor({
           </div>
         )}
 
+        {rescue.restored && (
+          <div className="space-y-2">
+            <Notice tone="warn">
+              Unsaved changes from an earlier visit were put back. Save to keep them,
+              or reload to start from the saved event again.
+            </Notice>
+            <button
+              type="button"
+              onClick={() => {
+                setDraft(serverDraft.current);
+                rescue.clear();
+              }}
+              className={`${buttonClass("ghost")} !px-3 !py-1.5 !text-xs`}
+            >
+              Throw the unsaved changes away
+            </button>
+          </div>
+        )}
+
         {/* ---- the facts ---- */}
         <section className="rounded-2xl bg-panel p-6">
           <h2 className="font-display text-lg font-semibold text-white">The essentials</h2>
@@ -219,7 +338,7 @@ export default function EventEditor({
             <Field label="Event name">
               <input
                 value={draft.title}
-                onChange={(e) => set("title", e.target.value)}
+                onChange={(e) => setTitle(e.target.value)}
                 placeholder="The Big Match"
                 className={inputClass}
               />
@@ -686,9 +805,8 @@ export default function EventEditor({
           <Field label="Web address" hint="lowercase, dashes">
             <input
               value={draft.slug}
-              onChange={(e) =>
-                set("slug", e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))
-              }
+              onChange={(e) => setAddress(e.target.value)}
+              onBlur={tidyAddress}
               disabled={mode === "update"}
               className={`${inputClass} font-mono disabled:opacity-60`}
             />
