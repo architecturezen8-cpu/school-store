@@ -8,6 +8,7 @@ import { listTemplates } from "@/lib/tickets/templates";
 import { getEvents } from "@/lib/store";
 import { safeDecode } from "@/lib/safe-decode";
 import ParamToast from "@/components/admin/ParamToast";
+import SubmitButton from "@/components/SubmitButton";
 import { uploadTemplateAction, toggleTemplateAction, deleteTemplateAction } from "../actions";
 import {
   Empty,
@@ -112,9 +113,13 @@ export default async function TemplatesPage({
                 />
               </Field>
 
-              <button type="submit" className={`${buttonClass("primary")} w-full`}>
-                <ImageUp className="h-4 w-4" /> Upload and detect the square
-              </button>
+              <SubmitButton
+                pending="Uploading and finding the square…"
+                className={`${buttonClass("primary")} w-full`}
+                icon={<ImageUp className="h-4 w-4" />}
+              >
+                Upload and detect the square
+              </SubmitButton>
             </form>
           </Panel>
 
@@ -164,21 +169,22 @@ export default async function TemplatesPage({
                     <form action={toggleTemplateAction}>
                       <input type="hidden" name="id" value={t.id} />
                       <input type="hidden" name="active" value={String(!t.isActive)} />
-                      <button
-                        type="submit"
+                      <SubmitButton
+                        pending="Saving…"
                         className={`${buttonClass("secondary")} !px-3 !py-1.5 !text-xs`}
                       >
                         {t.isActive ? "Turn off" : "Turn on"}
-                      </button>
+                      </SubmitButton>
                     </form>
                     <form action={deleteTemplateAction}>
                       <input type="hidden" name="id" value={t.id} />
-                      <button
-                        type="submit"
+                      <SubmitButton
+                        pending="Deleting…"
                         className={`${buttonClass("danger")} !px-3 !py-1.5 !text-xs`}
+                        icon={<Trash2 className="h-3.5 w-3.5" />}
                       >
-                        <Trash2 className="h-3.5 w-3.5" /> Delete
-                      </button>
+                        Delete
+                      </SubmitButton>
                     </form>
                   </div>
                 </li>

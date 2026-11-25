@@ -5,7 +5,7 @@ import { hasDatabase } from "@/lib/db";
 import { verifyTicketSignature } from "@/lib/tickets/sign";
 import { fullDate } from "@/lib/dates";
 import { lkr } from "@/lib/format";
-import { Download } from "lucide-react";
+import DownloadReceipt from "@/components/DownloadReceipt";
 import { asset } from "@/lib/assets";
 import { safeDecode } from "@/lib/safe-decode";
 
@@ -147,15 +147,14 @@ export default async function TicketPage({
       {/* The receipt, for anyone who needs proof of payment on paper — a claim,
           a bursar, a school trip. A ticket is a bearer document and gets scanned;
           this is the thing that gets filed. */}
-      <a
-        href={asset(
-          `/api/tickets/${encodeURIComponent(ticket.token)}/receipt?s=${encodeURIComponent(signature!)}`
-        )}
-        className="mt-8 flex items-center justify-center gap-2.5 rounded-full border border-gold/45 px-6 py-4 text-[11px] font-bold uppercase tracking-[0.22em] text-gold transition-colors duration-300 hover:bg-gold hover:text-ink"
-      >
-        <Download size={15} strokeWidth={2.5} />
-        Download the bill (PDF)
-      </a>
+      <div className="mt-8">
+        <DownloadReceipt
+          href={asset(
+            `/api/tickets/${encodeURIComponent(ticket.token)}/receipt?s=${encodeURIComponent(signature!)}`
+          )}
+          className="flex w-full items-center justify-center gap-2.5 rounded-full border border-gold/45 px-6 py-4 text-[11px] font-bold uppercase tracking-[0.22em] text-gold transition-colors duration-300 enabled:hover:bg-gold enabled:hover:text-ink disabled:cursor-progress disabled:opacity-80"
+        />
+      </div>
 
       <p className="mt-6 text-center text-xs text-white/65">
         The bill covers the whole booking — {ticket.of > 1 ? `all ${ticket.of} tickets` : "this ticket"} and what was paid.

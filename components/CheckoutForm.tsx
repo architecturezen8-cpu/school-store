@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowRight, Check, Loader2, X } from "lucide-react";
+import { ArrowRight, Check, X } from "lucide-react";
+import { Spinner } from "@/components/Spinner";
 import { useCart } from "@/components/context/CartContext";
 import { lkr } from "@/lib/format";
 import { errorMessage } from "@/lib/errors";
@@ -200,9 +201,18 @@ export default function CheckoutForm({ onClose }: { onClose: () => void }) {
             <button
               type="submit"
               disabled={busy || items.length === 0}
+              aria-busy={busy}
               className="mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-accent py-3.5 text-xs font-bold uppercase tracking-[0.25em] text-ink transition disabled:opacity-50"
             >
-              {busy ? <Loader2 size={14} className="animate-spin" /> : <>Place order <ArrowRight size={14} /></>}
+              {busy ? (
+                <>
+                  <Spinner size={14} /> Placing the order…
+                </>
+              ) : (
+                <>
+                  Place order <ArrowRight size={14} />
+                </>
+              )}
             </button>
           </form>
         )}

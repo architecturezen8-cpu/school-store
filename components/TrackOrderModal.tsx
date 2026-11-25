@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, Loader2, PackageSearch, X } from "lucide-react";
+import { Check, PackageSearch, X } from "lucide-react";
+import { Spinner } from "@/components/Spinner";
 import { lkr } from "@/lib/format";
 import { errorMessage } from "@/lib/errors";
 
@@ -160,7 +161,13 @@ export default function TrackOrderModal({
               disabled={busy}
               className="mt-3 flex w-full items-center justify-center gap-2 rounded-full bg-accent py-3.5 text-xs font-bold uppercase tracking-[0.25em] text-ink transition disabled:opacity-60 hover:shadow-[0_0_40px_rgba(255,255,255,0.10)]"
             >
-              {busy ? <Loader2 size={14} className="animate-spin" /> : "Track order"}
+              {busy ? (
+                <>
+                  <Spinner size={14} /> Looking it up…
+                </>
+              ) : (
+                "Track order"
+              )}
             </button>
           </form>
         ) : (

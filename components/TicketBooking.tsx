@@ -2,15 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Check,
-  Download,
-  Minus,
-  Plus,
-  X,
-} from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Minus, Plus, X } from "lucide-react";
+import DownloadReceipt from "@/components/DownloadReceipt";
+import { Spinner } from "@/components/Spinner";
 import { lkr } from "@/lib/format";
 import type { CollegeEvent, Tier } from "@/data/seed";
 import { fullDate } from "@/lib/dates";
@@ -420,7 +414,15 @@ export default function TicketBooking({
                 disabled={busy}
                 className="flex flex-1 items-center justify-center gap-2 rounded-full bg-gold py-4 text-[11px] font-extrabold uppercase tracking-[0.22em] text-ink transition-all duration-300 disabled:opacity-60 enabled:hover:shadow-[0_0_36px_rgba(255,212,68,0.28)]"
               >
-                {busy ? "Reserving…" : "Confirm booking"} <ArrowRight size={14} />
+                {busy ? (
+                  <>
+                    <Spinner size={14} /> Reserving…
+                  </>
+                ) : (
+                  <>
+                    Confirm booking <ArrowRight size={14} />
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -535,16 +537,12 @@ export default function TicketBooking({
                 to the bursar, or keep when the ticket itself has been scanned and
                 binned. */}
             {tickets[0] && (
-              <a
+              <DownloadReceipt
                 href={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/tickets/${encodeURIComponent(
                   tickets[0].token
                 )}/receipt?s=${encodeURIComponent(tickets[0].signature)}`}
-                download
-                className="mt-4 flex w-full items-center justify-center gap-2.5 rounded-full border border-gold/50 py-4 text-[11px] font-bold uppercase tracking-[0.22em] text-gold transition-colors duration-300 hover:bg-gold hover:text-ink"
-              >
-                <Download size={15} strokeWidth={2.5} />
-                Download the bill (PDF)
-              </a>
+                className="mt-4 flex w-full items-center justify-center gap-2.5 rounded-full border border-gold/50 py-4 text-[11px] font-bold uppercase tracking-[0.22em] text-gold transition-colors duration-300 enabled:hover:bg-gold enabled:hover:text-ink disabled:cursor-progress disabled:opacity-80"
+              />
             )}
 
             <button
