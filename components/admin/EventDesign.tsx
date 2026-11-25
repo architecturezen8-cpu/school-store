@@ -206,7 +206,7 @@ export default function EventDesign({
             ) : (
               <ImageUp className="h-4 w-4" />
             )}
-            Upload and find the square
+            {busy === "upload" ? "Reading the design…" : "Upload and find the square"}
           </button>
           <p className="text-[11px] leading-relaxed text-faint">
             A refusal here means the square could not be found — check it is pure white

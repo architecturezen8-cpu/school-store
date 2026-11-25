@@ -13,6 +13,7 @@ import {
 import { safeDecode } from "@/lib/safe-decode";
 import { sendTestMailAction } from "../actions";
 import ParamToast from "@/components/admin/ParamToast";
+import SubmitButton from "@/components/SubmitButton";
 import {
   Eyebrow,
   Field,
@@ -136,9 +137,13 @@ export default async function MailPage({
               className={inputClass}
             />
           </Field>
-          <button type="submit" className={`${buttonClass("primary")} w-full`}>
-            <Mail className="h-4 w-4" /> Send test ticket
-          </button>
+          <SubmitButton
+            pending="Sending the test ticket…"
+            className={`${buttonClass("primary")} w-full`}
+            icon={<Mail className="h-4 w-4" />}
+          >
+            Send test ticket
+          </SubmitButton>
         </form>
         <p className="mt-3 text-xs leading-relaxed text-muted">
           {chosen ? (

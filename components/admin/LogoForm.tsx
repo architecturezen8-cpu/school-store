@@ -2,7 +2,8 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ImagePlus, Trash2, Upload } from "lucide-react";
+import { ImagePlus, Trash2 } from "lucide-react";
+import { Spinner } from "@/components/Spinner";
 import LogoBadge from "@/components/LogoBadge";
 import { useToast } from "@/components/admin/Toasts";
 import { buttonClass } from "@/components/admin/ui";
@@ -139,11 +140,11 @@ export default function LogoForm({
             className={buttonClass("primary")}
           >
             {busy === "upload" || (pending && busy) ? (
-              <Upload className="h-4 w-4 animate-pulse" />
+              <Spinner size={16} />
             ) : (
               <ImagePlus className="h-4 w-4" />
             )}
-            {logo ? "Replace logo" : "Upload logo"}
+            {busy === "upload" ? "Uploading…" : logo ? "Replace logo" : "Upload logo"}
           </button>
 
           {logo && (

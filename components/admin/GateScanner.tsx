@@ -1,5 +1,7 @@
 "use client";
 
+import { Spinner } from "@/components/Spinner";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, CheckCircle2, Keyboard, RotateCcw, XCircle } from "lucide-react";
 import { errorMessage } from "@/lib/errors";
@@ -227,7 +229,13 @@ export default function GateScanner() {
           disabled={busy || !text.trim()}
           className="w-full rounded-xl bg-gold px-4 py-3 text-sm font-semibold text-black hover:bg-gold-bright disabled:opacity-40"
         >
-          {busy ? "Checking…" : "Check ticket"}
+          {busy ? (
+            <>
+              <Spinner size={15} className="inline" /> Checking…
+            </>
+          ) : (
+            "Check ticket"
+          )}
         </button>
       </form>
 

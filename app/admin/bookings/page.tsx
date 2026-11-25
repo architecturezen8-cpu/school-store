@@ -7,9 +7,11 @@ import { listBookings } from "@/lib/bookings";
 import { lkr } from "@/lib/format";
 import { safeDecode } from "@/lib/safe-decode";
 import ParamToast from "@/components/admin/ParamToast";
+import DownloadReceipt from "@/components/DownloadReceipt";
+import SubmitButton from "@/components/SubmitButton";
 import { resendTicketAction } from "../actions";
 import { Empty, Notice, PageHeader, Panel, Pill, Stat, buttonClass } from "@/components/admin/ui";
-import { Mail, ReceiptText } from "lucide-react";
+import { Mail } from "lucide-react";
 import { asset } from "@/lib/assets";
 import { signTicket } from "@/lib/tickets/sign";
 
@@ -121,25 +123,29 @@ export default async function BookingsPage({
                     <td className="py-3 text-right">
                       {/* The bill, for a parent at the door who needs a receipt
                           on paper rather than four ticket QR codes. */}
-                      <a
-                        href={asset(
-                          `/api/tickets/${encodeURIComponent(b.token)}/receipt?s=${encodeURIComponent(
-                            signTicket(b.token)
-                          )}`
-                        )}
-                        download
-                        className={`${buttonClass("ghost")} !px-3 !py-1.5 !text-xs mr-1.5`}
-                      >
-                        <ReceiptText className="h-3.5 w-3.5" /> Bill
-                      </a>
-                      <form action={resendTicketAction} className="inline">
-                        <input type="hidden" name="token" value={b.token} />
-                        <button
-                          type="submit"
+                      <span className="mr-1.5 inline-block align-middle">
+                        <DownloadReceipt
+                          href={asset(
+                            `/api/tickets/${encodeURIComponent(b.token)}/receipt?s=${encodeURIComponent(
+                              signTicket(b.token)
+                            )}`
+                          )}
+                          pending="Drawing…"
+                          showNote={false}
                           className={`${buttonClass("ghost")} !px-3 !py-1.5 !text-xs`}
                         >
-                          <Mail className="h-3.5 w-3.5" /> Resend
-                        </button>
+                          Bill
+                        </DownloadReceipt>
+                      </span>
+                      <form action={resendTicketAction} className="inline">
+                        <input type="hidden" name="token" value={b.token} />
+                        <SubmitButton
+                          pending="Sending…"
+                          className={`${buttonClass("ghost")} !px-3 !py-1.5 !text-xs`}
+                          icon={<Mail className="h-3.5 w-3.5" />}
+                        >
+                          Resend
+                        </SubmitButton>
                       </form>
                     </td>
                   </tr>
