@@ -7,6 +7,7 @@ import { databaseDown, hasDatabase } from "@/lib/db";
 import { listAllEvents } from "@/lib/events";
 import { safeDecode } from "@/lib/safe-decode";
 import ParamToast from "@/components/admin/ParamToast";
+import SubmitButton from "@/components/SubmitButton";
 import { toggleEventFeaturedAction, toggleEventPublishedAction } from "../actions";
 import {
   Empty,
@@ -138,23 +139,23 @@ export default async function AdminEventsPage({
                     <form action={toggleEventFeaturedAction}>
                       <input type="hidden" name="slug" value={e.slug} />
                       <input type="hidden" name="featured" value={String(!e.featured)} />
-                      <button
-                        type="submit"
+                      <SubmitButton
+                        pending="Saving…"
                         className={`${buttonClass("ghost")} !px-3 !py-1.5 !text-xs`}
+                        icon={<Star className="h-3.5 w-3.5" />}
                       >
-                        <Star className="h-3.5 w-3.5" />
                         {e.featured ? "Unfeature" : "Feature"}
-                      </button>
+                      </SubmitButton>
                     </form>
                     <form action={toggleEventPublishedAction}>
                       <input type="hidden" name="slug" value={e.slug} />
                       <input type="hidden" name="published" value={String(!e.published)} />
-                      <button
-                        type="submit"
+                      <SubmitButton
+                        pending="Saving…"
                         className={`${buttonClass("ghost")} !px-3 !py-1.5 !text-xs`}
                       >
                         {e.published ? "Hide" : "Publish"}
-                      </button>
+                      </SubmitButton>
                     </form>
                   </div>
                 </div>

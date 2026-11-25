@@ -883,7 +883,11 @@ export default function EventEditor({
               className={buttonClass("primary")}
             >
               {pending && <Loader2 className="h-4 w-4 animate-spin" />}
-              {mode === "create" ? "Create event" : "Save changes"}
+              {pending
+                ? "Saving…"
+                : mode === "create"
+                  ? "Create event"
+                  : "Save changes"}
             </button>
             {mode === "update" && (
               <>

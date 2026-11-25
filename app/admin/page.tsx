@@ -6,6 +6,7 @@ import { databaseDown, hasDatabase } from "@/lib/db";
 import { signIn } from "./actions";
 import { listBookings } from "@/lib/bookings";
 import { lkr } from "@/lib/format";
+import SubmitButton from "@/components/SubmitButton";
 import { Eyebrow, Notice, Pill, Stat, buttonClass, inputClass } from "@/components/admin/ui";
 import { ArrowUpRight, CalendarCheck, CalendarDays, Mail, ScanLine } from "lucide-react";
 
@@ -96,9 +97,12 @@ export default async function AdminPage({
                 className={inputClass}
               />
             </label>
-            <button type="submit" className={`${buttonClass("primary")} w-full`}>
+            <SubmitButton
+              pending="Signing in…"
+              className={`${buttonClass("primary")} w-full`}
+            >
               Sign in
-            </button>
+            </SubmitButton>
           </form>
 
           <Link href="/" className="mt-6 inline-block text-sm text-muted hover:text-strong">
