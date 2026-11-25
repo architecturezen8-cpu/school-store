@@ -28,23 +28,25 @@ export default async function AdminGatePage() {
   const admitted = bookings.filter((b) => b.admittedAt).length;
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:py-10">
-      <PageHeader
-        eyebrow="At the door"
-        title="Gate scanner"
-        description="Scan a ticket to admit one entry. The same code scanned twice shows the first admission instead of letting anyone through again."
-        actions={<Pill tone="gold">{bookings.length - admitted} still to come</Pill>}
-      />
+    <div className="space-y-3">
+      <section className="rounded-2xl bg-navy-900 p-6">
+        <PageHeader
+          eyebrow="At the door"
+          title="Gate scanner"
+          description="Scan a ticket to admit one entry. The same code scanned twice shows the first admission instead of letting anyone through again."
+          actions={<Pill tone="invert">{bookings.length - admitted} still to come</Pill>}
+        />
+      </section>
 
-      <dl className="mt-6 grid gap-3 sm:grid-cols-3">
+      <dl className="grid gap-3 sm:grid-cols-3">
         <Stat label="Sold" value={String(bookings.length)} />
-        <Stat label="Admitted" value={String(admitted)} />
+        <Stat label="Admitted" value={String(admitted)} tone="invert" />
         <Stat label="Outstanding" value={String(bookings.length - admitted)} />
       </dl>
 
-      <div className="mt-6 overflow-hidden rounded-xl border border-navy-700 bg-navy-900 p-4 sm:p-5">
+      <section className="rounded-2xl bg-navy-900 p-4 sm:p-6">
         <GateScanner />
-      </div>
+      </section>
     </div>
   );
 }

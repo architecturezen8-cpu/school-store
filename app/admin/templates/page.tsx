@@ -38,66 +38,78 @@ export default async function TemplatesPage({
   const [templates, events] = await Promise.all([listTemplates(), getEvents()]);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-10 lg:py-10">
-      <PageHeader
-        eyebrow="Tickets"
-        title="Ticket designs"
-        description="Upload the artwork the customer receives. Leave a solid white square where the QR belongs — the code is detected and pasted in automatically."
-      />
-
-      <div className="mt-6 space-y-3">
-        {ok && <Notice tone="ok">Saved “{safeDecode(ok)}”. New bookings use it.</Notice>}
-        {error && <Notice tone="error">{safeDecode(error)}</Notice>}
-      </div>
-
-      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
-        {/* ---------------- upload ---------------- */}
-        <Panel title="Upload a design">
-          <form action={uploadTemplateAction} className="space-y-4">
-            <Field label="Design name">
-              <input name="name" required placeholder="Big Match 2027" className={inputClass} />
-            </Field>
-
-            <Field label="Event" hint="blank = all events">
-              <select name="event" defaultValue="" className={selectClass}>
-                <option value="">All events (default)</option>
-                {events.map((e) => (
-                  <option key={e.slug} value={e.slug}>
-                    {e.title}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            <Field label="Slug" hint="optional">
-              <input name="slug" placeholder="big-match-2027" className={inputClass} />
-            </Field>
-
-            <Field label="Image" hint="PNG · JPEG · WebP, 8 MB">
-              <input
-                type="file"
-                name="design"
-                accept="image/png,image/jpeg,image/webp"
-                required
-                className={`${inputClass} file:mr-3 file:rounded-md file:border-0 file:bg-gold file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-navy-950`}
-              />
-            </Field>
-
-            <button type="submit" className={`${buttonClass("primary")} w-full`}>
-              <ImageUp className="h-4 w-4" /> Upload and detect the square
-            </button>
-          </form>
-
-          <div className="mt-5 space-y-2 border-t border-navy-700 pt-4 text-xs leading-relaxed text-white/65">
-            <p>
-              <span className="text-white/70">The square matters.</span> Equal width and height, at
-              least 160px, pure white (no off-white, no transparency).
-            </p>
-            <p>
-              The QR fills about 80% of it, so a thin margin stays white and the code still scans.
-            </p>
+    <div className="space-y-3">
+      <section className="rounded-2xl bg-navy-900 p-6">
+        <PageHeader
+          eyebrow="Tickets"
+          title="Ticket designs"
+          description="Upload the artwork the customer receives. Leave a solid white square where the QR belongs — the code is detected and pasted in automatically."
+        />
+        {(ok || error) && (
+          <div className="mt-4 space-y-2">
+            {ok && <Notice tone="ok">Saved “{safeDecode(ok)}”. New bookings use it.</Notice>}
+            {error && <Notice tone="error">{safeDecode(error)}</Notice>}
           </div>
-        </Panel>
+        )}
+      </section>
+
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
+        {/* ---------------- upload ---------------- */}
+        <div className="space-y-3">
+          <Panel title="Upload a design">
+            <form action={uploadTemplateAction} className="space-y-4">
+              <Field label="Design name">
+                <input name="name" required placeholder="Big Match 2027" className={inputClass} />
+              </Field>
+
+              <Field label="Event" hint="blank = all events">
+                <select name="event" defaultValue="" className={selectClass}>
+                  <option value="">All events (default)</option>
+                  {events.map((e) => (
+                    <option key={e.slug} value={e.slug}>
+                      {e.title}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field label="Slug" hint="optional">
+                <input name="slug" placeholder="big-match-2027" className={inputClass} />
+              </Field>
+
+              <Field label="Image" hint="PNG · JPEG · WebP, 8 MB">
+                <input
+                  type="file"
+                  name="design"
+                  accept="image/png,image/jpeg,image/webp"
+                  required
+                  className={`${inputClass} file:mr-3 file:rounded-lg file:border-0 file:bg-white file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-black`}
+                />
+              </Field>
+
+              <button type="submit" className={`${buttonClass("primary")} w-full`}>
+                <ImageUp className="h-4 w-4" /> Upload and detect the square
+              </button>
+            </form>
+          </Panel>
+
+          <Panel title="The square matters" tone="sunken">
+            <ul className="space-y-3 text-xs leading-relaxed text-white/65">
+              <li>
+                <span className="text-white/80">Shape.</span> Equal width and height, at least
+                160px, pure white — no off-white, no transparency.
+              </li>
+              <li>
+                <span className="text-white/80">Fit.</span> The QR fills about 80% of it, so a thin
+                white margin stays around the code.
+              </li>
+              <li>
+                <span className="text-white/80">Nothing on top.</span> No logo, no text and no
+                texture inside the square.
+              </li>
+            </ul>
+          </Panel>
+        </div>
 
         {/* ---------------- existing ---------------- */}
         <Panel
@@ -107,38 +119,39 @@ export default async function TemplatesPage({
           {templates.length === 0 ? (
             <Empty>Nothing uploaded yet — tickets fall back to a plain generated design.</Empty>
           ) : (
-            <ul className="space-y-3">
+            <ul className="grid gap-3 sm:grid-cols-2">
               {templates.map((t) => (
-                <li
-                  key={t.id}
-                  className="flex flex-wrap items-center gap-4 rounded-lg border border-navy-700 bg-navy-950 p-3"
-                >
+                <li key={t.id} className="flex flex-col rounded-xl bg-navy-950 p-3">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={t.file}
                     alt={t.name}
-                    className="h-20 w-28 flex-none rounded-md border border-navy-700 object-cover"
+                    className="h-28 w-full rounded-lg object-cover"
                   />
-                  <div className="min-w-0 flex-1">
-                    <p className="flex flex-wrap items-center gap-2 text-sm text-white">
-                      {t.name}
-                      {t.isActive ? <Pill tone="ok">live</Pill> : <Pill>off</Pill>}
-                    </p>
-                    <p className="mt-1 text-xs text-white/60">
-                      {t.event ?? "all events"} · {t.width}×{t.height} · QR {t.qrSize}px
-                    </p>
+                  <div className="mt-3 flex items-start justify-between gap-2">
+                    <p className="min-w-0 truncate text-sm text-white">{t.name}</p>
+                    {t.isActive ? <Pill tone="ok">live</Pill> : <Pill>off</Pill>}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <p className="mt-1 text-[11px] text-white/65">
+                    {t.event ?? "all events"} · {t.width}×{t.height} · QR {t.qrSize}px
+                  </p>
+                  <div className="mt-3 flex items-center gap-2">
                     <form action={toggleTemplateAction}>
                       <input type="hidden" name="id" value={t.id} />
                       <input type="hidden" name="active" value={String(!t.isActive)} />
-                      <button type="submit" className={`${buttonClass("ghost")} !px-3 !py-1.5 !text-xs`}>
+                      <button
+                        type="submit"
+                        className={`${buttonClass("secondary")} !px-3 !py-1.5 !text-xs`}
+                      >
                         {t.isActive ? "Turn off" : "Turn on"}
                       </button>
                     </form>
                     <form action={deleteTemplateAction}>
                       <input type="hidden" name="id" value={t.id} />
-                      <button type="submit" className={`${buttonClass("danger")} !px-3 !py-1.5 !text-xs`}>
+                      <button
+                        type="submit"
+                        className={`${buttonClass("danger")} !px-3 !py-1.5 !text-xs`}
+                      >
                         <Trash2 className="h-3.5 w-3.5" /> Delete
                       </button>
                     </form>

@@ -137,14 +137,16 @@ export default function GateScanner() {
 
   useEffect(() => stopCamera, [stopCamera]);
 
+  // Admitted is the one tile that turns white: on a black page, a white tile is
+  // the loudest thing there is, and the palette has no green to borrow.
   const tone =
     result?.status === "admitted"
-      ? "border-emerald-500/50 bg-emerald-900/50"
+      ? "bg-white text-black"
       : result?.status === "already"
-        ? "border-amber-500/50 bg-amber-900/50"
+        ? "bg-navy-800 text-white"
         : result
-          ? "border-red-500/50 bg-red-900/50"
-          : "border-navy-700 bg-navy-950";
+          ? "bg-navy-950 text-white"
+          : "bg-navy-950 text-white";
 
   return (
     <div className="space-y-5">
@@ -153,12 +155,12 @@ export default function GateScanner() {
         <input
           value={by}
           onChange={(e) => setBy(e.target.value)}
-          className="mt-1.5 w-full rounded-lg border border-navy-600 bg-navy-900 px-3.5 py-2.5 text-white outline-none focus:border-gold"
+          className="mt-2 w-full rounded-xl bg-navy-950 px-4 py-3 text-white outline-none transition-colors focus:bg-navy-800 focus:ring-2 focus:ring-white/70"
           placeholder="Gate 1"
         />
       </label>
 
-      <div className="relative overflow-hidden rounded-lg border border-navy-700 bg-black">
+      <div className="relative overflow-hidden rounded-xl bg-black">
         <video
           ref={videoRef}
           playsInline
@@ -178,7 +180,7 @@ export default function GateScanner() {
                 type="button"
                 onClick={startCamera}
                 disabled={camera === "starting"}
-                className="rounded-lg bg-gold px-5 py-3 text-sm font-semibold text-navy-950 hover:bg-[#ffe066] disabled:opacity-60"
+                className="rounded-xl bg-white px-5 py-3 text-sm font-semibold text-black hover:bg-white/85 disabled:opacity-60"
               >
                 {camera === "starting" ? "Starting camera…" : "Start camera"}
               </button>
@@ -191,7 +193,7 @@ export default function GateScanner() {
         <button
           type="button"
           onClick={stopCamera}
-          className="w-full rounded-lg border border-navy-600 px-4 py-3 text-sm text-white/80 hover:bg-navy-800"
+          className="w-full rounded-xl bg-navy-800 px-4 py-3 text-sm text-white/80 hover:bg-navy-700"
         >
           Stop camera
         </button>
@@ -212,27 +214,27 @@ export default function GateScanner() {
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="https://…/t/…?s=…  or  BM-ABC123"
-            className="mt-1.5 w-full rounded-lg border border-navy-600 bg-navy-900 px-3.5 py-2.5 text-sm text-white outline-none focus:border-gold"
+            className="mt-2 w-full rounded-xl bg-navy-950 px-4 py-3 text-sm text-white outline-none transition-colors focus:bg-navy-800 focus:ring-2 focus:ring-white/70"
           />
         </label>
         <button
           type="submit"
           disabled={busy || !text.trim()}
-          className="w-full rounded-lg bg-white px-4 py-3 text-sm font-semibold text-navy-950 hover:bg-white/90 disabled:opacity-40"
+          className="w-full rounded-xl bg-white px-4 py-3 text-sm font-semibold text-black hover:bg-white/85 disabled:opacity-40"
         >
           {busy ? "Checking…" : "Check ticket"}
         </button>
       </form>
 
       {result && (
-        <div className={`rounded-lg border p-5 ${tone}`}>
+        <div className={`rounded-xl p-5 ${tone}`}>
           <div className="flex items-center gap-2">
             {result.status === "admitted" ? (
-              <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+              <CheckCircle2 className="h-5 w-5" />
             ) : (
-              <XCircle className="h-5 w-5 text-red-400" />
+              <XCircle className="h-5 w-5" />
             )}
-            <p className="font-display text-lg font-semibold text-white">
+            <p className="font-display text-lg font-semibold">
               {result.status === "admitted"
                 ? "Admitted"
                 : result.status === "already"
@@ -244,16 +246,16 @@ export default function GateScanner() {
           </div>
 
           {"ticket" in result && result.ticket ? (
-            <div className="mt-3 space-y-1 text-sm text-white/80">
-              <p className="text-base text-white">{result.ticket.name}</p>
-              <p className="text-white/60">{result.ticket.event}</p>
-              <p className="text-white/60">
+            <div className="mt-3 space-y-1 text-sm text-current/70">
+              <p className="text-base font-medium">{result.ticket.name}</p>
+              <p className="opacity-60">{result.ticket.event}</p>
+              <p className="opacity-60">
                 {result.ticket.tiers.join(", ")} · {result.ticket.seats} seat
                 {result.ticket.seats === 1 ? "" : "s"}
               </p>
-              <p className="text-white/65">Ref {result.ticket.reference}</p>
+              <p className="font-mono text-xs opacity-60">Ref {result.ticket.reference}</p>
               {result.status === "already" && result.ticket.admittedAt && (
-                <p className="mt-2 rounded-lg bg-black/30 px-3 py-2 text-amber-200">
+                <p className="mt-2 rounded-lg bg-black px-3 py-2 text-white">
                   First scanned {new Date(result.ticket.admittedAt).toLocaleString("en-GB")}
                   {result.ticket.admittedBy ? ` at ${result.ticket.admittedBy}` : ""}. Do
                   not admit again.
@@ -270,14 +272,14 @@ export default function GateScanner() {
                     }).catch(() => {});
                     setResult(null);
                   }}
-                  className="mt-3 inline-flex items-center gap-2 rounded-lg border border-white/20 px-3 py-2 text-xs text-white/70"
+                  className="mt-3 inline-flex items-center gap-2 rounded-lg bg-navy-900 px-3 py-2 text-xs text-white/70 hover:text-white"
                 >
                   <RotateCcw className="h-3.5 w-3.5" /> Undo (only if this was a mis-scan)
                 </button>
               )}
             </div>
           ) : (
-            <p className="mt-2 text-sm text-white/70">
+            <p className="mt-2 text-sm opacity-70">
               {"message" in result ? result.message : ""}
             </p>
           )}

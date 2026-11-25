@@ -31,56 +31,63 @@ export default async function BookingsPage({
   const seats = bookings.reduce((n, b) => n + b.seats, 0);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-10 lg:py-10">
-      <PageHeader
-        eyebrow="Tickets"
-        title="Bookings"
-        description="Everyone who has bought a ticket, what they paid and whether the code has been used at the gate."
-      />
+    <div className="space-y-3">
+      <section className="rounded-2xl bg-navy-900 p-6">
+        <PageHeader
+          eyebrow="Tickets"
+          title="Bookings"
+          description="Everyone who has bought a ticket, what they paid and whether the code has been used at the gate."
+        />
+        {(ok || error) && (
+          <div className="mt-4 space-y-2">
+            {ok && <Notice tone="ok">Ticket re-sent for {safeDecode(ok)}.</Notice>}
+            {error && <Notice tone="error">{safeDecode(error)}</Notice>}
+          </div>
+        )}
+      </section>
 
-      <div className="mt-6 space-y-3">
-        {ok && <Notice tone="ok">Ticket re-sent for {safeDecode(ok)}.</Notice>}
-        {error && <Notice tone="error">{safeDecode(error)}</Notice>}
-      </div>
-
-      <dl className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Stat label="Bookings" value={String(bookings.length)} />
         <Stat label="Seats" value={String(seats)} />
-        <Stat label="Admitted at the gate" value={String(admitted)} note={`${bookings.length - admitted} outstanding`} />
-        <Stat label="Taken" value={lkr(revenue)} />
+        <Stat
+          label="Admitted at the gate"
+          value={String(admitted)}
+          note={`${bookings.length - admitted} outstanding`}
+        />
+        <Stat label="Taken" value={lkr(revenue)} tone="invert" />
       </dl>
 
-      <Panel className="mt-8" title="All bookings" description="Newest first.">
+      <Panel title="All bookings" description="Newest first.">
         {bookings.length === 0 ? (
           <Empty>No bookings yet. They appear here the moment someone reserves a ticket.</Empty>
         ) : (
-          <div className="-mx-5 overflow-x-auto px-5">
+          <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] text-left text-sm">
-              <thead className="text-[11px] uppercase tracking-[0.14em] text-white/60">
-                <tr className="border-b border-navy-700">
-                  <th className="py-2.5 pr-4 font-medium">Reference</th>
-                  <th className="py-2.5 pr-4 font-medium">Customer</th>
-                  <th className="py-2.5 pr-4 font-medium">Seats</th>
-                  <th className="py-2.5 pr-4 font-medium">Paid</th>
-                  <th className="py-2.5 pr-4 font-medium">Gate</th>
-                  <th className="py-2.5 text-right font-medium">
+              <thead className="text-[11px] uppercase tracking-[0.14em] text-white/65">
+                <tr>
+                  <th className="pb-3 pr-4 font-medium">Reference</th>
+                  <th className="pb-3 pr-4 font-medium">Customer</th>
+                  <th className="pb-3 pr-4 font-medium">Seats</th>
+                  <th className="pb-3 pr-4 font-medium">Paid</th>
+                  <th className="pb-3 pr-4 font-medium">Gate</th>
+                  <th className="pb-3 text-right font-medium">
                     <span className="sr-only">Actions</span>
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-navy-700">
+              <tbody>
                 {bookings.map((b) => (
                   <tr key={b.reference} className="align-middle">
-                    <td className="py-3 pr-4 font-mono text-xs text-white/60">{b.reference}</td>
+                    <td className="py-3 pr-4 font-mono text-xs text-white/70">{b.reference}</td>
                     <td className="py-3 pr-4">
                       <span className="block text-white">{b.name}</span>
-                      <span className="block truncate text-xs text-white/60">{b.email}</span>
+                      <span className="block truncate text-xs text-white/65">{b.email}</span>
                     </td>
-                    <td className="py-3 pr-4 text-white/70">
+                    <td className="py-3 pr-4 text-white/75">
                       {b.seatsText || `${b.seats} seats`}
-                      <span className="block text-xs text-white/60">{b.eventTitle}</span>
+                      <span className="block text-xs text-white/65">{b.eventTitle}</span>
                     </td>
-                    <td className="py-3 pr-4 text-white/70">{lkr(b.total)}</td>
+                    <td className="py-3 pr-4 text-white/75">{lkr(b.total)}</td>
                     <td className="py-3 pr-4">
                       {b.admittedAt ? (
                         <Pill tone="ok">{new Date(b.admittedAt).toLocaleString("en-GB")}</Pill>
@@ -91,7 +98,10 @@ export default async function BookingsPage({
                     <td className="py-3 text-right">
                       <form action={resendTicketAction}>
                         <input type="hidden" name="token" value={b.token} />
-                        <button type="submit" className={`${buttonClass("ghost")} !px-3 !py-1.5 !text-xs`}>
+                        <button
+                          type="submit"
+                          className={`${buttonClass("ghost")} !px-3 !py-1.5 !text-xs`}
+                        >
                           <Mail className="h-3.5 w-3.5" /> Resend
                         </button>
                       </form>

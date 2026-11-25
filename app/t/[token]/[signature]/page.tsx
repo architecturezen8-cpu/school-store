@@ -10,4 +10,8 @@
  * `/t/<token>?s=<signature>` links — keep working.
  */
 
-export { default, dynamic, metadata } from "../page";
+// Turbopack refuses a re-exported route-segment config (`dynamic`), so it is
+// declared here rather than re-exported. Keep the two in step.
+export const dynamic = "force-dynamic";
+
+export { default, metadata } from "../page";

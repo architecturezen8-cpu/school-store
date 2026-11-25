@@ -86,9 +86,9 @@ scripts/             db-migrate.mjs, db-seed.mjs, pglite-reset.mjs, build-pages.
 
 ## StackBlitz
 
-See `STACKBLITZ.md` — import the repo, wait for `npm install`, done. `npm run dev`
-uses webpack because Turbopack's native binary cannot run in a WebContainer, and
-Tailwind falls back to its WASM engine there.
+See `STACKBLITZ.md` — import the repo, wait for `npm install`, done. Use
+`npm run dev:webpack` there: Turbopack (the default on a real machine) cannot run
+its native binary in a WebContainer, and Tailwind needs `TAILWIND_ENGINE=wasm`.
 
 ## Deploy (Vercel)
 
