@@ -5,14 +5,42 @@
  * Temporary QA script, not part of the app.
  *   QA_MODULES=/tmp/qaenv/node_modules node qa/ticket-review.mjs
  */
-import fs from "node:fs";
+import fs, { readFileSync } from "node:fs";
 import { createHmac } from "node:crypto";
 import { open } from "./browser.mjs";
 
+
+/** Reads a value out of .env.local, so the script agrees with the server it tests. */
+function fromEnvFile(key) {
+  if (process.env[key]) return process.env[key];
+  let text = "";
+  try {
+    text = readFileSync(".env.local", "utf8");
+  } catch {
+    return "";
+  }
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq === -1) continue;
+    if (trimmed.slice(0, eq).trim() !== key) continue;
+    let value = trimmed.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"') && value.length > 1) ||
+      (value.startsWith("'") && value.endsWith("'") && value.length > 1)
+    ) {
+      value = value.slice(1, -1);
+    }
+    return value;
+  }
+  return "";
+}
+
 const BASE = process.env.BASE ?? "http://localhost:3000";
 const OUT = "/tmp/qa-ticket";
-const SECRET = process.env.TICKET_SECRET ?? "local-review-secret-please-change";
-const PASSWORD = process.env.ADMIN_PASSWORD ?? "thomian2026";
+const SECRET = fromEnvFile("TICKET_SECRET") || "local-review-secret-please-change";
+const PASSWORD = fromEnvFile("ADMIN_PASSWORD") || "thomian2026";
 
 fs.mkdirSync(OUT, { recursive: true });
 

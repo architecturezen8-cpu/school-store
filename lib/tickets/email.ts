@@ -8,6 +8,7 @@ import { composeTicket, detectWhiteSquare } from "./detect";
 import type { Ticket } from "../bookings";
 import { getMailTemplate } from "./mail-settings";
 import { errorMessage } from "../errors";
+import { listAllEvents } from "../events";
 
 /**
  * Delivering the ticket by email.
@@ -241,6 +242,57 @@ export async function buildTicketMail(
     text: [body, "", `Reference: ${ticket.reference}`, `Seats: ${values.seats}`, `Paid: ${lkr(ticket.total)}`, `Ticket: ${url}`].join("\n"),
     artwork: image,
     qr,
+  };
+}
+
+/**
+ * A stand-in booking, for testing the mail before anyone has bought a ticket.
+ *
+ * A brand-new store has no bookings, and the test send used to refuse with
+ * "Sell one ticket first". That is the wrong way round: the test is what an
+ * admin does *before* the first sale, to check the ticket is not landing in
+ * spam. So when there is no real booking to borrow, this borrows the shape of a
+ * real one instead — a real event (title, date, venue, artwork, tier prices from
+ * the database), a clearly-marked sample reference, and a fresh random token so
+ * the QR is genuine and unique.
+ *
+ * Deliberately not stored: a fake row in `bookings` would turn up in the gate
+ * scanner, in the takings and in the sales list, and there is no honest way to
+ * delete it again. The only thing a sample costs is that the QR does not open a
+ * live ticket, and the message says so.
+ */
+export async function sampleTicket(): Promise<Ticket> {
+  // Admin-shaped rows, because the sample has to work on an empty store too —
+  // unpublished events included.
+  const events = await listAllEvents().catch(() => []);
+  const event = events.find((e) => e.tiers.length > 0) ?? events[0];
+
+  const tiers = (event?.tiers ?? []).slice(0, 1).map((t) => ({
+    id: t.id,
+    name: t.name,
+    price: t.price,
+    qty: 2,
+  }));
+  const total = tiers.reduce((n, t) => n + t.price * t.qty, 0) || 3000;
+
+  return {
+    reference: "BM-SAMPLE",
+    token: Buffer.from(
+      Array.from({ length: 16 }, () => Math.floor(Math.random() * 256))
+    ).toString("base64url"),
+    event: event?.slug ?? "",
+    eventTitle: event?.title ?? "The Big Match",
+    eventDate: event?.startsAt ?? "2027-01-09T10:00:00.000Z",
+    venue: event?.venue ?? "College Grounds",
+    city: event?.city ?? "Matale",
+    doors: event?.doors ?? "Gates open 8:00 AM",
+    image: event?.image ?? "",
+    name: "Sample Ticket",
+    email: "",
+    total,
+    tiers,
+    admittedAt: null,
+    admittedBy: "",
   };
 }
 

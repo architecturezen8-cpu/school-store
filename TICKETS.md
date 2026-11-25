@@ -212,6 +212,51 @@ recorded once, reported in the panel, and not retried on every page load.
 **"Email is not configured"** — set `RESEND_API_KEY` or the `SMTP_*` variables
 and restart.
 
+### Testing the email without a domain or a real inbox
+
+Two things usually stop this: no verified domain yet, and not wanting to spray
+test mail at the school's real address. Both are solvable.
+
+**Prove it sends, on your own machine.** `npm run mail:trap` starts a tiny SMTP
+server that prints what it receives. Point the app at it:
+
+```bash
+SMTP_HOST="127.0.0.1"
+SMTP_PORT="1025"
+SMTP_SECURE="0"
+```
+
+Then book a ticket, or use **Ticket email → Send a test**, and the trap prints
+the recipient, the subject and the parts (`text/plain`, `text/html`, the inline
+QR, the attached artwork) instead of the mail leaving your machine. It proves the
+message is built and delivered over SMTP exactly as it will be for a customer,
+with no domain and no inbox involved. It cannot prove deliverability — a real
+provider's spam filtering is the one thing it cannot show.
+
+**Prove it lands in a real inbox.** Either verify the domain you own (Resend →
+Domains → add `machan.me`, add the DNS records it gives you, wait for
+*Verified*), or use a Gmail account with an **App Password** — that needs no
+domain at all:
+
+```bash
+SMTP_HOST="smtp.gmail.com"
+SMTP_PORT="587"
+SMTP_SECURE="0"
+SMTP_USER="you@gmail.com"
+SMTP_PASS="the 16-character app password"     # not your normal password
+MAIL_FROM="The Thomian Store <you@gmail.com>"  # must match SMTP_USER
+```
+
+Google account → **Security** → 2-Step Verification → **App passwords**. Normal
+passwords are refused by Gmail's SMTP, which is the most common reason "it does
+not send".
+
+**"Sell one ticket first"** used to block the test on a brand-new store, which is
+backwards — the test is what you do *before* the first sale. With no bookings the
+page now previews and sends a **sample** (`BM-SAMPLE`): a real event, a real
+layout, a real QR, but not a live booking, so the gate will not admit it. The page
+says so. Sell one ticket and it switches to your real booking automatically.
+
 **"That design has no white square"** — the upload was refused on purpose. Check
 it is a solid white square, not off-white or a photo of one.
 

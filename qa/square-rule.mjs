@@ -15,6 +15,33 @@ import sharp from "sharp";
 import jsQR from "jsqr";
 import { open } from "./browser.mjs";
 
+/** Reads a value out of .env.local, so the script agrees with the server it tests. */
+function fromEnvFile(key) {
+  if (process.env[key]) return process.env[key];
+  let text = "";
+  try {
+    text = require("node:fs").readFileSync(".env.local", "utf8");
+  } catch {
+    return "";
+  }
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq === -1) continue;
+    if (trimmed.slice(0, eq).trim() !== key) continue;
+    let value = trimmed.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"') && value.length > 1) ||
+      (value.startsWith("'") && value.endsWith("'") && value.length > 1)
+    ) {
+      value = value.slice(1, -1);
+    }
+    return value;
+  }
+  return "";
+}
+
 const BASE = process.env.BASE ?? "http://localhost:3000";
 const OUT = "/tmp/qa-square";
 fs.mkdirSync(OUT, { recursive: true });

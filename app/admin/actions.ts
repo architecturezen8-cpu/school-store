@@ -9,7 +9,7 @@ import {
   uploadTemplate,
 } from "@/lib/tickets/templates";
 import { getTicketByReference, getTicketByToken, listBookings } from "@/lib/bookings";
-import { sendTicketEmail } from "@/lib/tickets/email";
+import { sendTicketEmail, sampleTicket } from "@/lib/tickets/email";
 import { friendlyError } from "@/lib/errors";
 import { query } from "@/lib/db";
 import {
@@ -160,17 +160,23 @@ export async function sendTestMailAction(
       ? await getTicketByToken((await listBookings(1))[0].token)
       : null;
 
-  if (!ticket) {
+  // No sale yet is not a reason to refuse the test: the test exists so an admin
+  // can check the mail *before* the first sale. A sample stands in — a real
+  // event and a real QR, just not a live booking — and the success message says
+  // which one went out, so nobody is told they tested something they did not.
+  const sample = ticket ? null : await sampleTicket();
+  if (!ticket && !sample) {
     redirect(
       `/admin/mail?error=${encodeURIComponent(
-        "Sell one ticket first — the test needs a real booking for its QR code."
+        "There is no event to build a sample ticket from — add one first."
       )}`
     );
   }
 
+  const sending = { ...(ticket ?? sample!), email: to };
   let result: Awaited<ReturnType<typeof sendTicketEmail>>;
   try {
-    result = await sendTicketEmail({ ...ticket, email: to });
+    result = await sendTicketEmail(sending);
   } catch (err) {
     redirect(`/admin/mail?error=${encodeURIComponent(friendlyError(err))}`);
   }
@@ -185,7 +191,9 @@ export async function sendTestMailAction(
 
   redirect(
     `/admin/mail?ok=${encodeURIComponent(
-      `Test ticket sent to ${to} (${ticket.reference}).`
+      ticket
+        ? `Test ticket sent to ${to} (${ticket.reference}).`
+        : `Sample ticket sent to ${to}. Delivery works; the QR is a sample, so the gate will not admit it.`
     )}`
   );
 }
