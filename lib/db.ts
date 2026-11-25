@@ -223,10 +223,14 @@ async function seedIfEmpty(db: PGliteLike) {
       ]);
     }
 
-    for (const e of seed.events) {
+    for (const [i, e] of seed.events.entries()) {
       await q(
-        `insert into events (slug, title, subtitle, description, venue, city, starts_at, doors, image, tag, featured)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) on conflict (slug) do nothing`,
+        `insert into events
+           (slug, title, subtitle, description, venue, city, starts_at, doors, image,
+            tag, featured, tagline, story, rules, gallery, links, hero_image,
+            hero_kicker, ends_at, position)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+         on conflict (slug) do nothing`,
         [
           e.slug,
           e.title,
@@ -239,6 +243,15 @@ async function seedIfEmpty(db: PGliteLike) {
           e.image,
           e.tag ?? null,
           Boolean(e.featured),
+          e.tagline ?? "",
+          e.story ?? "",
+          JSON.stringify(e.rules ?? []),
+          JSON.stringify(e.gallery ?? []),
+          JSON.stringify(e.links ?? []),
+          e.heroImage ?? "",
+          e.heroKicker ?? "",
+          e.endsAt ? e.endsAt.toISOString() : null,
+          e.position ?? i,
         ]
       );
       for (const [i, t] of e.tiers.entries()) {

@@ -1,64 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ArrowRight, Clock, Users } from "lucide-react";
 import { lkr } from "@/lib/format";
 import type { CollegeEvent } from "@/data/seed";
 import { dayNumber, fullDate, monthShort, weekdayShort } from "@/lib/dates";
+import Countdown from "@/components/Countdown";
 import TicketBooking from "@/components/TicketBooking";
+import Link from "next/link";
 import Reveal from "@/components/Reveal";
-
-/* ---------------- countdown ---------------- */
-function useCountdown(target: Date) {
-  // Starts at null so the server and the first client render agree; the real
-  // value arrives right after mount. (A Date.now() during render is the classic
-  // hydration mismatch.)
-  const [left, setLeft] = useState<number | null>(null);
-
-  useEffect(() => {
-    const tick = () => setLeft(target.getTime() - Date.now());
-    tick();
-    const id = window.setInterval(tick, 1000);
-    return () => window.clearInterval(id);
-  }, [target]);
-
-  const clamped = left === null ? 0 : Math.max(0, left);
-  const s = Math.floor(clamped / 1000);
-  return {
-    days: Math.floor(s / 86400),
-    hours: Math.floor((s % 86400) / 3600),
-    minutes: Math.floor((s % 3600) / 60),
-    seconds: s % 60,
-  };
-}
-
-function Countdown({ target }: { target: Date }) {
-  const { days, hours, minutes, seconds } = useCountdown(target);
-  const cells = [
-    { v: days, l: "Days" },
-    { v: hours, l: "Hrs" },
-    { v: minutes, l: "Min" },
-    { v: seconds, l: "Sec" },
-  ];
-
-  return (
-    <div className="flex gap-2.5">
-      {cells.map((c) => (
-        <div
-          key={c.l}
-          className="min-w-[3.75rem] rounded-xl bg-navy-950 px-3 py-2.5 text-center transition-colors duration-300"
-        >
-          <p className="font-display text-xl font-semibold leading-none tabular-nums">
-            {String(c.v).padStart(2, "0")}
-          </p>
-          <p className="mt-1.5 text-[9px] font-bold uppercase tracking-[0.18em] text-white/65">
-            {c.l}
-          </p>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 /* ---------------- event card ---------------- */
 function EventCard({
@@ -72,8 +22,8 @@ function EventCard({
 }) {
   return (
     <Reveal delay={index * 90} className="h-full">
-      <article className="group bento bento-lift flex h-full flex-col overflow-hidden">
-        {/* image strip */}
+      <article className="group bento bento-lift relative flex h-full flex-col overflow-hidden">
+        {/* image strip — the whole card is the link to the event page */}
         <div className="relative h-32 overflow-hidden">
           <img
             src={event.image}
@@ -105,12 +55,20 @@ function EventCard({
         </div>
 
         {/* body */}
-        <div className="flex flex-1 flex-col p-6">
+        <div className="relative flex flex-1 flex-col p-6">
           {/* min-h keeps the money row on one baseline across the grid: a
               two-line title ("Inter-House Athletics Meet") otherwise pushes its
               BOOK button below the other three cards. */}
-          <h3 className="min-h-[1.05em] font-display text-[1.35rem] font-semibold leading-tight tracking-tight text-white md:min-h-[2.1em]">
-            {event.title}
+          {/* The title is the link, and its ::after covers the card, so a click
+              anywhere on the card opens the event page while the Book button —
+              which sits later in the DOM — stays on top of that hit area. */}
+          <h3 className="min-h-[1.05em] font-display text-[1.35rem] font-semibold leading-tight tracking-tight md:min-h-[2.1em]">
+            <Link
+              href={`/events/${event.slug}`}
+              className="text-white underline-offset-4 after:absolute after:inset-0 after:content-[''] hover:text-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+            >
+              {event.title}
+            </Link>
           </h3>
           <p className="mt-2 line-clamp-2 min-h-[2.6em] text-[13px] leading-relaxed text-white/65">
             {event.subtitle}
@@ -138,16 +96,19 @@ function EventCard({
                 {lowestPrice(event) === 0 ? "Free" : lkr(lowestPrice(event))}
               </p>
             </div>
-            <button
-              onClick={() => onBook(event)}
-              className="group/btn inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-[10px] font-extrabold uppercase tracking-[0.2em] text-ink transition-all duration-300 hover:bg-gold"
-            >
-              Book
-              <ArrowRight
-                size={12}
-                className="transition-transform duration-300 group-hover/btn:translate-x-0.5"
-              />
-            </button>
+            <div className="relative flex items-center gap-1.5">
+              {/* Books without leaving the page — the overlay is the shortcut. */}
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onBook(event);
+                }}
+                className="group/btn inline-flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-[10px] font-extrabold uppercase tracking-[0.18em] text-ink transition-all duration-300 hover:bg-gold"
+              >
+                Book
+              </button>
+            </div>
           </div>
         </div>
       </article>
@@ -158,13 +119,110 @@ function EventCard({
 const lowestPrice = (e: CollegeEvent) =>
   e.tiers.reduce((min, t) => Math.min(min, t.price), Number.POSITIVE_INFINITY);
 
+/* ---------------- spotlight ----------------
+   One block per featured event. The admin decides how many there are, so the
+   first one gets the full hero treatment and any others stack below it — the
+   same design, in a slightly tighter frame so the page does not turn into a
+   wall of identical panels. */
+function Spotlight({
+  event,
+  lead,
+  onBook,
+}: {
+  event: CollegeEvent;
+  lead: boolean;
+  onBook: (e: CollegeEvent) => void;
+}) {
+  return (
+    <div className="grid overflow-hidden rounded-[2rem] bg-navy-950 ring-1 ring-white/10 lg:grid-cols-2">
+      <div className={`relative min-h-[300px] ${lead ? "lg:min-h-[520px]" : "lg:min-h-[440px]"}`}>
+        <img
+          src={event.heroImage || event.image}
+          alt={event.title}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-ink/85 via-ink/25 to-transparent lg:bg-gradient-to-r lg:from-transparent lg:via-ink/20 lg:to-ink/70" />
+        <span className="absolute left-6 top-6 rounded-lg bg-ink px-3.5 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-white">
+          {lead ? event.tag || "Flagship event" : event.tag || "Also featured"}
+        </span>
+      </div>
+
+      <div className={`flex flex-col justify-center px-7 ${lead ? "py-9 md:px-10 md:py-12" : "py-8 md:px-10 md:py-10"}`}>
+        <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/65">
+          {fullDate(event.date)}
+        </p>
+        <h2
+          className={`mt-4 font-display font-semibold leading-tight tracking-tight ${
+            lead ? "text-[2.1rem] md:text-[2.6rem]" : "text-[1.7rem] md:text-[2.1rem]"
+          }`}
+        >
+          {event.title}
+        </h2>
+        {event.subtitle && (
+          <p className="mt-3 text-[14px] text-gold">{event.subtitle}</p>
+        )}
+        <p className="mt-5 max-w-md text-sm leading-relaxed text-white/55">
+          {event.description}
+        </p>
+
+        <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px] text-white/65">
+          <span className="flex items-center gap-2">
+            <Clock size={14} className="text-white/50" />
+            {event.doors}
+          </span>
+          <span className="flex items-center gap-2">
+            <Users size={14} className="text-white/50" />
+            {event.venue}, {event.city}
+          </span>
+        </div>
+
+        {/* Countdown draws its own "Gates open in" label — don't add a second. */}
+        <div className="mt-8">
+          <Countdown target={event.date} />
+        </div>
+
+        {event.tiers.length > 0 && (
+          <div className="mt-8 flex flex-wrap gap-2">
+            {event.tiers.map((t) => (
+              <span
+                key={t.id}
+                className="rounded-full bg-navy-900 px-4 py-2 text-[11px] font-semibold text-white/65 transition-colors duration-300 hover:text-white"
+              >
+                {t.name} · <span className="text-white">{t.price === 0 ? "Free" : lkr(t.price)}</span>
+              </span>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-8 flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => onBook(event)}
+            className="group inline-flex w-fit items-center gap-3 rounded-full bg-gold px-8 py-4 text-[11px] font-extrabold uppercase tracking-[0.24em] text-ink transition-all duration-500 hover:-translate-y-0.5 hover:shadow-[0_12px_50px_rgba(255,212,68,0.35)]"
+          >
+            Book tickets
+            <ArrowRight size={14} className="transition-transform duration-300 group-hover:translate-x-1" />
+          </button>
+          <Link
+            href={`/events/${event.slug}`}
+            className="inline-flex items-center gap-2 rounded-full bg-white/10 px-6 py-4 text-[11px] font-extrabold uppercase tracking-[0.24em] text-white transition-colors hover:bg-white/20"
+          >
+            Event details
+            <ArrowRight size={13} />
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ---------------- page ---------------- */
 export default function TicketsPage({ events }: { events: CollegeEvent[] }) {
   const [booking, setBooking] = useState<CollegeEvent | null>(null);
-  const featuredEvent = events.find((e) => e.featured) ?? events[0];
-  const upcoming = events.filter((e) => e.slug !== featuredEvent?.slug);
+  const spotlight = events.filter((e) => e.featured);
+  const featured = spotlight.length ? spotlight : events.slice(0, 1);
+  const upcoming = events.filter((e) => !featured.some((f) => f.slug === e.slug));
 
-  if (!featuredEvent) {
+  if (featured.length === 0) {
     return (
       <section className="flex min-h-[70vh] items-center justify-center px-5 pt-32 text-center">
         <p className="text-sm text-white/65">No events are on sale right now.</p>
@@ -194,82 +252,14 @@ export default function TicketsPage({ events }: { events: CollegeEvent[] }) {
           </p>
         </Reveal>
 
-        {/* ---------- featured spotlight ---------- */}
-        <Reveal delay={100}>
-          <div className="mt-12 grid overflow-hidden rounded-[2rem] border border-white/10 bg-navy-950 lg:grid-cols-2">
-            <div className="relative min-h-[300px] lg:min-h-[520px]">
-              <img
-                src={featuredEvent.image}
-                alt={featuredEvent.title}
-                className="absolute inset-0 h-full w-full object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-ink/80 via-ink/25 to-transparent lg:bg-gradient-to-r lg:from-transparent lg:via-ink/20 lg:to-ink/60" />
-              <span className="absolute left-6 top-6 rounded-lg bg-ink px-3.5 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-white">
-                {featuredEvent.tag}
-              </span>
+        {/* ---------- featured spotlights ---------- */}
+        {featured.map((e, i) => (
+          <Reveal key={e.slug} delay={100 + i * 40}>
+            <div className={i === 0 ? "mt-12" : "mt-6"}>
+              <Spotlight event={e} lead={i === 0} onBook={setBooking} />
             </div>
-
-            <div className="flex flex-col justify-center px-7 py-9 md:px-10 md:py-12">
-              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/65">
-                {fullDate(featuredEvent.date)}
-              </p>
-              <h2 className="mt-4 font-display text-[2.1rem] font-semibold leading-tight tracking-tight md:text-[2.6rem]">
-                {featuredEvent.title}
-              </h2>
-              <p className="mt-3 text-[14px] text-gold">
-                {featuredEvent.subtitle}
-              </p>
-              <p className="mt-5 max-w-md text-sm leading-relaxed text-white/55">
-                {featuredEvent.description}
-              </p>
-
-              <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px] text-white/65">
-                <span className="flex items-center gap-2">
-                  <Clock size={14} className="text-white/50" />
-                  {featuredEvent.doors}
-                </span>
-                <span className="flex items-center gap-2">
-                  <Users size={14} className="text-white/50" />
-                  {featuredEvent.venue}, {featuredEvent.city}
-                </span>
-              </div>
-
-              <div className="mt-8">
-                <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-white/65">
-                  Gates open in
-                </p>
-                <div className="mt-3">
-                  <Countdown target={featuredEvent.date} />
-                </div>
-              </div>
-
-              <div className="mt-8 flex flex-wrap gap-2">
-                {featuredEvent.tiers.map((t) => (
-                  <span
-                    key={t.id}
-                    className="rounded-full bg-navy-900 px-4 py-2 text-[11px] font-semibold text-white/65 transition-colors duration-300 hover:text-white"
-                  >
-                    {t.name} ·{" "}
-                    <span className="text-white">
-                      {t.price === 0 ? "Free" : lkr(t.price)}
-                    </span>
-                  </span>
-                ))}
-              </div>
-
-              <button
-                onClick={() => setBooking(featuredEvent)}
-                className="group mt-8 inline-flex w-fit items-center gap-3 rounded-full bg-gold px-8 py-4 text-[11px] font-extrabold uppercase tracking-[0.24em] text-ink transition-all duration-500 hover:-translate-y-0.5 hover:shadow-[0_12px_50px_rgba(255,212,68,0.35)]"
-              >
-                Book tickets
-                <ArrowRight
-                  size={14}
-                  className="transition-transform duration-300 group-hover:translate-x-1"
-                />
-              </button>
-            </div>
-          </div>
-        </Reveal>
+          </Reveal>
+        ))}
 
         {/* ---------- upcoming events ---------- */}
         <Reveal delay={140}>

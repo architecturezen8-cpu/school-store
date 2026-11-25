@@ -7,7 +7,7 @@ import { signIn } from "./actions";
 import { listBookings } from "@/lib/bookings";
 import { lkr } from "@/lib/format";
 import { Eyebrow, Notice, Pill, Stat, buttonClass, inputClass } from "@/components/admin/ui";
-import { ArrowUpRight, CalendarCheck, LayoutTemplate, Mail, ScanLine } from "lucide-react";
+import { ArrowUpRight, CalendarCheck, CalendarDays, Mail, ScanLine } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -30,10 +30,10 @@ const SECTIONS = [
     body: "Every ticket sold, who paid, and who has walked through the gate.",
   },
   {
-    href: "/admin/templates",
-    icon: LayoutTemplate,
-    title: "Ticket designs",
-    body: "Upload the artwork with a white square; the QR is pasted into it.",
+    href: "/admin/events",
+    icon: CalendarDays,
+    title: "Events",
+    body: "Every college event: the page, the rules, the photos, the ticket artwork.",
   },
   {
     href: "/admin/mail",

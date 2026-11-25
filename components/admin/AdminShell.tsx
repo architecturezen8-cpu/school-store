@@ -7,9 +7,9 @@ import CrestLogo from "@/components/CrestLogo";
 import { signOut } from "@/app/admin/actions";
 import {
   CalendarCheck,
+  CalendarDays,
   ExternalLink,
   LayoutDashboard,
-  LayoutTemplate,
   LogOut,
   Mail,
   Menu,
@@ -29,8 +29,8 @@ import {
 
 const NAV = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
+  { href: "/admin/events", label: "Events", icon: CalendarDays },
   { href: "/admin/bookings", label: "Bookings", icon: CalendarCheck },
-  { href: "/admin/templates", label: "Ticket designs", icon: LayoutTemplate },
   { href: "/admin/mail", label: "Ticket email", icon: Mail },
   { href: "/admin/gate", label: "Gate scanner", icon: ScanLine },
 ];
@@ -72,7 +72,7 @@ export default function AdminShell({
       </div>
 
       {/* sections */}
-      <nav className="mt-4 flex-1 overflow-y-auto" aria-label="Admin sections">
+      <nav id="admin-sidebar" className="mt-4 flex-1 overflow-y-auto" aria-label="Admin sections">
         <p className="px-3 pb-2 text-[10px] uppercase tracking-[0.18em] text-white/65">
           Manage
         </p>
