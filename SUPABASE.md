@@ -238,6 +238,26 @@ and if the tables are empty as well, `npm run db:seed` after it. `npm run
 db:check` tells you which of the two it is, including the exact column that is
 missing.
 
+### Windows: `npm run build` works from cmd and PowerShell
+
+The build used to be `STORE_STRICT=1 next build` in `package.json`. That is POSIX
+shell syntax; on Windows' cmd.exe it fails before Next.js even starts:
+
+```
+'STORE_STRICT' is not recognized as an internal or external command
+```
+
+The strict switch now lives in `next.config.mjs`, which sets it when the build
+phase starts — so the same `npm run build` works on cmd, PowerShell, macOS and
+Linux, and also if you run `npx next build` by hand. Nothing to change on your
+side; just pull and run it again:
+
+```bash
+npm run db:check
+npm run db:migrate
+npm run build
+```
+
 ### If the build says ETIMEDOUT
 
 ```

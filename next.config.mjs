@@ -10,7 +10,7 @@ const isStatic = process.env.NEXT_STATIC_EXPORT === "1";
 const basePath = process.env.NEXT_BASE_PATH ?? "";
 
 /** @type {import('next').NextConfig} */
-const nextConfig = {
+const baseConfig = {
   reactStrictMode: true,
 
   // Dev servers behind a proxy/tunnel host (sandbox previews, StackBlitz) need
@@ -35,4 +35,19 @@ const nextConfig = {
   ...(isStatic ? { output: "export", images: { unoptimized: true } } : {}),
 };
 
-export default nextConfig;
+/*
+ * A production build must not quietly fill itself in with demo data.
+ *
+ * `next build` sets STORE_STRICT here rather than in an npm script because
+ * `"build": "STORE_STRICT=1 next build"` is POSIX shell syntax — on Windows'
+ * cmd.exe it fails with "'STORE_STRICT' is not recognized as an internal or
+ * external command". Doing it in the config works on every platform and for
+ * anyone who runs `npx next build` directly.
+ *
+ * The phase argument is used rather than process.env.NEXT_PHASE: the variable
+ * is not set when this module body runs, but the argument always is.
+ */
+export default (phase) => {
+  if (phase === "phase-production-build") process.env.STORE_STRICT = "1";
+  return baseConfig;
+};
