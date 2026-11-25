@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, CheckCircle2, Keyboard, RotateCcw, XCircle } from "lucide-react";
+import { errorMessage } from "@/lib/errors";
 
 /**
  * The volunteer's screen at the gate.
@@ -72,7 +73,7 @@ export default function GateScanner() {
           navigator.vibrate(json.status === "admitted" ? 120 : [60, 60, 60]);
         }
       } catch (err) {
-        setResult({ status: "error", message: (err as Error).message });
+        setResult({ status: "error", message: errorMessage(err) });
       } finally {
         setBusy(false);
         setText("");
@@ -131,7 +132,7 @@ export default function GateScanner() {
       loopRef.current = requestAnimationFrame(tick);
     } catch (err) {
       setCamera("off");
-      setResult({ status: "error", message: `Camera unavailable: ${(err as Error).message}` });
+      setResult({ status: "error", message: `Camera unavailable: ${errorMessage(err)}` });
     }
   }, [submit]);
 
@@ -143,10 +144,10 @@ export default function GateScanner() {
     result?.status === "admitted"
       ? "bg-white text-black"
       : result?.status === "already"
-        ? "bg-navy-800 text-white"
+        ? "bg-panel-2 text-white"
         : result
-          ? "bg-navy-950 text-white"
-          : "bg-navy-950 text-white";
+          ? "bg-well text-white"
+          : "bg-well text-white";
 
   return (
     <div className="space-y-5">
@@ -155,7 +156,7 @@ export default function GateScanner() {
         <input
           value={by}
           onChange={(e) => setBy(e.target.value)}
-          className="mt-2 w-full rounded-xl bg-navy-950 px-4 py-3 text-white outline-none transition-colors focus:bg-navy-800 focus:ring-2 focus:ring-white/70"
+          className="mt-2 w-full rounded-xl bg-well px-4 py-3 text-white outline-none transition-colors focus:bg-panel-2 focus:ring-2 focus:ring-gold"
           placeholder="Gate 1"
         />
       </label>
@@ -193,7 +194,7 @@ export default function GateScanner() {
         <button
           type="button"
           onClick={stopCamera}
-          className="w-full rounded-xl bg-navy-800 px-4 py-3 text-sm text-white/80 hover:bg-navy-700"
+          className="w-full rounded-xl bg-panel-2 px-4 py-3 text-sm text-white/80 hover:bg-panel-2"
         >
           Stop camera
         </button>
@@ -214,7 +215,7 @@ export default function GateScanner() {
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="https://…/t/…?s=…  or  BM-ABC123"
-            className="mt-2 w-full rounded-xl bg-navy-950 px-4 py-3 text-sm text-white outline-none transition-colors focus:bg-navy-800 focus:ring-2 focus:ring-white/70"
+            className="mt-2 w-full rounded-xl bg-well px-4 py-3 text-sm text-white outline-none transition-colors focus:bg-panel-2 focus:ring-2 focus:ring-gold"
           />
         </label>
         <button
@@ -272,7 +273,7 @@ export default function GateScanner() {
                     }).catch(() => {});
                     setResult(null);
                   }}
-                  className="mt-3 inline-flex items-center gap-2 rounded-lg bg-navy-900 px-3 py-2 text-xs text-white/70 hover:text-white"
+                  className="mt-3 inline-flex items-center gap-2 rounded-lg bg-panel px-3 py-2 text-xs text-white/70 hover:text-white"
                 >
                   <RotateCcw className="h-3.5 w-3.5" /> Undo (only if this was a mis-scan)
                 </button>

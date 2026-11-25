@@ -154,7 +154,7 @@ await page.goto(`${BASE}/t/${token}/wrongsignature`, { waitUntil: "networkidle" 
 const bad = (await page.locator("h1").first().innerText()).replace(/\s+/g, " ");
 check("a wrong signature is still refused", /not valid/i.test(bad));
 
-await page.screenshot({ path: `${OUT}/templates.png`, fullPage: true });
+await page.screenshot({ path: `${OUT}/templates.png`, fullPage: true, caret: "initial" });
 console.log(`\n${results.filter(Boolean).length}/${results.length} checks passed`);
 console.log("browser errors:", errors.length ? errors : "none");
 await browser.close();

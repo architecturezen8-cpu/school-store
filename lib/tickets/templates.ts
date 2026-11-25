@@ -2,9 +2,10 @@ import { mkdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import sharp from "sharp";
-import { query } from "../db";
+import { databaseDown, query } from "../db";
 import { checkSquareForQr, detectWhiteSquare, qrModuleCount } from "./detect";
 import { qrPayload, signTicket } from "./sign";
+import { errorMessage } from "../errors";
 
 /**
  * Ticket designs uploaded by the admin.
@@ -75,10 +76,22 @@ const COLUMNS = `id, slug, event, name, file, width, height, qr_x, qr_y, qr_size
 
 /** Every template, newest first — for the admin list. */
 export async function listTemplates(): Promise<TicketTemplate[]> {
-  const rows = await query<Row>(
-    `select ${COLUMNS} from ticket_templates order by created_at desc`
-  );
-  return rows.map(toTemplate);
+  // This one is deliberately not a `safe()` fallback — an empty list is the
+  // honest answer when the table cannot be read, and the page above already
+  // explains why. What it must not do is take the whole route down with a 500.
+  try {
+    const rows = await query<Row>(
+      `select ${COLUMNS} from ticket_templates order by created_at desc`
+    );
+    return rows.map(toTemplate);
+  } catch (err) {
+    // Logged once, with the real reason, and then not again: `databaseDown()`
+    // stops the retry, so a dead pool does not fill the log every page load.
+    if (!databaseDown()) {
+      console.error("[templates] could not list designs:", errorMessage(err));
+    }
+    return [];
+  }
 }
 
 /** The design a booking for `event` should use: a per-event one, else the default. */
@@ -197,7 +210,7 @@ export async function uploadTemplate({
     return { ok: true, template: toTemplate(rows[0]) };
   } catch (err) {
     await unlink(absolute).catch(() => {});
-    const message = (err as Error).message;
+    const message = errorMessage(err);
     if (/duplicate key/i.test(message)) {
       return { ok: false, error: `The slug "${slug}" is already used by another template.` };
     }

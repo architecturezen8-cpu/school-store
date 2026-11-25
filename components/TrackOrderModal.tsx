@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, Loader2, PackageSearch, X } from "lucide-react";
 import { lkr } from "@/lib/format";
+import { errorMessage } from "@/lib/errors";
 
 type Order = {
   reference: string;
@@ -126,7 +127,7 @@ export default function TrackOrderModal({
                 if (!res.ok) throw new Error(data?.error ?? "Order not found.");
                 setOrder(data.order);
               } catch (err) {
-                const message = (err as Error).message;
+                const message = errorMessage(err);
                 setError(/not valid JSON|Failed to fetch|Unexpected token/i.test(message) ? STATIC_NOTE : message);
               } finally {
                 setBusy(false);

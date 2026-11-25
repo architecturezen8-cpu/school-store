@@ -40,7 +40,15 @@ for (const [path, name] of routes) {
   // The mail page holds an <iframe>; a full-page screenshot of the parent can
   // skip cross-document content in this Chromium build, so that one is captured
   // as a viewport instead.
-  await page.screenshot({ path: `${OUT}/${name}.png`, fullPage: path !== "/admin/mail" });
+  // `caret: "initial"` — Playwright hides text carets by injecting an inline
+  // `caret-color: transparent` before a shot. It lands on any input still in the
+  // page afterwards, which React then reports as a hydration mismatch on the
+  // *next* visit. Nothing to do with the app; keep the tooling's hands off.
+  await page.screenshot({
+    path: `${OUT}/${name}.png`,
+    fullPage: path !== "/admin/mail",
+    caret: "initial",
+  });
   // what is actually on the page
   const chrome = await page.locator("nav[aria-label='Primary']").count();
   const side = await page.locator("#admin-nav").count();
@@ -50,7 +58,7 @@ for (const [path, name] of routes) {
 // the real email, as it will arrive
 await page.goto(BASE + "/admin/mail/preview", { waitUntil: "domcontentloaded" });
 await page.waitForTimeout(800);
-await page.screenshot({ path: `${OUT}/email-full.png`, fullPage: true });
+await page.screenshot({ path: `${OUT}/email-full.png`, fullPage: true, caret: "initial" });
 
 // the mail page itself, at a laptop width, so the embedded preview is visible
 await page.goto(BASE + "/admin/mail", { waitUntil: "domcontentloaded" });
@@ -62,16 +70,16 @@ await page
   .waitFor({ timeout: 20000 })
   .catch(() => {});
 await page.waitForTimeout(1500);
-await page.screenshot({ path: `${OUT}/admin-mail-viewport.png`, fullPage: false });
+await page.screenshot({ path: `${OUT}/admin-mail-viewport.png`, fullPage: false, caret: "initial" });
 
 // mobile: the sidebar collapses
 await page.setViewportSize({ width: 390, height: 844 });
 await page.goto(BASE + "/admin", { waitUntil: "domcontentloaded" });
 await page.waitForTimeout(500);
-await page.screenshot({ path: `${OUT}/admin-mobile.png`, fullPage: false });
+await page.screenshot({ path: `${OUT}/admin-mobile.png`, fullPage: false, caret: "initial" });
 await page.click("button[aria-controls='admin-nav']");
 await page.waitForTimeout(400);
-await page.screenshot({ path: `${OUT}/admin-mobile-menu.png`, fullPage: false });
+await page.screenshot({ path: `${OUT}/admin-mobile-menu.png`, fullPage: false, caret: "initial" });
 
 // Which route produced a console error — a hydration warning is only a problem
 // if it is ours, so the log needs the URL next to the message.

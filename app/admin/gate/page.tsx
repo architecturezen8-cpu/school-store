@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { isAdmin } from "@/lib/admin/auth";
-import { hasDatabase } from "@/lib/db";
+import { databaseDown, hasDatabase } from "@/lib/db";
 import { listBookings } from "@/lib/bookings";
 import GateScanner from "@/components/admin/GateScanner";
+import { databaseProblem } from "@/lib/admin/db-guard";
 import { PageHeader, Pill, Stat } from "@/components/admin/ui";
 
 export const dynamic = "force-dynamic";
@@ -24,12 +25,13 @@ export default async function AdminGatePage() {
   if (!hasDatabase()) redirect("/admin?error=database");
   if (!(await isAdmin())) redirect("/admin?next=/admin/gate");
 
-  const bookings = await listBookings(300);
+  const problem = databaseProblem();
+  const bookings = databaseDown() ? [] : await listBookings(300);
   const admitted = bookings.filter((b) => b.admittedAt).length;
 
   return (
     <div className="space-y-3">
-      <section className="rounded-2xl bg-navy-900 p-6">
+      <section className="rounded-2xl bg-panel p-6">
         <PageHeader
           eyebrow="At the door"
           title="Gate scanner"
@@ -44,7 +46,7 @@ export default async function AdminGatePage() {
         <Stat label="Outstanding" value={String(bookings.length - admitted)} />
       </dl>
 
-      <section className="rounded-2xl bg-navy-900 p-4 sm:p-6">
+      <section className="rounded-2xl bg-panel p-4 sm:p-6">
         <GateScanner />
       </section>
     </div>

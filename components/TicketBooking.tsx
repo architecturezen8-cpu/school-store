@@ -13,6 +13,7 @@ import {
 import { lkr } from "@/lib/format";
 import type { CollegeEvent, Tier } from "@/data/seed";
 import { fullDate } from "@/lib/dates";
+import { errorMessage } from "@/lib/errors";
 
 const STEPS = ["Tickets", "Details", "Confirmed"];
 
@@ -141,7 +142,7 @@ export default function TicketBooking({
       setEmailSent(Boolean(data.email?.sent));
       setStep(3);
     } catch (err) {
-      setError((err as Error).message);
+      setError(errorMessage(err));
     } finally {
       setBusy(false);
     }

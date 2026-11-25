@@ -8,25 +8,25 @@ import type { ReactNode } from "react";
  *
  *   · **no borders anywhere.** Shape comes from a fill, a radius and the gap
  *     between tiles. A hairline only ever appears *inside* a tile (dividers).
- *   · **navy, white and black only.** No gold, no amber, no green, no red.
- *     Emphasis is white-on-navy or navy-on-white; state is carried by words,
- *     not by a colour the palette does not have.
+ *   · **black, white and yellow only.** The page is black: a true near-black,
+ *     not a navy. Tiles step up through neutral greys, and yellow is the only
+ *     accent — one filled action per screen, one live state.
  *   · **generous radius.** 1rem tiles, 0.75rem controls, pills for tags.
  *   · **one flat colour per tile.** No gradients, no transparency, no blur.
  *
- *   page      bg-black            (#04060d, the store's ink)
- *   tile      bg-navy-900         (raised)
- *   tile alt  bg-navy-800         (a tile on a tile)
- *   quiet     bg-navy-950         (inset wells)
- *   accent    bg-white / text-white
+ *   page      bg-black            (#050505)
+ *   tile      bg-panel            (#111111, raised)
+ *   tile alt  bg-panel-2          (#1a1a1a, a tile on a tile)
+ *   quiet     bg-well             (#0a0a0a, inset wells)
+ *   accent    bg-gold / text-gold    (#ffd444)
  */
 
 /* ---------- inputs ---------------------------------------------------- */
 
 export const inputClass =
-  "mt-2 w-full rounded-xl bg-navy-950 px-4 py-3 text-sm text-white " +
+  "mt-2 w-full rounded-xl bg-well px-4 py-3 text-sm text-white " +
   "placeholder:text-white/40 outline-none ring-0 transition-colors " +
-  "focus:bg-navy-800 focus:ring-2 focus:ring-white/70";
+  "focus:bg-panel-2 focus:ring-2 focus:ring-white/70";
 
 export const selectClass = `${inputClass} appearance-none`;
 
@@ -64,13 +64,13 @@ const BUTTON_BASE =
 
 const BUTTON_TONES = {
   /** The one thing to press on a screen. */
-  primary: "bg-white text-black hover:bg-white/85",
-  /** The everyday action: navy tile, white words. */
-  secondary: "bg-navy-700 text-white hover:bg-navy-600",
+  primary: "bg-gold text-black hover:bg-gold-bright",
+  /** The everyday action: a grey tile with white words. */
+  secondary: "bg-panel-2 text-white hover:bg-white/15",
   /** Quiet: no fill until hovered. */
-  ghost: "text-white/70 hover:bg-navy-800 hover:text-white",
+  ghost: "text-white/75 hover:bg-panel-2 hover:text-white",
   /** Destructive: stays in-palette — white text, and the words carry the meaning. */
-  danger: "bg-navy-800 text-white/80 hover:bg-white hover:text-black",
+  danger: "bg-panel text-white/85 hover:bg-white hover:text-black",
 } as const;
 
 export function buttonClass(tone: keyof typeof BUTTON_TONES = "primary") {
@@ -110,7 +110,9 @@ export function PageHeader({
     <div className="flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0">
         {eyebrow && (
-          <p className="text-[11px] uppercase tracking-[0.24em] text-white/65">{eyebrow}</p>
+          <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-gold">
+            {eyebrow}
+          </p>
         )}
         <h1 className="mt-1.5 font-display text-2xl font-semibold text-white sm:text-[28px]">
           {title}
@@ -126,7 +128,7 @@ export function PageHeader({
 
 /**
  * A bento tile. `tone` picks how it sits in the tray:
- *   raised  — navy tile on the black page (the default)
+ *   raised  — grey tile on the black page (the default)
  *   sunken  — darker well, for lists and tables inside another tile
  *   invert  — white tile with black text, for the one tile that should shout
  */
@@ -149,8 +151,8 @@ export function Panel({
     tone === "invert"
       ? "bg-white text-black"
       : tone === "sunken"
-        ? "bg-navy-950"
-        : "bg-navy-900";
+        ? "bg-well"
+        : "bg-panel";
 
   const titleColour = tone === "invert" ? "text-black" : "text-white";
   const noteColour = tone === "invert" ? "text-black/65" : "text-white/60";
@@ -188,7 +190,7 @@ export function Stat({
 }) {
   // dt/dd, not p/p: these sit inside a <dl>, and a definition list may only
   // contain dt/dd groups (axe flags anything else).
-  const shell = tone === "invert" ? "bg-white text-black" : "bg-navy-900 text-white";
+  const shell = tone === "invert" ? "bg-gold text-black" : "bg-panel text-white";
   return (
     <div className={`rounded-2xl ${shell} p-5`}>
       <dt
@@ -198,8 +200,10 @@ export function Stat({
       >
         {label}
       </dt>
-      <dd className="mt-2 font-display text-3xl leading-none text-current">
-        {value}
+      <dd className="mt-2">
+        <span className="block font-display text-2xl leading-none tabular-nums text-current sm:text-3xl">
+          {value}
+        </span>
         {note && (
           <span
             className={`mt-2 block text-xs font-normal ${
@@ -219,30 +223,32 @@ export function Stat({
 /**
  * In-palette notices. A bento tray has no red or green tile, so tone is carried
  * by the mark and the weight of the words: a filled white tile for a problem,
- * a navy one for everything else.
+ * a grey one for everything else.
  */
 const NOTICE_TONES = {
-  ok: "bg-navy-800 text-white",
+  ok: "bg-panel-2 text-white",
   error: "bg-white text-black",
-  warn: "bg-navy-800 text-white",
-  info: "bg-navy-950 text-white/80",
+  warn: "bg-panel-2 text-white",
+  info: "bg-well text-white/80",
 } as const;
 
 export function Notice({
   tone = "info",
+  className = "",
   children,
 }: {
   tone?: keyof typeof NOTICE_TONES;
+  className?: string;
   children: ReactNode;
 }) {
   return (
     <p
       role="status"
-      className={`rounded-xl px-4 py-3 text-sm leading-relaxed ${NOTICE_TONES[tone]}`}
+      className={`rounded-xl px-4 py-3 text-sm leading-relaxed ${NOTICE_TONES[tone]} ${className}`}
     >
       {tone === "error" && <span className="mr-2 font-semibold">Not done —</span>}
-      {tone === "ok" && <span className="mr-2 font-semibold">Done —</span>}
-      {tone === "warn" && <span className="mr-2 font-semibold">Heads up —</span>}
+      {tone === "ok" && <span className="mr-2 font-semibold text-gold">Done —</span>}
+      {tone === "warn" && <span className="mr-2 font-semibold text-gold">Heads up —</span>}
       {children}
     </p>
   );
@@ -250,7 +256,7 @@ export function Notice({
 
 export function Empty({ children }: { children: ReactNode }) {
   return (
-    <p className="rounded-xl bg-navy-950 px-5 py-10 text-center text-sm text-white/65">
+    <p className="rounded-xl bg-well px-5 py-10 text-center text-sm text-white/65">
       {children}
     </p>
   );
@@ -265,9 +271,9 @@ export function Pill({
   children: ReactNode;
 }) {
   const tones = {
-    ok: "bg-white text-black",
-    muted: "bg-navy-800 text-white/75",
-    invert: "bg-navy-950 text-white",
+    ok: "bg-gold text-black",
+    muted: "bg-panel-2 text-white/75",
+    invert: "bg-well text-white",
   } as const;
   return (
     <span
@@ -275,5 +281,15 @@ export function Pill({
     >
       {children}
     </span>
+  );
+}
+
+/** The small all-caps label above a title. One definition, so the tracking and
+ *  the colour never drift between pages. */
+export function Eyebrow({ children }: { children: ReactNode }) {
+  return (
+    <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-white/65">
+      {children}
+    </p>
   );
 }

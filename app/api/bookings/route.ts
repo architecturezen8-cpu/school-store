@@ -4,6 +4,7 @@ import { createBooking, getTicketByToken } from "@/lib/bookings";
 import { hasDatabase } from "@/lib/db";
 import { sendTicketEmail } from "@/lib/tickets/email";
 import { signTicket } from "@/lib/tickets/sign";
+import { errorMessage } from "@/lib/errors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -56,7 +57,7 @@ export async function POST(req: Request) {
           : { sent: false, reason: result.reason };
       }
     } catch (err) {
-      console.error("[api/bookings] ticket email failed:", (err as Error).message);
+      console.error("[api/bookings] ticket email failed:", errorMessage(err));
       email = { sent: false, reason: "failed" };
     }
 
@@ -67,7 +68,7 @@ export async function POST(req: Request) {
       { status: 201 }
     );
   } catch (err) {
-    const message = (err as Error).message;
+    const message = errorMessage(err);
     const status = /sold out|Unknown/i.test(message) ? 409 : 500;
     console.error("[api/bookings] failed:", message);
     return NextResponse.json({ error: message }, { status });

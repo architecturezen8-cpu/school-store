@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isAdmin } from "@/lib/admin/auth";
 import { listBookings, getTicketByToken } from "@/lib/bookings";
+import { databaseDown } from "@/lib/db";
 import { buildTicketMail } from "@/lib/tickets/email";
 import { signTicket } from "@/lib/tickets/sign";
 
@@ -22,21 +23,34 @@ export const dynamic = "force-dynamic";
  * /admin/mail just points at this URL, so "refresh" means "refresh the mail".
  */
 export async function GET(req: Request) {
+  // A frame with no ticket behind it is not a server error: 404 is what a
+  // browser understands, and what keeps "the document is missing" distinct from
+  // "the server broke".
   if (!(await isAdmin())) {
-    return NextResponse.json({ error: "Sign in first." }, { status: 401 });
+    return NextResponse.json({ error: "Sign in first." }, { status: 404 });
   }
 
   const reference = new URL(req.url).searchParams.get("reference") ?? "";
 
-  const ticket = reference
-    ? (await listBookings(500)).find((b) => b.reference === reference.trim().toUpperCase())
-    : (await listBookings(1))[0];
+  // A frame that 500s shows the admin a broken image and says nothing; a frame
+  // that explains itself is the whole point of a preview.
+  const ticket = databaseDown()
+    ? null
+    : reference
+      ? (await listBookings(500).catch(() => [])).find(
+          (b) => b.reference === reference.trim().toUpperCase()
+        )
+      : (await listBookings(1).catch(() => []))[0];
 
   const full = ticket ? await getTicketByToken(ticket.token) : null;
   if (!full) {
     return new NextResponse(
       `<!doctype html><meta charset="utf-8"><body style="margin:0;display:grid;place-items:center;min-height:100vh;background:#04060d;color:#8b9ab5;font:14px Arial,sans-serif">
-         <p>No booking to preview yet — sell one ticket and this fills in.</p>
+         <p>No booking to preview — ${
+           databaseDown()
+             ? "the database is not answering, so there is nothing to read."
+             : "sell one ticket and this fills in."
+         }</p>
        </body>`,
       { headers: { "content-type": "text/html; charset=utf-8" } }
     );

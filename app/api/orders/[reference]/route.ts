@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { trackOrder, orderTimeline } from "@/lib/orders";
 import { hasDatabase } from "@/lib/db";
+import { errorMessage } from "@/lib/errors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,7 +35,7 @@ export async function GET(
     const timeline = await orderTimeline(order.reference);
     return NextResponse.json({ order: { ...order, timeline } });
   } catch (err) {
-    console.error("[api/orders/:ref] failed:", (err as Error).message);
+    console.error("[api/orders/:ref] failed:", errorMessage(err));
     return NextResponse.json({ error: "Could not look up that order." }, { status: 500 });
   }
 }

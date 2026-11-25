@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type { Pool, PoolClient } from "pg";
+import { errorMessage } from "./errors";
 
 /**
  * One database connection per server process.
@@ -20,8 +21,34 @@ import type { Pool, PoolClient } from "pg";
  * served read-only — that is the fallback for a machine with nothing at all.
  */
 
-const url = process.env.DATABASE_URL ?? "";
+const rawUrl = (process.env.DATABASE_URL ?? "").trim();
 const forced = process.env.STORE_BACKEND ?? "";
+
+/**
+ * A DATABASE_URL that parses but names no host (`postgres://`) is worse than no
+ * URL at all: the `pg` pool accepts it, then every query rejects with a bare
+ * `AggregateError` after a 26-second retry storm. Catch it here, once, and say
+ * what is wrong — the rest of the app keeps running on the seed catalogue.
+ */
+function isUsableUrl(value: string): boolean {
+  if (!value) return false;
+  try {
+    const parsed = new URL(value);
+    if (!/^postgres(ql)?:$/.test(parsed.protocol)) return false;
+    return Boolean(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
+export const urlInvalid =
+  Boolean(rawUrl) && !isUsableUrl(rawUrl)
+    ? "DATABASE_URL is set but is not a usable Postgres URL (it needs a host, e.g. postgres://user:pass@host:5432/db)."
+    : "";
+
+if (urlInvalid) console.error("[db]", urlInvalid);
+
+const url = isUsableUrl(rawUrl) ? rawUrl : "";
 
 export type Backend = "pg" | "pglite" | "none";
 
@@ -34,11 +61,40 @@ export const backend: Backend = url
       : "pglite";
 
 declare global {
-  /* eslint-disable no-var */
   var __pgPool: Promise<Pool> | undefined;
   var __pglite: Promise<PGliteLike> | undefined;
   var __pgliteReady: boolean | undefined;
-  /* eslint-enable no-var */
+  /**
+   * The last reason a `pg` query failed, so the admin can be told the *real*
+   * problem. Without it a connection failure is only a line in the server log,
+   * and the page on screen quietly shows numbers from somewhere else.
+   */
+  var __dbFailure: { message: string; at: number } | undefined;
+}
+
+/**
+ * True when the configured database has already failed and has not answered
+ * since. Read-only screens use it to stop re-attempting a connection that is
+ * known to be down, so a dead pool costs one timeout per process rather than one
+ * per query, per page, per visit.
+ */
+export const databaseDown = () =>
+  backend === "pg" && Boolean(url) && Boolean(global.__dbFailure);
+
+/** Cleared on a successful query, so a recovered database stops warning. */
+function noteFailure(err: unknown) {
+  global.__dbFailure = { message: errorMessage(err), at: Date.now() };
+}
+
+/**
+ * Why the configured database is not answering, or `""` when it is fine or
+ * nothing is configured at all. Re-checked by the admin on every render, so it
+ * clears itself the moment a query succeeds again.
+ */
+export function databaseFailure(): string {
+  if (backend !== "pg" || !url) return "";
+  if (!global.__dbFailure) return "";
+  return global.__dbFailure.message;
 }
 
 /** The small slice of the PGlite API this module needs. */
@@ -196,7 +252,27 @@ async function seedIfEmpty(db: PGliteLike) {
   });
 }
 
-export const hasDatabase = () => backend !== "none";
+/**
+ * True when queries can be attempted. A `pg` backend with an unusable URL is
+ * reported as *not* configured, so callers take their seed/empty branch instead
+ * of throwing a connection error per query.
+ */
+export const hasDatabase = () => backend !== "none" && !(backend === "pg" && !url);
+
+/**
+ * Which store this process is actually reading, for the admin to see.
+ *
+ * This exists because the fallbacks are invisible otherwise: a `pg` backend
+ * whose URL is unusable drops to the embedded database and serves *its* rows, so
+ * the admin sees real-looking bookings that are not in Supabase at all. Saying
+ * "embedded copy" out loud is the difference between a mystery and a fix.
+ */
+export const backendLabel =
+  backend === "pg" && url
+    ? "Supabase Postgres"
+    : backend === "none"
+      ? "seed catalogue (read-only)"
+      : "embedded Postgres (.pglite)";
 
 export async function query<T extends object>(
   sql: string,
@@ -204,8 +280,23 @@ export async function query<T extends object>(
 ): Promise<T[]> {
   if (backend === "pg") {
     if (!pool) throw new Error("DATABASE_URL is not configured");
-    const res = await (await pool).query<T>(sql, params);
-    return res.rows;
+    // Already known to be down: fail immediately rather than wait out another
+    // connection timeout on every query of every page render.
+    if (global.__dbFailure) {
+      throw new Error(global.__dbFailure.message);
+    }
+    try {
+      const res = await (await pool).query<T>(sql, params);
+      // A good query clears any older warning: the outage is over.
+      global.__dbFailure = undefined;
+      return res.rows;
+    } catch (err) {
+      noteFailure(err);
+      // Re-thrown with the underlying reason attached: pool-level failures are
+      // AggregateErrors with an empty message, which are unreadable in a log and
+      // were crashing the very handler meant to report them.
+      throw new Error(errorMessage(err), { cause: err });
+    }
   }
   if (backend === "pglite") {
     const db = await pglite();
@@ -223,7 +314,10 @@ export async function transaction<T>(
 ): Promise<T> {
   if (backend === "pg") {
     if (!pool) throw new Error("DATABASE_URL is not configured");
-    const client = await (await pool).connect();
+    const client = await (await pool).connect().catch((err) => {
+      noteFailure(err);
+      throw new Error(errorMessage(err), { cause: err });
+    });
     try {
       await client.query("begin");
       const out = await fn(client as unknown as Parameters<typeof fn>[0]);

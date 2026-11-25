@@ -8,9 +8,9 @@ import {
   setTemplateActive,
   uploadTemplate,
 } from "@/lib/tickets/templates";
-import { getTicketByToken, listBookings } from "@/lib/bookings";
+import { getTicketByReference, getTicketByToken, listBookings } from "@/lib/bookings";
 import { sendTicketEmail } from "@/lib/tickets/email";
-import { saveMailTemplate, withDefaults } from "@/lib/tickets/mail-settings";
+import { friendlyError } from "@/lib/errors";
 
 /**
  * Admin server actions.
@@ -120,24 +120,65 @@ export async function resendTicketAction(formData: FormData) {
  * the way down to lib/tickets/mail-settings, so clearing a field is how an admin
  * resets it.
  */
-export async function saveMailTemplateAction(formData: FormData) {
+/**
+ * Send the ticket email to one address, so the admin can see it in a real inbox
+ * before a customer does.
+ *
+ * The design is fixed — there is nothing to edit — so this is the only button on
+ * the page besides the preview. A real booking is used for the content (the QR
+ * and the artwork are per-booking), and `to` is where it lands; nothing about
+ * the booking is changed.
+ */
+export async function sendTestMailAction(
+  boundReference: string,
+  formData: FormData
+) {
   await requireAdmin();
 
-  const next = withDefaults({
-    subject: String(formData.get("subject") ?? ""),
-    heading: String(formData.get("heading") ?? ""),
-    body: String(formData.get("body") ?? ""),
-    footer: String(formData.get("footer") ?? ""),
-  });
+  const to = String(formData.get("to") ?? "").trim();
+  const reference = String(formData.get("reference") ?? boundReference ?? "").trim();
 
-  try {
-    await saveMailTemplate(next);
-  } catch (err) {
-    redirect(`/admin/mail?error=${encodeURIComponent((err as Error).message)}`);
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) {
+    redirect(`/admin/mail?error=${encodeURIComponent("That does not look like an email address.")}`);
+  }
+  if (!to) {
+    redirect("/admin/mail?error=" + encodeURIComponent("Type an address to send the test to."));
   }
 
-  revalidatePath("/admin/mail");
-  redirect("/admin/mail?ok=1");
+  const ticket = reference
+    ? await getTicketByReference(reference)
+    : (await listBookings(1)).length
+      ? await getTicketByToken((await listBookings(1))[0].token)
+      : null;
+
+  if (!ticket) {
+    redirect(
+      `/admin/mail?error=${encodeURIComponent(
+        "Sell one ticket first — the test needs a real booking for its QR code."
+      )}`
+    );
+  }
+
+  let result: Awaited<ReturnType<typeof sendTicketEmail>>;
+  try {
+    result = await sendTicketEmail({ ...ticket, email: to });
+  } catch (err) {
+    redirect(`/admin/mail?error=${encodeURIComponent(friendlyError(err))}`);
+  }
+
+  if (!result.sent) {
+    const why =
+      result.reason === "not-configured"
+        ? "No mail transport is configured, so nothing was sent."
+        : `The mail server refused it: ${result.error ?? "unknown reason"}`;
+    redirect(`/admin/mail?error=${encodeURIComponent(why)}`);
+  }
+
+  redirect(
+    `/admin/mail?ok=${encodeURIComponent(
+      `Test ticket sent to ${to} (${ticket.reference}).`
+    )}`
+  );
 }
 
 export async function loadBookings() {

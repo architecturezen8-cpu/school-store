@@ -13,6 +13,7 @@ import {
 } from "@/data/seed";
 import { asset } from "./assets";
 import { hasDatabase, query } from "./db";
+import { errorMessage } from "./errors";
 
 /* ------------------------------------------------------------------ *
  *  Data access — one place where "database or seed" is decided.
@@ -94,7 +95,7 @@ async function safe<T>(run: () => Promise<T>, fallback: T): Promise<T> {
   try {
     return await run();
   } catch (err) {
-    console.error("[store] query failed, serving seed data:", (err as Error).message);
+    console.error("[store] query failed, serving seed data:", errorMessage(err));
     return fallback;
   }
 }
