@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, Eye, Heart, Star } from "lucide-react";
 import { getCategoryName, type Category, type Product } from "@/data/seed";
+import type { ShopFilter } from "@/lib/catalog";
 import { lkr } from "@/lib/format";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -195,10 +196,13 @@ export default function ShopPage({
   category,
   products,
   categories,
+  filters = [],
 }: {
   category?: string;
   products: Product[];
   categories: Category[];
+  /** The admin's vocabulary: which colours and sizes the shop offers. */
+  filters?: ShopFilter[];
 }) {
   const router = useRouter();
   const [active, setActive] = useState<string | undefined>(category);
@@ -206,6 +210,10 @@ export default function ShopPage({
   const [sort, setSort] = useState<SortId>("featured");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [quick, setQuick] = useState<Product | null>(null);
+  // One colour and one size at a time. More than that is a form, and a shopper
+  // with a phone in one hand is not filling in forms.
+  const [colour, setColour] = useState<string | null>(null);
+  const [size, setSize] = useState<string | null>(null);
 
   // Category clicks navigate to /shop/<slug> so the filter is a real URL.
   const go = (slug?: string) => {
@@ -213,10 +221,38 @@ export default function ShopPage({
     router.push(slug ? href.shopCategory(slug) : href.shop, { scroll: false });
   };
 
+  // The collection on screen, before the chips narrow it.
+  const inCollection = useMemo(
+    () => (active ? products.filter((p) => p.category === active) : [...products]),
+    [active, products]
+  );
+
+  /**
+   * Which chips are worth drawing.
+   *
+   * A colour nobody stocks in this collection would be a chip that empties the
+   * page, so only values that occur here are offered — and in the admin's order,
+   * which is why the vocabulary is not just "the distinct values in the data".
+   */
+  const offered = useMemo(() => {
+    const has = (value: string, kind: "colour" | "size") =>
+      inCollection.some((p) =>
+        kind === "colour"
+          ? p.colours?.some((c) => c.toLowerCase() === value.toLowerCase())
+          : p.options?.values.some((v) => v.toLowerCase() === value.toLowerCase())
+      );
+    return {
+      colours: filters.filter((f) => f.kind === "colour" && has(f.label, "colour")),
+      sizes: filters.filter((f) => f.kind === "size" && has(f.label, "size")),
+    };
+  }, [inCollection, filters]);
+
   const visible = useMemo(() => {
-    const list = active
-      ? products.filter((p) => p.category === active)
-      : [...products];
+    const list = inCollection.filter((p) => {
+      if (colour && !p.colours?.some((c) => c.toLowerCase() === colour.toLowerCase())) return false;
+      if (size && !p.options?.values.some((v) => v.toLowerCase() === size.toLowerCase())) return false;
+      return true;
+    });
 
     const by = [...list];
     switch (sort) {
@@ -236,7 +272,9 @@ export default function ShopPage({
         by.sort((a, b) => Number(!!b.isFeatured) - Number(!!a.isFeatured));
     }
     return by;
-  }, [active, sort]);
+  }, [inCollection, sort, colour, size]);
+
+  const narrowed = Boolean(colour || size);
 
   const heading = active
     ? categories.find((c) => c.slug === active)?.title ?? "The Store"
@@ -335,7 +373,7 @@ export default function ShopPage({
               </div>
             </div>
 
-            {/* desktop: single inline row */}
+            {/* desktop: categories, then the admin's own filters */}
             <div className="hidden items-center justify-between gap-6 lg:flex">
               <div className="flex flex-wrap items-center gap-2">
                 <FilterPill
@@ -363,6 +401,86 @@ export default function ShopPage({
                 <SortMenu value={sort} onChange={setSort} />
               </div>
             </div>
+
+            {/* desktop: the chips themselves, on their own line */}
+            {(offered.colours.length > 0 || offered.sizes.length > 0) && (
+              <div className="mt-4 hidden flex-wrap items-center gap-x-8 gap-y-3 border-t border-white/5 pt-4 lg:flex">
+                {offered.colours.length > 0 && (
+                  <ChipGroup label="Colour">
+                    {(offered.colours ?? []).map((f) => (
+                      <SwatchChip
+                        key={f.id}
+                        label={f.label}
+                        swatch={f.swatch}
+                        active={colour === f.label}
+                        onClick={() => setColour(colour === f.label ? null : f.label)}
+                      />
+                    ))}
+                  </ChipGroup>
+                )}
+                {offered.sizes.length > 0 && (
+                  <ChipGroup label="Size">
+                    {(offered.sizes ?? []).map((f) => (
+                      <button
+                        key={f.id}
+                        onClick={() => setSize(size === f.label ? null : f.label)}
+                        aria-pressed={size === f.label}
+                        className={`min-w-10 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
+                          size === f.label
+                            ? "bg-white text-ink"
+                            : "bg-navy-900 text-white/60 hover:text-white"
+                        }`}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </ChipGroup>
+                )}
+              </div>
+            )}
+
+            {/* mobile: the same chips inside the panel */}
+            <div
+              className={`grid transition-[grid-template-rows,opacity] duration-400 ease-out lg:hidden ${
+                filtersOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+              }`}
+            >
+              <div className="overflow-hidden">
+                <div className="flex flex-col gap-3 pt-3">
+                  {offered.colours.length > 0 && (
+                    <ChipGroup label="Colour">
+                      {(offered.colours ?? []).map((f) => (
+                        <SwatchChip
+                          key={f.id}
+                          label={f.label}
+                          swatch={f.swatch}
+                          active={colour === f.label}
+                          onClick={() => setColour(colour === f.label ? null : f.label)}
+                        />
+                      ))}
+                    </ChipGroup>
+                  )}
+                  {offered.sizes.length > 0 && (
+                    <ChipGroup label="Size">
+                      {(offered.sizes ?? []).map((f) => (
+                        <button
+                          key={f.id}
+                          onClick={() => setSize(size === f.label ? null : f.label)}
+                          aria-pressed={size === f.label}
+                          className={`min-w-10 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
+                            size === f.label
+                              ? "bg-white text-ink"
+                              : "bg-navy-900 text-white/60 hover:text-white"
+                          }`}
+                        >
+                          {f.label}
+                        </button>
+                      ))}
+                    </ChipGroup>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </Reveal>
 
@@ -371,6 +489,17 @@ export default function ShopPage({
           <p className="mt-7 text-xs text-white/50">
             Showing {visible.length} of {products.length} items
             {active && ` · ${categories.find((c) => c.slug === active)?.title}`}
+            {narrowed && (
+              <button
+                onClick={() => {
+                  setColour(null);
+                  setSize(null);
+                }}
+                className="ml-3 rounded-full bg-navy-900 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/70 hover:text-white"
+              >
+                Clear filters
+              </button>
+            )}
           </p>
         </Reveal>
 
@@ -402,6 +531,48 @@ export default function ShopPage({
 /* ------------------------------------------------------------------ */
 /*  FILTER PIECES                                                     */
 /* ------------------------------------------------------------------ */
+/** A labelled row of chips: "Colour · ● Navy ● Black". */
+function ChipGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/50">
+        {label}
+      </span>
+      {children}
+    </div>
+  );
+}
+
+/** A colour chip: the swatch, then the word — never colour alone. */
+function SwatchChip({
+  label,
+  swatch,
+  active,
+  onClick,
+}: {
+  label: string;
+  swatch: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      className={`flex items-center gap-2 rounded-full py-1.5 pl-1.5 pr-3 text-[11px] font-semibold transition-colors ${
+        active ? "bg-white text-ink" : "bg-navy-900 text-white/65 hover:text-white"
+      }`}
+    >
+      <span
+        aria-hidden
+        className="h-4 w-4 rounded-full ring-1 ring-inset ring-black/20"
+        style={{ background: swatch || "#8b9099" }}
+      />
+      {label}
+    </button>
+  );
+}
+
 function FilterPill({
   label,
   active,

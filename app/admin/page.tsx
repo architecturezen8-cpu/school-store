@@ -5,10 +5,12 @@ import { databaseProblem } from "@/lib/admin/db-guard";
 import { databaseDown, hasDatabase } from "@/lib/db";
 import { signIn } from "./actions";
 import { listBookings } from "@/lib/bookings";
+import { listAdminCategories, listAdminProducts } from "@/lib/catalog";
 import { lkr } from "@/lib/format";
 import SubmitButton from "@/components/SubmitButton";
 import { Eyebrow, Notice, Pill, Stat, buttonClass, inputClass } from "@/components/admin/ui";
-import { ArrowUpRight, CalendarCheck, CalendarDays, Mail, ScanLine } from "lucide-react";
+import AdminImage from "@/components/admin/AdminImage";
+import { ArrowUpRight, CalendarCheck, CalendarDays, Package, ScanLine } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +27,12 @@ const ERRORS: Record<string, string> = {
 
 const SECTIONS = [
   {
+    href: "/admin/shop",
+    icon: Package,
+    title: "Products",
+    body: "The shelf: pictures, prices, colours and sizes. What the shop sells.",
+  },
+  {
     href: "/admin/bookings",
     icon: CalendarCheck,
     title: "Bookings",
@@ -35,12 +43,6 @@ const SECTIONS = [
     icon: CalendarDays,
     title: "Events",
     body: "Every college event: the page, the rules, the photos, the ticket artwork.",
-  },
-  {
-    href: "/admin/mail",
-    icon: Mail,
-    title: "Ticket email",
-    body: "The message, and a preview of the exact mail a buyer receives.",
   },
   {
     href: "/admin/gate",
@@ -115,7 +117,16 @@ export default async function AdminPage({
 
   /* ---------------- signed in: the bento tray ---------------- */
   const problem = databaseProblem();
-  const bookings = hasDatabase() && !databaseDown() ? await listBookings(200) : [];
+  const live = hasDatabase() && !databaseDown();
+  const bookings = live ? await listBookings(200) : [];
+  // The shelf, as pictures: the overview's job is to answer "is the shop all
+  // right?" at a glance, and a shop is judged with the eyes.
+  const [categories, products] = live
+    ? await Promise.all([listAdminCategories(), listAdminProducts()])
+    : [[], []];
+  const shelf = products.filter((p) => p.active);
+  const featured = shelf.filter((p) => p.isFeatured).slice(0, 4);
+  const lumpy = shelf.filter((p) => !p.image).length + shelf.filter((p) => p.price <= 0).length;
   const admitted = bookings.filter((b) => b.admittedAt).length;
   const taken = bookings.reduce((n, b) => n + b.total, 0);
   const seats = bookings.reduce((n, b) => n + b.seats, 0);
@@ -197,7 +208,91 @@ export default async function AdminPage({
         />
       </dl>
 
-      {/* row 3 — the three sections, side by side on a desktop.
+      {/* row 3 — the shop, as pictures. Four collections, four cards: the same
+          grid the storefront uses, at admin size. */}
+      {categories.length > 0 && (
+        <section className="rounded-2xl bg-panel p-5 xl:col-span-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <Eyebrow>The shop</Eyebrow>
+              <p className="mt-1 font-display text-lg text-strong">
+                {shelf.length} products in {categories.length} collections
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {lumpy > 0 && (
+                <Pill tone="stop">
+                  {lumpy} card{lumpy === 1 ? "" : "s"} missing a picture or price
+                </Pill>
+              )}
+              <Link href="/admin/shop" className={`${buttonClass("secondary")} !py-1.5 !text-xs`}>
+                <Package className="h-3.5 w-3.5" /> Products
+              </Link>
+              <Link
+                href="/admin/shop/categories"
+                className={`${buttonClass("ghost")} !py-1.5 !text-xs`}
+              >
+                Categories
+              </Link>
+              <Link href="/admin/shop/filters" className={`${buttonClass("ghost")} !py-1.5 !text-xs`}>
+                Filters
+              </Link>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {categories.slice(0, 4).map((c) => (
+              <Link
+                key={c.slug}
+                href={`/admin/shop?category=${encodeURIComponent(c.slug)}`}
+                className="group relative block overflow-hidden rounded-xl bg-well"
+              >
+                <div className="aspect-[16/9] overflow-hidden">
+                  {c.image ? (
+                    <AdminImage
+                      src={c.image}
+                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+                    />
+                  ) : (
+                    <span className="grid h-full place-items-center text-[11px] text-muted">
+                      no picture
+                    </span>
+                  )}
+                </div>
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/90 to-transparent p-3">
+                  <p className="truncate text-sm font-medium text-white">{c.title}</p>
+                  <p className="text-[11px] text-white/70">
+                    {c.items} {c.items === 1 ? "item" : "items"}
+                  </p>
+                </div>
+              </Link>
+            ))}
+          </div>
+
+          {featured.length > 0 && (
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {featured.map((p) => (
+                <Link
+                  key={p.slug}
+                  href={`/admin/shop/products/${p.slug}`}
+                  className="flex items-center gap-3 rounded-xl bg-well p-2 transition-colors hover:bg-panel-2"
+                >
+                  <AdminImage
+                    src={p.image || "/images/cat-uniform.jpg"}
+                    className="h-12 w-12 shrink-0 rounded-lg object-cover"
+                  />
+                  <span className="min-w-0">
+                    <span className="block truncate text-xs text-strong">{p.name}</span>
+                    <span className="block text-[11px] text-muted">{lkr(p.price)}</span>
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* row 4 — the three sections, side by side on a desktop.
           Four sections, four columns: the row is filled exactly, every card the
           same size, and nothing wraps onto a ragged second row. */}
       {SECTIONS.map(({ href, icon: Icon, title, body }, i) => (

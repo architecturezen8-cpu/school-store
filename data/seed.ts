@@ -16,24 +16,31 @@ const productMug = "/images/product-mug.jpg";
 const productScarf = "/images/product-scarf.jpg";
 const productCap = "/images/product-cap.jpg";
 
-/* ---- stock imagery for the newer collections ---- */
-const imgPaper1 =
-  "https://images.pexels.com/photos/20140155/pexels-photo-20140155.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940";
+/* ---- the two newer collections, photographed on the same navy ----
+ *
+ * These two were the only category pictures on a remote host, so on a filtered
+ * school line the two rows of the shop that matter most in December — the exam
+ * pad and the batch shirt — were the two that came up blank.
+ */
+const imgPaper1 = "/images/cat-papers.jpg";
+const imgShirts = "/images/cat-shirts.jpg";
 const imgPaper2 =
   "https://images.pexels.com/photos/13583358/pexels-photo-13583358.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940";
 const imgPaper3 =
   "https://images.pexels.com/photos/37793421/pexels-photo-37793421.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940";
-const imgShirts =
-  "https://images.pexels.com/photos/8146450/pexels-photo-8146450.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940";
-const imgMedals =
-  "https://images.pexels.com/photos/11659349/pexels-photo-11659349.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940";
+// The last remote photograph. A medal cabinet stood in for the two badges that
+// are actually worn, which is why both their cards came up blank on a filtered
+// line. They are badges now, photographed as badges.
+const productLapel = "/images/product-lapel-badge.jpg";
+const productHouseSet = "/images/product-house-badges.jpg";
 
 export type Category = {
   slug: string;
   title: string;
+  /** The line of copy under the title. Counts are computed, never stored. */
+  count: string;
   desc: string;
   image: string;
-  count: string;
 };
 
 export type Product = {
@@ -58,7 +65,7 @@ export const lkr = (n: number) => `LKR ${n.toLocaleString("en-US")}`;
 
 /** Extra product angles — reused across the catalogue. */
 const shotA = imgShirts;
-const shotB = imgMedals;
+const shotB = catBadges;
 const shotC = catUniform;
 const shotD = imgPaper2;
 const shotE = imgPaper3;
@@ -81,35 +88,46 @@ export const categories: Category[] = [
     title: "Badges",
     desc: "Prefect, host & society badges — small pieces of metal, worn with honour.",
     image: catBadges,
-    count: "16 badges",
+    // Not a count — a count would go stale the moment the office adds a badge.
+    // The shop counts its own items; this is the line under the title.
+    count: "Worn with honour",
   },
   {
     slug: "uniforms",
     title: "Uniforms",
     desc: "Regulation uniforms, shirts and ties — tailored to the college standard.",
     image: catUniform,
-    count: "24 essentials",
+    count: "The college standard",
   },
   {
     slug: "event-clothings",
     title: "Event Clothings",
     desc: "Big Match hoodies, scarves and caps for the occasions that matter.",
-    image: catTickets,
-    count: "18 pieces",
+    // It was a photograph of the tickets: the collection named "Event Clothings"
+    // was the one place in the shop that showed no clothes.
+    image: productHoodie,
+    count: "For the big occasions",
+  },
+  {
+    slug: "souvenirs",
+    title: "Gifts & Souvenirs",
+    desc: "Crested keepsakes for the desk, the shelf and the visitor's handshake.",
+    image: productMug,
+    count: "The crest, kept",
   },
   {
     slug: "exam-writing-papers",
     title: "Exam Writing Papers",
     desc: "Ruled pads, answer booklets and pens — exam-ready, every single time.",
     image: imgPaper1,
-    count: "12 items",
+    count: "Exam-ready, every time",
   },
   {
     slug: "batch-shirts",
     title: "Batch Shirts",
     desc: "Class of ’25 batch tees and shirts — your year, printed with pride.",
     image: imgShirts,
-    count: "9 designs",
+    count: "Your year, printed",
   },
 ];
 
@@ -121,8 +139,10 @@ export const products: Product[] = [
   {
     slug: "prefect-badge",
     gallery: [shotB, shotC, shotD],
-    colours: ["Gold", "Silver"],
-    name: "Prefect Badge — Gold",
+    // A badge is one piece of cast metal with one finish. It has no colour and
+    // no size: the name says which one it is, and the admin stocks the other if
+    // they want to sell it.
+    name: "Prefect Badge",
     price: 850,
     image: catBadges,
     tag: "Official",
@@ -136,10 +156,9 @@ export const products: Product[] = [
   {
     slug: "crest-lapel-badge",
     gallery: [shotC, shotD, shotB],
-    colours: ["Gold", "Silver"],
     name: "Crest Lapel Badge",
     price: 450,
-    image: imgMedals,
+    image: productLapel,
     category: "badges",
     rating: 5,
     reviews: 12,
@@ -150,10 +169,9 @@ export const products: Product[] = [
   {
     slug: "house-badge-set",
     gallery: [shotD, shotB, shotC],
-    colours: ["Gold"],
     name: "House Badge Set",
     price: 1200,
-    image: imgMedals,
+    image: productHouseSet,
     tag: "Set of 4",
     category: "badges",
     rating: 4,
@@ -167,7 +185,7 @@ export const products: Product[] = [
   {
     slug: "regulation-white-shirt",
     gallery: [shotC, shotA, shotE],
-    colours: ["White", "Sky", "Khaki"],
+    colours: ["White", "Sky"],
     name: "Regulation White Shirt",
     price: 2200,
     image: catUniform,
@@ -199,7 +217,7 @@ export const products: Product[] = [
     gallery: [shotC, shotA, shotB],
     colours: ["Navy", "Black"],
     isNew: true,
-    name: "Navy College Blazer",
+    name: "College Blazer",
     price: 9800,
     image: catUniform,
     tag: "Premium",
@@ -218,7 +236,7 @@ export const products: Product[] = [
     gallery: [shotA, shotC, shotB],
     colours: ["Navy", "Black", "Grey"],
     isFeatured: true,
-    name: "Crest Hoodie — Navy",
+    name: "Crest Hoodie",
     price: 4500,
     image: productHoodie,
     tag: "Best Seller",
@@ -233,7 +251,6 @@ export const products: Product[] = [
   {
     slug: "animo-et-fide-scarf",
     gallery: [shotC, shotA, shotD],
-    colours: ["Navy"],
     isFeatured: true,
     name: "Animo et Fide Scarf",
     price: 2100,
@@ -271,7 +288,10 @@ export const products: Product[] = [
     price: 1250,
     image: productMug,
     tag: "New",
-    category: "event-clothings",
+    // A mug is not event clothing. It sat in that collection because there was
+    // nowhere else for it to go, which made the collection read as "everything
+    // that is not a badge".
+    category: "souvenirs",
     rating: 4,
     reviews: 18,
     description:
@@ -283,7 +303,6 @@ export const products: Product[] = [
   {
     slug: "exam-answer-booklet",
     gallery: [shotE, shotD, shotB],
-    colours: ["White"],
     isNew: true,
     name: "Exam Answer Booklet",
     price: 120,
@@ -299,7 +318,6 @@ export const products: Product[] = [
   {
     slug: "ruled-writing-pad",
     gallery: [shotD, shotE, shotA],
-    colours: ["White"],
     name: "Ruled Writing Pad",
     price: 340,
     image: imgPaper3,
@@ -313,7 +331,6 @@ export const products: Product[] = [
   {
     slug: "exam-pen-pack",
     gallery: [shotD, shotE, shotB],
-    colours: ["Blue", "Black"],
     isNew: true,
     name: "Exam Pen Pack",
     price: 480,
@@ -325,11 +342,13 @@ export const products: Product[] = [
     description:
       "Three smooth-flow ballpoint pens in college navy, chosen for a full three-hour paper without a refill.",
     details: ["Three ballpoint pens", "0.7mm blue ink", "Soft-touch barrel", "Crest printed"],
+    // Ink is a colour, but it is not the product's colour — "Navy geometry set"
+    // was the same mistake in a different shape.
+    options: { label: "Ink", values: ["Blue", "Black"] },
   },
   {
     slug: "geometry-set",
     gallery: [shotE, shotD, shotA],
-    colours: ["Navy"],
     name: "Geometry Set",
     price: 690,
     image: imgPaper2,
@@ -380,7 +399,7 @@ export const products: Product[] = [
     colours: ["White", "Navy"],
     name: "Batch Class Shirt",
     price: 2400,
-    image: catTickets,
+    image: imgShirts,
     category: "batch-shirts",
     rating: 4,
     reviews: 15,
