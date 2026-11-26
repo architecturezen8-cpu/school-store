@@ -82,7 +82,7 @@ export default async function MailPage({
         <PageHeader
           eyebrow="Email"
           title="Ticket email"
-          description="The design and the wording are fixed — the same tested ticket goes to every customer, with their photo, reference, seats, amount and QR filled in. Check it here, send yourself a copy, and you are done."
+          description="Every message carries one ticket file per person and the sale's bill as a PDF. The wording is yours; the ticket artwork is the design you uploaded. Check it here, send yourself a copy, and you are done."
           actions={
             <>
               <a href={frameSrc} target="_blank" rel="noreferrer" className={buttonClass("secondary")}>

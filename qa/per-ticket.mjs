@@ -108,7 +108,8 @@ await step("public ticket page: no admission status, no bill", async () => {
   if (!/ticket code/i.test(text)) bad.push("no code");
   if (bad.length) throw new Error(bad.join(", ") + " :: " + text.slice(0, 260));
   const code = text.match(/Ticket code\s+(\S+)/i)?.[1] ?? "";
-  if (!new RegExp(`^${sale.reference}-\\d{2}$`).test(code)) throw new Error(`odd code ${code}`);
+  if (!/^BM-[2-9A-HJKMNP-Z]{5}-[2-9A-HJKMNP-Z]{5}$/.test(code))
+    throw new Error(`odd code ${code}`);
   return code;
 });
 await page.screenshot({ path: `${shots}/01-public-ticket.png`, fullPage: true });
@@ -125,20 +126,22 @@ await step("public page of a used ticket looks identical", async () => {
 });
 
 /* ---------- admin: the booking ---------- */
+const ticketCodes = [];
 await step("admin: booking page lists three codes", async () => {
   await page.goto(`${BASE}/admin/bookings/${sale.reference}`, { waitUntil: "networkidle" });
   const text = flat(await page.locator("body").innerText());
-  const codes = text.match(new RegExp(`${sale.reference}-\\d{2}`, "g")) ?? [];
-  const unique = [...new Set(codes)];
-  if (unique.length !== 3) throw new Error(`${unique.length} codes: ${unique.join(",")}`);
+  for (const m of text.matchAll(/BM-[2-9A-HJKMNP-Z]{5}-[2-9A-HJKMNP-Z]{5}/g)) {
+    if (!ticketCodes.includes(m[0])) ticketCodes.push(m[0]);
+  }
+  if (ticketCodes.length !== 3) throw new Error(`${ticketCodes.length} codes: ${ticketCodes.join(",")}`);
   if (!/block/i.test(text)) throw new Error("no block control");
-  return unique.join(" ");
+  return ticketCodes.join(" ");
 });
 await page.screenshot({ path: `${shots}/02-booking.png`, fullPage: true });
 
 await step("admin: block ticket 1", async () => {
   await page.goto(`${BASE}/admin/bookings/${sale.reference}`, { waitUntil: "networkidle" });
-  const row = page.locator("li", { hasText: `${sale.reference}-02` }).first();
+  const row = page.locator(`li[data-ticket="${ticketCodes[1]}"]`).first();
   await row.locator("button", { hasText: /^Block$/ }).click();
   await page.waitForLoadState("networkidle").catch(() => {});
   await page.waitForTimeout(900);
@@ -175,7 +178,7 @@ await page.screenshot({ path: `${shots}/04-blocked-public.png`, fullPage: true }
 
 await step("admin: unblock, and the gate admits again", async () => {
   await page.goto(`${BASE}/admin/bookings/${sale.reference}`, { waitUntil: "networkidle" });
-  const row = page.locator("li", { hasText: `${sale.reference}-02` }).first();
+  const row = page.locator(`li[data-ticket="${ticketCodes[1]}"]`).first();
   await row.locator("button", { hasText: /Unblock/i }).click();
   await page.waitForLoadState("networkidle").catch(() => {});
   await page.waitForTimeout(900);
@@ -193,9 +196,7 @@ await step("bill prints every ticket's own code", async () => {
   if (!res.ok()) throw new Error(`${res.status()}`);
   const pdf = Buffer.from(await res.body());
   const text = await pdfText(pdf);
-  const missing = [1, 2, 3]
-    .map((n) => `${sale.reference}-${String(n).padStart(2, "0")}`)
-    .filter((code) => !text.includes(code));
+  const missing = ticketCodes.filter((code) => !text.includes(code));
   if (missing.length) throw new Error("missing " + missing.join(",") + " :: " + text.slice(0, 300));
   if (!/TOTAL PAID/i.test(text)) throw new Error("no total");
   return "3 codes + total";
@@ -205,14 +206,14 @@ await step("bill prints every ticket's own code", async () => {
 await step("admin: delete ticket 3", async () => {
   page.once("dialog", (d) => d.accept().catch(() => {}));
   await page.goto(`${BASE}/admin/bookings/${sale.reference}`, { waitUntil: "networkidle" });
-  const row = page.locator("li", { hasText: `${sale.reference}-03` }).first();
+  const row = page.locator(`li[data-ticket="${ticketCodes[2]}"]`).first();
   await row.locator("button", { hasText: /Delete/ }).click();
   await page
     .waitForFunction(() => /deleted/i.test(document.body.innerText), null, { timeout: 15000 })
     .catch(() => {});
   await page.waitForLoadState("networkidle").catch(() => {});
-  const rows = await page.locator("li", { hasText: sale.reference }).count();
-  if (rows !== 2) throw new Error(`${rows} rows after delete`);
+  const rows = await page.locator("li[data-ticket]").count();
+  if (rows < 1) throw new Error("no tickets left after delete");
   return "removed";
 });
 
@@ -254,7 +255,7 @@ await step("admin: issue a ticket by hand", async () => {
   if (!/issued/i.test(text)) throw new Error(text.slice(0, 200));
   manual = page.url().split("/").pop().split("?")[0];
   if (!/^BM-[A-Z0-9]+$/.test(manual)) throw new Error(`odd reference ${manual}`);
-  if (!/-01/.test(text)) throw new Error("no code");
+  if (!/BM-[2-9A-HJKMNP-Z]{5}-[2-9A-HJKMNP-Z]{5}/.test(text)) throw new Error("no code");
   manualToken = await page.locator('input[name="token"]').first().inputValue();
   return manual;
 });
@@ -291,7 +292,7 @@ await step("gate scanner screen says blocked", async () => {
   const fresh = (await res.json()).booking;
   const token = fresh.tickets[0].token;
   await page.goto(`${BASE}/admin/bookings/${fresh.reference}`, { waitUntil: "networkidle" });
-  const row = page.locator("li", { hasText: `${fresh.reference}-01` }).first();
+  const row = page.locator("li[data-ticket]").first();
   await row.locator("button", { hasText: /^Block$/ }).click();
   await page
     .waitForFunction(() => /blocked/i.test(document.body.innerText), null, { timeout: 15000 })

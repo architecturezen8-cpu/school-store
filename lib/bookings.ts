@@ -63,13 +63,25 @@ export type Ticket = {
   tiers: { id: string; name: string; price: number; qty: number }[];
   admittedAt: string | null;
   admittedBy: string;
-  /** Set when the admin has stopped this one ticket — the gate refuses it. */
+  /** When the admin stopped this one ticket; null when it was never stopped. */
   blockedAt: string | null;
   blockedBy: string;
   /**
-   * This ticket's own reference, printed on the bill and typed at the gate:
-   * `BM-ABC12345-03`. The sale's reference is shared by everybody in the party,
-   * so it cannot name one person; this can.
+   * When a *pause* lifts on its own. Null with `blockedAt` set is an indefinite
+   * block; a past date means the pause has expired and the ticket is valid again,
+   * which is what `blocked` below answers.
+   */
+  blockedUntil: string | null;
+  /**
+   * Whether the gate must refuse this ticket *now*. Computed by the database, so
+   * an expired pause stops being a block the moment it expires, without a job.
+   */
+  blocked: boolean;
+  /**
+   * This ticket's own code — `BM-BK7MQ-9WXT3` — printed on the bill and typed at
+   * the gate. Random, and not derived from the sale's reference: the reference is
+   * shared by the whole party, and anything computed from it can be computed by
+   * anybody who can read one ticket.
    */
   code: string;
   /** The ticket type this particular person holds, e.g. "Grandstand Seat". */
@@ -77,15 +89,42 @@ export type Ticket = {
 };
 
 /**
- * The code for one ticket.
+ * The code a person types at the gate, and reads down a phone line.
  *
- * Derived from the sale's reference and the seat number, not stored: the
- * reference is already unique and the seat number already exists, so a third
- * identifier would be a third thing that can disagree with the other two.
- * `-03` is zero-padded so the codes line up in a list and sort as numbers.
+ * Ten characters, five and five, from an alphabet with no `0/O`, `1/I/L` or `U`
+ * in it — the letters that turn a shouted code into a queue at the door. Random
+ * rather than derived: the first attempt was the reference plus the seat number
+ * (`BM-ABC12345-03`), which named the ticket perfectly and told everybody else
+ * exactly what the next ticket was called.
+ *
+ * `randomBytes` and rejection sampling, not `Math.random()` modulo: a code that
+ * can be guessed is a code that can be used.
  */
-export function ticketCode(reference: string, seq: number): string {
-  return `${reference}-${String(seq).padStart(2, "0")}`;
+const CODE_ALPHABET = "23456789ABCDEFGHJKMNPQRSTVWXYZ";
+
+export function ticketCode(): string {
+  let out = "";
+  while (out.length < 10) {
+    for (const byte of randomBytes(16)) {
+      // 240 is the largest multiple of 30 below 256: everything above it would
+      // make the first six letters more likely than the rest.
+      if (byte >= 240) continue;
+      out += CODE_ALPHABET[byte % CODE_ALPHABET.length];
+      if (out.length === 10) break;
+    }
+  }
+  return `BM-${out.slice(0, 5)}-${out.slice(5)}`;
+}
+
+/**
+ * A code as a human typed it: `bk7mq 9wxt3` is `BK7MQ9WXT3`.
+ *
+ * Only the letters and digits survive, case is lost, and the dashes are the
+ * reader's business. This is the form the database compares against too, so the
+ * two can never disagree about what "the same code" means.
+ */
+export function normaliseCode(input: string): string {
+  return input.toUpperCase().replace(/[^0-9A-Z]/g, "");
 }
 
 const MAX_PER_TIER = 8;
@@ -173,8 +212,8 @@ export async function createBooking(input: BookingInput): Promise<Booking> {
     for (let i = 0; i < perSeat.length; i++) {
       const token = ticketToken();
       await c.query(
-        `insert into booking_tickets (booking, seq, token, tier) values ($1, $2, $3, $4)`,
-        [bookingId, i + 1, token, perSeat[i]]
+        `insert into booking_tickets (booking, seq, token, tier, code) values ($1, $2, $3, $4, $5)`,
+        [bookingId, i + 1, token, perSeat[i], ticketCode()]
       );
       tickets.push({ seq: i + 1, token, tier: perSeat[i] });
     }
@@ -281,6 +320,9 @@ function toTicket(
     admittedBy: string;
     blockedAt?: string | null;
     blockedBy?: string;
+    blockedUntil?: string | null;
+    blocked?: boolean;
+    code?: string;
   }
 ): Ticket {
   return {
@@ -304,7 +346,9 @@ function toTicket(
     admittedBy: seat.admittedBy,
     blockedAt: seat.blockedAt ?? null,
     blockedBy: seat.blockedBy ?? "",
-    code: ticketCode(row.reference, seat.seq),
+    blockedUntil: seat.blockedUntil ?? null,
+    blocked: seat.blocked ?? false,
+    code: seat.code ?? "",
     tierName: seat.tierName ?? "",
   };
 }
@@ -319,11 +363,18 @@ type Seat = {
   admitted_by: string;
   blocked_at: string | null;
   blocked_by: string;
+  blocked_until: string | null;
+  /** Answered by the database so an expired pause stops being a block by itself. */
+  blocked: boolean;
+  code: string;
 };
 
 async function seatsFor(bookingId: string): Promise<Seat[]> {
   return query<Seat>(
-    `select seq, token, tier, admitted_at, admitted_by, blocked_at, blocked_by
+    `select seq, token, tier, admitted_at, admitted_by, blocked_at, blocked_by,
+            blocked_until, code,
+            (blocked_at is not null
+             and (blocked_until is null or blocked_until > now())) as blocked
        from booking_tickets
       where booking = $1
       order by seq`,
@@ -357,6 +408,9 @@ async function ticketForSeat(
       admittedBy: seat.admitted_by,
       blockedAt: seat.blocked_at,
       blockedBy: seat.blocked_by,
+      blockedUntil: seat.blocked_until,
+      blocked: seat.blocked,
+      code: seat.code,
     });
   }
 
@@ -432,6 +486,9 @@ export async function ticketsForBooking(reference: string): Promise<Ticket[]> {
       admittedBy: seat.admitted_by,
       blockedAt: seat.blocked_at,
       blockedBy: seat.blocked_by,
+      blockedUntil: seat.blocked_until,
+      blocked: seat.blocked,
+      code: seat.code,
     })
   );
 }
@@ -451,16 +508,123 @@ export async function getTicketByReference(
   // gets a blocked ticket back and says so, which is the honest answer.
   const all = await ticketsForBooking(reference);
   return (
-    all.find((t) => !t.admittedAt && !t.blockedAt) ??
+    all.find((t) => !t.admittedAt && !t.blocked) ??
     all.find((t) => !t.admittedAt) ??
     all[0] ??
     null
   );
 }
 
-/** Either the token from the QR, or the reference a volunteer types in. */
+/** One ticket, boiled down to what a list needs. */
+export type TicketSummary = {
+  seq: number;
+  token: string;
+  code: string;
+  tierName: string;
+  admittedAt: string | null;
+  blocked: boolean;
+  blockedAt: string | null;
+  blockedUntil: string | null;
+};
+
+/**
+ * Every ticket for a set of bookings, in one query.
+ *
+ * The bookings list shows each sale's tickets so a single one can be stopped
+ * from there, without opening the sale first. Doing that per row would be thirty
+ * round trips to answer one screen; this is one, grouped afterwards.
+ */
+export async function ticketsByReference(
+  references: string[]
+): Promise<Map<string, TicketSummary[]>> {
+  const out = new Map<string, TicketSummary[]>();
+  const refs = references.filter(Boolean).slice(0, 500);
+  if (!refs.length) return out;
+
+  const placeholders = refs.map((_, i) => `$${i + 1}`).join(", ");
+  const rows = await query<{
+    reference: string;
+    seq: number;
+    token: string;
+    code: string;
+    tier_name: string | null;
+    admitted_at: string | null;
+    blocked_at: string | null;
+    blocked_until: string | null;
+    blocked: boolean;
+  }>(
+    `select b.reference, bt.seq, bt.token, bt.code, tt.name as tier_name,
+            bt.admitted_at, bt.blocked_at, bt.blocked_until,
+            (bt.blocked_at is not null
+             and (bt.blocked_until is null or bt.blocked_until > now())) as blocked
+       from booking_tickets bt
+       join bookings b on b.id = bt.booking
+       left join ticket_tiers tt on tt.id = bt.tier
+      where upper(b.reference) in (${refs.map((_, i) => `upper($${i + 1})`).join(", ")})
+      order by b.created_at desc, bt.seq`,
+    refs.map((r) => r.trim())
+  );
+
+  for (const row of rows) {
+    const list = out.get(row.reference) ?? [];
+    list.push({
+      seq: row.seq,
+      token: row.token,
+      code: row.code,
+      tierName: row.tier_name ?? "",
+      admittedAt: row.admitted_at,
+      blocked: row.blocked,
+      blockedAt: row.blocked_at,
+      blockedUntil: row.blocked_until,
+    });
+    out.set(row.reference, list);
+  }
+  return out;
+}
+
+/**
+ * Look a ticket up by the code printed on it — `BM-BK7MQ-9WXT3`.
+ *
+ * Case, dashes and spaces are ignored, because the person reading it off a card
+ * and the person typing it into a phone do not agree about any of the three.
+ */
+export async function getTicketByCode(code: string): Promise<Ticket | null> {
+  const wanted = normaliseCode(code);
+  if (wanted.length < 6) return null;
+
+  // The seat row first: it holds both the token (what the QR carries) and the
+  // booking the rest of the ticket is built from.
+  const seats = await query<{ booking: string; token: string }>(
+    `select booking, token from booking_tickets
+      where upper(replace(code, '-', '')) = $1`,
+    [wanted]
+  );
+  const seat = seats[0];
+  if (!seat) return null;
+
+  const rows = await query<TicketRow & { id: string }>(
+    `${ticketSelect} where b.id = $1`,
+    [seat.booking]
+  );
+  if (!rows[0]) return null;
+  return ticketForSeat(rows[0], seat.token);
+}
+
+/**
+ * Whatever the gate was given: the token inside a scanned QR, a ticket's own
+ * code, or the sale's reference.
+ *
+ * In that order, because they are in that order of precision. A code names one
+ * person, which is the whole point of it; a reference names a party and can only
+ * ever mean "the next one of them who has not been in".
+ */
 export async function findTicketForGate(scan: string): Promise<Ticket | null> {
-  return (await getTicketByToken(scan)) ?? (await getTicketByReference(scan));
+  const cleaned = scan.trim();
+  return (
+    (await getTicketByToken(cleaned)) ??
+    (await getTicketByCode(cleaned)) ??
+    (await getTicketByReference(cleaned))
+  );
 }
 
 export type AdmitResult =
@@ -488,11 +652,12 @@ export async function admitTicket(
   const before = await getTicketByToken(token);
   if (!before) return { status: "not-found" };
 
-  // A blocked ticket is a decision the admin already made. Checked before the
-  // update so a blocked code cannot be admitted by a second scanner racing the
-  // first, and reported as its own answer so the volunteer at the door is told
-  // to stop the person rather than that the code is a repeat.
-  if (before.blockedAt) return { status: "blocked", ticket: before };
+  // A blocked or paused ticket is a decision the admin already made. Checked
+  // before the update so a stopped code cannot be admitted by a second scanner
+  // racing the first, and reported as its own answer so the volunteer at the door
+  // is told to stop the person rather than that the code is a repeat. `blocked`
+  // comes from the database, so a pause that has expired is simply not one.
+  if (before.blocked) return { status: "blocked", ticket: before };
 
   const admitted = await query<{ id: string; booking: string }>(
     `update booking_tickets
@@ -587,10 +752,43 @@ export async function blockTicket(
 ): Promise<{ ok: true; ticket: Ticket } | { ok: false; error: string }> {
   const rows = await query<{ booking: string }>(
     `update booking_tickets
-        set blocked_at = now(), blocked_by = $2, blocked_note = $3
+        set blocked_at = now(), blocked_by = $2, blocked_note = $3, blocked_until = null
       where token = $1
       returning booking`,
     [token, by.slice(0, 80), note.slice(0, 300)]
+  );
+  if (!rows[0]) return { ok: false, error: "That ticket is not on any booking." };
+
+  const ticket = await getTicketByToken(token);
+  if (!ticket) return { ok: false, error: "That ticket is not on any booking." };
+  return { ok: true, ticket };
+}
+
+/**
+ * Hold one ticket shut for a while, then let it open by itself.
+ *
+ * The difference from a block is who ends it. A block waits for the admin to
+ * decide; a pause is for the things that resolve on their own — a refund being
+ * argued at the office, a ticket whose holder is fetching their ID, a duplicate
+ * to be sorted out at the interval. It stops the gate exactly like a block, and
+ * the gate never has to be told it ended.
+ */
+export async function pauseTicket(
+  token: string,
+  minutes: number,
+  by: string,
+  note = ""
+): Promise<{ ok: true; ticket: Ticket } | { ok: false; error: string }> {
+  const span = Math.max(5, Math.min(60 * 24 * 7, Math.round(minutes)));
+  const rows = await query<{ booking: string }>(
+    `update booking_tickets
+        set blocked_at = now(),
+            blocked_by = $2,
+            blocked_note = $3,
+            blocked_until = now() + ($4 || ' minutes')::interval
+      where token = $1
+      returning booking`,
+    [token, by.slice(0, 80), note.slice(0, 300), String(span)]
   );
   if (!rows[0]) return { ok: false, error: "That ticket is not on any booking." };
 
@@ -605,7 +803,7 @@ export async function unblockTicket(
 ): Promise<{ ok: true; ticket: Ticket } | { ok: false; error: string }> {
   const rows = await query<{ booking: string }>(
     `update booking_tickets
-        set blocked_at = null, blocked_by = '', blocked_note = ''
+        set blocked_at = null, blocked_by = '', blocked_note = '', blocked_until = null
       where token = $1
       returning booking`,
     [token]
@@ -704,8 +902,8 @@ export async function issueTicket(
 
     const token = ticketToken();
     await c.query(
-      "insert into booking_tickets (booking, seq, token, tier) values ($1, 1, $2, $3)",
-      [bookingId, token, tier.id]
+      "insert into booking_tickets (booking, seq, token, tier, code) values ($1, 1, $2, $3, $4)",
+      [bookingId, token, tier.id, ticketCode()]
     );
     await c.query("update bookings set ticket_token = $2 where id = $1", [bookingId, token]);
 

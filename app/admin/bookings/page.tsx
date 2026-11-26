@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import { isAdmin } from "@/lib/admin/auth";
 import { databaseProblem } from "@/lib/admin/db-guard";
 import { databaseDown, hasDatabase } from "@/lib/db";
-import { listBookings } from "@/lib/bookings";
+import { Fragment } from "react";
+import { listBookings, ticketsByReference, type TicketSummary } from "@/lib/bookings";
 import { lkr } from "@/lib/format";
 import { safeDecode } from "@/lib/safe-decode";
 import Link from "next/link";
@@ -12,7 +13,8 @@ import DownloadReceipt from "@/components/DownloadReceipt";
 import SubmitButton from "@/components/SubmitButton";
 import { resendTicketAction } from "../actions";
 import { Empty, Notice, PageHeader, Panel, Pill, Stat, buttonClass } from "@/components/admin/ui";
-import { Mail, TicketPlus } from "lucide-react";
+import { ChevronRight, Mail, TicketPlus } from "lucide-react";
+import TicketControls from "@/components/admin/TicketControls";
 import { asset } from "@/lib/assets";
 import { signTicket } from "@/lib/tickets/sign";
 
@@ -39,6 +41,11 @@ export default async function BookingsPage({
   // process is a diagnosis, three hundred is a hung page.
   const problem = databaseProblem();
   const bookings = databaseDown() ? [] : await listBookings(300);
+  // One query for every sale's tickets, not one per row: the list is where a
+  // single ticket gets stopped, so each row has to know its tickets.
+  const tickets: Map<string, TicketSummary[]> = databaseDown()
+    ? new Map()
+    : await ticketsByReference(bookings.map((b) => b.reference)).catch(() => new Map());
   // People, not bookings: with one ticket per person a four-seat booking can be
   // half in, and "2 bookings admitted" would be a lie in the middle of the day.
   const admitted = bookings.reduce((n, b) => n + b.admitted, 0);
@@ -102,8 +109,12 @@ export default async function BookingsPage({
                 </tr>
               </thead>
               <tbody>
-                {bookings.map((b) => (
-                  <tr key={b.reference} className="align-middle">
+                {bookings.map((b) => {
+                  const sales = tickets.get(b.reference) ?? [];
+                  const back = "/admin/bookings";
+                  return (
+                  <Fragment key={b.reference}>
+                  <tr className="align-middle">
                     <td className="py-3 pr-4 font-mono text-xs text-body">{b.reference}</td>
                     <td className="py-3 pr-4">
                       <Link
@@ -113,12 +124,6 @@ export default async function BookingsPage({
                         {b.name}
                       </Link>
                       <span className="block truncate text-xs text-muted">{b.email}</span>
-                      <Link
-                        href={`/admin/bookings/${encodeURIComponent(b.reference)}`}
-                        className="mt-0.5 block font-mono text-[11px] text-faint underline-offset-4 hover:underline"
-                      >
-                        {b.reference}
-                      </Link>
                     </td>
                     <td className="py-3 pr-4 text-body">
                       {b.seatsText || `${b.seats} seats`}
@@ -166,7 +171,40 @@ export default async function BookingsPage({
                       </form>
                     </td>
                   </tr>
-                ))}
+
+                  {/* The tickets themselves, folded away under the sale.
+                      No JavaScript: <details> is the browser's own disclosure,
+                      which is also the only kind that survives a page reload in
+                      the middle of a sale. */}
+                  <tr>
+                    <td colSpan={6} className="pb-3">
+                      <details className="group" data-booking={b.reference}>
+                        <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-1 text-[11px] text-muted underline-offset-4 hover:text-strong">
+                          <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
+                          {sales.length} ticket{sales.length === 1 ? "" : "s"} — block, pause or
+                          delete one
+                        </summary>
+                        <ul className="mt-2 space-y-1.5">
+                          {sales.map((t) => (
+                            <TicketControls
+                              key={t.token}
+                              ticket={t}
+                              reference={b.reference}
+                              back={back}
+                            />
+                          ))}
+                          {sales.length === 0 && (
+                            <li className="rounded-lg bg-panel px-3 py-2 text-[11px] text-muted">
+                              No tickets on this sale — every one has been deleted.
+                            </li>
+                          )}
+                        </ul>
+                      </details>
+                    </td>
+                  </tr>
+                  </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>

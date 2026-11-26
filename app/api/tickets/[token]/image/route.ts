@@ -4,6 +4,7 @@ import path from "node:path";
 import { getTicketByToken } from "@/lib/bookings";
 import { getTemplateForEvent } from "@/lib/tickets/templates";
 import { composeTicket, detectWhiteSquare } from "@/lib/tickets/detect";
+import { fallbackTicketSvg } from "@/lib/tickets/fallback";
 import { qrPayload, verifyTicketSignature } from "@/lib/tickets/sign";
 import { safeDecode } from "@/lib/safe-decode";
 
@@ -115,29 +116,4 @@ export async function GET(
       "cache-control": "private, max-age=300",
     },
   });
-}
-
-/** A simple ticket when no design has been uploaded yet. */
-function fallbackTicketSvg(ticket: {
-  reference: string;
-  name: string;
-  eventTitle: string;
-  eventDate: string;
-  venue: string;
-  city: string;
-}): string {
-  const esc = (s: string) =>
-    s.replace(/[&<>"']/g, (c) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!
-    );
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="640" viewBox="0 0 1200 640">
-  <rect width="1200" height="640" fill="#0a1224"/>
-  <rect y="0" width="1200" height="8" fill="#ffd444"/>
-  <text x="60" y="120" fill="#ffd444" font-size="54" font-family="sans-serif" font-weight="bold">${esc(ticket.eventTitle)}</text>
-  <text x="60" y="176" fill="#ffffff" font-size="26" font-family="sans-serif">${esc(ticket.venue)}, ${esc(ticket.city)}</text>
-  <text x="60" y="220" fill="#7c8db5" font-size="22" font-family="sans-serif">${esc(new Date(ticket.eventDate).toDateString())}</text>
-  <text x="60" y="420" fill="#ffffff" font-size="38" font-family="sans-serif">${esc(ticket.name)}</text>
-  <text x="60" y="580" fill="#ffd444" font-size="28" font-family="sans-serif">${esc(ticket.reference)}</text>
-  <rect x="820" y="340" width="300" height="300" fill="#ffffff"/>
-</svg>`;
 }
