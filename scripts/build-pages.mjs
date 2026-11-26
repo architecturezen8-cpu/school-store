@@ -8,20 +8,33 @@
  *
  *   npm run build:pages
  */
-import { rename, rm, cp, writeFile, mkdir } from "node:fs/promises";
+import { rename, rm, cp, writeFile, readFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
-const API = "app/api";
-const PARKED = ".api-parked";
+/*
+ * Routes that cannot exist on a static host: they read a database, a session
+ * cookie or an uploaded ticket on every request, and the export refuses a page
+ * marked `force-dynamic`. They are parked for the build and put back afterwards.
+ * Only `app/api` was parked before, so once the admin, the gate and the ticket
+ * pages went dynamic the static preview stopped building at all.
+ */
+const PARKED_ROUTES = ["app/api", "app/admin", "app/gate", "app/t", "components/admin"];
+const PARKED = ".static-parked";
 const BASE_PATH = "/school-store"; // GitHub Pages project path
 const SITE = `https://architecturezen8-cpu.github.io${BASE_PATH}`;
 
 if (existsSync(PARKED)) await rm(PARKED, { recursive: true, force: true });
 
-const hadApi = existsSync(API);
-if (hadApi) await rename(API, PARKED);
+const moved = [];
+for (const route of PARKED_ROUTES) {
+  if (!existsSync(route)) continue;
+  const target = path.join(PARKED, route);
+  await mkdir(path.dirname(target), { recursive: true });
+  await rename(route, target);
+  moved.push([target, route]);
+}
 
 // A dev server leaves type validators for the parked routes in .next; they make
 // the production type check fail on files that intentionally are not there.
@@ -29,6 +42,24 @@ await rm(".next/dev", { recursive: true, force: true });
 
 // --webpack: the WASM Tailwind engine (used in browser IDEs) cannot be statically
 // analysed by Turbopack, and webpack is the one engine that works everywhere.
+/*
+ * `dynamicParams: true` is right for a server — a product added at 9am has to
+ * answer before the next deploy — and illegal in an export ("cannot be used with
+ * output: export"), where every slug is known when the build starts anyway. The
+ * flags are flipped for the build and restored with the parked routes, so the
+ * source keeps the value the server needs.
+ */
+const DYNAMIC_PARAM_PAGES = ["app/product/[slug]/page.tsx", "app/events/[slug]/page.tsx"];
+const flipped = [];
+for (const file of DYNAMIC_PARAM_PAGES) {
+  if (!existsSync(file)) continue;
+  const before = await readFile(file, "utf8");
+  const after = before.replace(/export const dynamicParams = true;/, "export const dynamicParams = false;");
+  if (after === before) continue;
+  await writeFile(file, after);
+  flipped.push([file, before]);
+}
+
 const result = spawnSync("npx", ["next", "build", "--webpack"], {
   stdio: "inherit",
   env: {
@@ -41,7 +72,9 @@ const result = spawnSync("npx", ["next", "build", "--webpack"], {
   },
 });
 
-if (hadApi) await rename(PARKED, API);
+for (const [target, route] of moved) await rename(target, route);
+await rm(PARKED, { recursive: true, force: true });
+for (const [file, before] of flipped) await writeFile(file, before);
 if (result.status !== 0) process.exit(result.status ?? 1);
 
 // ---------------------------------------------------------------------------
