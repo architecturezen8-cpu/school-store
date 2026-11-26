@@ -5,9 +5,12 @@ import { getCategories, getProduct, getProducts } from "@/lib/store";
 import { lkr } from "@/data/seed";
 
 export const revalidate = 300;
-// Every product is prerendered; unknown slugs still reach notFound() on a server,
-// while a static export simply 404s at the host level.
-export const dynamicParams = false;
+// Every product is prerendered, and a slug that did not exist at build time is
+// still rendered on demand — because products are added from the admin now, and
+// `dynamicParams = false` meant a product created at 9am answered 404 until the
+// next deploy. A static export simply does not contain the new page until the
+// next build, which is what an export is.
+export const dynamicParams = true;
 
 type Params = Promise<{ slug: string }>;
 

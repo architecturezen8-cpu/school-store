@@ -459,3 +459,159 @@ create index if not exists email_log_created_idx on email_log (created_at desc);
 -- typed the same way twice.
 create index if not exists email_log_reference_idx on email_log (upper(booking_reference));
 create index if not exists email_log_to_idx on email_log (lower(to_email));
+
+-- ---------- filters the shop offers -----------------------------------------
+-- The shop could filter by collection and nothing else, and the vocabulary a
+-- product is described with — "Navy", "XL" — was whatever happened to be in the
+-- JSON. That left two problems the office kept meeting: a colour that only one
+-- product ever used still offered itself as a filter, and a genuine option could
+-- not be renamed or hidden without editing the database by hand.
+--
+-- These rows are the vocabulary. `kind` says which part of a product it filters
+-- (`colours`, or the values of `options`), `label` is the word the shop prints,
+-- `swatch` is the chip colour for a colour, and the position is the order the
+-- chips appear in. Only labels with at least one product are ever drawn, so this
+-- table cannot produce a filter that finds nothing.
+create table if not exists shop_filters (
+  id         uuid primary key default gen_random_uuid(),
+  kind       text not null check (kind in ('colour', 'size')),
+  label      text not null,
+  -- '#1b2b55' for a colour; empty for a size.
+  swatch     text not null default '',
+  position   integer not null default 0,
+  is_active  boolean not null default true,
+  created_at timestamptz not null default now(),
+  unique (kind, label)
+);
+
+insert into shop_filters (kind, label, swatch, position)
+values
+  ('colour', 'Navy',  '#1b2b55', 0),
+  ('colour', 'Black', '#15171a', 1),
+  ('colour', 'White', '#f4f2ec', 2),
+  ('colour', 'Grey',  '#8b9099', 3),
+  ('colour', 'Maroon','#6d1f2e', 4),
+  ('colour', 'Sky',   '#a9c6e8', 5),
+  ('size',   'S',     '',        0),
+  ('size',   'M',     '',        1),
+  ('size',   'L',     '',        2),
+  ('size',   'XL',    '',        3),
+  ('size',   'XXL',   '',        4),
+  ('size',   '32',    '',        5),
+  ('size',   '34',    '',        6),
+  ('size',   '36',    '',        7),
+  ('size',   '38',    '',        8),
+  ('size',   '40',    '',        9),
+  ('size',   '42',    '',       10),
+  ('size',   '44',    '',       11),
+  ('size',   '46',    '',       12)
+on conflict (kind, label) do nothing;
+
+-- ---------- the catalogue's own corrections -----------------------------------
+-- The shop was built before the catalogue was read properly. Three mistakes, all
+-- visible on the storefront:
+--
+--   · every badge offered a colour. A badge is one piece of cast metal with one
+--     finish — the name says which — and a "Gold / Silver" chip on it is a choice
+--     the school cannot fulfil.
+--   · a mug lived in "Event Clothings", because at the time there was nowhere
+--     else to put it. That turned the collection into "everything that is not a
+--     badge", and it is why a souvenir read as clothing.
+--   · paper products had a colour, and a geometry set was "Navy". A pad is white
+--     because paper is white; the pen pack's blue-or-black is *ink*, not the
+--     colour of the thing, so it is an option called "Ink".
+--
+-- One shot, recorded in `applied_migrations`, because these are corrections and
+-- not rules: an admin who decides the prefect badge comes in silver too must not
+-- have it taken away by the next deploy. Everything else in this file is
+-- idempotent DDL and can run as often as it likes.
+create table if not exists applied_migrations (
+  name       text primary key,
+  applied_at timestamptz not null default now()
+);
+
+insert into categories (slug, title, description, image, blurb, position)
+values (
+  'souvenirs',
+  'Gifts & Souvenirs',
+  'Crested keepsakes for the desk, the shelf and the visitor''s handshake.',
+  '/images/product-mug.jpg',
+  'The crest, kept',
+  3
+)
+on conflict (slug) do nothing;
+
+do $$
+begin
+  if exists (select 1 from applied_migrations where name = 'catalogue-fix-2026-11') then
+    return;
+  end if;
+
+  update products set colours = '[]'::jsonb where category = 'badges';
+  update products set name = 'Prefect Badge' where slug = 'prefect-badge';
+  update products set name = 'College Blazer' where slug = 'navy-blazer';
+  update products set name = 'Crest Hoodie' where slug = 'crest-hoodie';
+  update products
+     set colours = '["White", "Sky"]'::jsonb
+   where slug = 'regulation-white-shirt';
+  update products set colours = '[]'::jsonb where slug = 'animo-et-fide-scarf';
+  update products set category = 'souvenirs' where slug = 'heritage-crest-mug';
+  update products
+     set colours = '[]'::jsonb
+   where slug in ('exam-answer-booklet', 'ruled-writing-pad', 'geometry-set');
+  update products
+     set colours = '[]'::jsonb,
+         options = '{"label": "Ink", "values": ["Blue", "Black"]}'::jsonb
+   where slug = 'exam-pen-pack';
+  update products
+     set image = 'https://images.pexels.com/photos/8146450/pexels-photo-8146450.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940'
+   where slug = 'batch-classroom-shirt'
+     and image like '%cat-tickets%';
+
+  -- The category blurbs were counts ("16 badges") that were never true. They are
+  -- a line of copy now; the shop prints the real number of items itself.
+  update categories set blurb = 'Worn with honour'       where slug = 'badges';
+  update categories set blurb = 'The college standard'   where slug = 'uniforms';
+  update categories set blurb = 'For the big occasions'  where slug = 'event-clothings';
+  update categories
+     set image = '/images/product-hoodie.jpg'
+   where slug = 'event-clothings'
+     and image like '%cat-tickets%';
+  update categories set blurb = 'Exam-ready, every time' where slug = 'exam-writing-papers';
+
+  -- The last two categories were the only pictures on somebody else's server.
+  -- They are photographs in /public now, so the shop comes up whole offline.
+  update categories
+     set image = '/images/cat-papers.jpg'
+   where slug = 'exam-writing-papers'
+     and image like '%pexels%';
+  update categories
+     set image = '/images/cat-shirts.jpg'
+   where slug = 'batch-shirts'
+     and image like '%pexels%';
+  update products set image = '/images/cat-papers.jpg' where image like '%20140155%';
+  update products set image = '/images/cat-shirts.jpg' where image like '%8146450%';
+  update products
+     set image = '/images/product-lapel-badge.jpg'
+   where slug = 'crest-lapel-badge'
+     and image like '%11659349%';
+  update products set image = '/images/product-house-badges.jpg' where image like '%11659349%';
+  update categories set blurb = 'Your year, printed'     where slug = 'batch-shirts';
+
+  -- Souvenirs belongs between the event wear and the exam papers, which is where
+  -- a parent walking the shop would find it.
+  update categories
+     set position = case slug
+                      when 'badges' then 0
+                      when 'uniforms' then 1
+                      when 'event-clothings' then 2
+                      when 'souvenirs' then 3
+                      when 'exam-writing-papers' then 4
+                      when 'batch-shirts' then 5
+                      else position
+                    end
+   where slug in ('badges', 'uniforms', 'event-clothings', 'souvenirs',
+                  'exam-writing-papers', 'batch-shirts');
+
+  insert into applied_migrations (name) values ('catalogue-fix-2026-11');
+end $$;

@@ -12,9 +12,12 @@ import {
   ExternalLink,
   LayoutDashboard,
   LogOut,
+  LayoutGrid,
   Mail,
   Menu,
+  Package,
   ScanLine,
+  SlidersHorizontal,
   Send,
   Settings,
   X,
@@ -30,15 +33,49 @@ import {
  * Navy, white and black only. No gradients, no glass, no blur.
  */
 
-const NAV = [
-  { href: "/admin", label: "Overview", icon: LayoutDashboard },
-  { href: "/admin/events", label: "Events", icon: CalendarDays },
-  { href: "/admin/bookings", label: "Bookings", icon: CalendarCheck },
-  { href: "/admin/mail", label: "Ticket email", icon: Mail },
-  { href: "/admin/mail/log", label: "Email log", icon: Send },
-  { href: "/admin/gate", label: "Gate scanner", icon: ScanLine },
-  { href: "/admin/settings", label: "School logo", icon: Settings },
+/**
+ * The sidebar, grouped by the job rather than by the page.
+ *
+ * Seven flat links became thirteen with the shop, and a flat list of thirteen
+ * is a list nobody reads — the thing you want is never where you look first.
+ * The groups are the four things this panel is for: selling things, selling
+ * seats, talking to people, and the one setting.
+ */
+const NAV: { title: string; items: { href: string; label: string; icon: typeof Mail }[] }[] = [
+  {
+    title: "Overview",
+    items: [{ href: "/admin", label: "Overview", icon: LayoutDashboard }],
+  },
+  {
+    title: "The shop",
+    items: [
+      { href: "/admin/shop", label: "Products", icon: Package },
+      { href: "/admin/shop/categories", label: "Categories", icon: LayoutGrid },
+      { href: "/admin/shop/filters", label: "Filters", icon: SlidersHorizontal },
+    ],
+  },
+  {
+    title: "Tickets",
+    items: [
+      { href: "/admin/events", label: "Events", icon: CalendarDays },
+      { href: "/admin/bookings", label: "Bookings", icon: CalendarCheck },
+      { href: "/admin/gate", label: "Gate scanner", icon: ScanLine },
+    ],
+  },
+  {
+    title: "Messages",
+    items: [
+      { href: "/admin/mail", label: "Ticket email", icon: Mail },
+      { href: "/admin/mail/log", label: "Email log", icon: Send },
+    ],
+  },
+  {
+    title: "Settings",
+    items: [{ href: "/admin/settings", label: "School logo", icon: Settings }],
+  },
 ];
+
+const ALL_NAV = NAV.flatMap((g) => g.items);
 
 export default function AdminShell({
   signedIn,
@@ -64,7 +101,7 @@ export default function AdminShell({
   // The longest matching section wins, so /admin/mail/log lights "Email log" and
   // not "Ticket email" as well — two gold tiles would say the admin is in two
   // places at once.
-  const section = NAV.filter((n) =>
+  const section = ALL_NAV.filter((n) =>
     n.href === "/admin" ? pathname === "/admin" : Boolean(pathname?.startsWith(n.href))
   ).sort((a, b) => b.href.length - a.href.length)[0];
   const isActive = (href: string) => href === section?.href;
@@ -86,32 +123,36 @@ export default function AdminShell({
       </div>
 
       {/* sections */}
-      <nav id="admin-sidebar" className="mt-4 flex-1 overflow-y-auto" aria-label="Admin sections">
-        <p className="px-3 pb-2 text-[10px] uppercase tracking-[0.18em] text-muted">
-          Manage
-        </p>
-        <ul className="space-y-1">
-          {NAV.map(({ href, label, icon: Icon }) => {
-            const active = isActive(href);
-            return (
-              <li key={href}>
-                <Link
-                  href={href}
-                  onClick={() => setOpen(false)}
-                  aria-current={active ? "page" : undefined}
-                  className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors ${
-                    active
-                      ? "bg-gold font-semibold text-black"
-                      : "text-body hover:bg-panel-2 hover:text-strong"
-                  }`}
-                >
-                  <Icon className="h-4 w-4 shrink-0" />
-                  <span className="truncate">{label}</span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+      <nav id="admin-sidebar" className="mt-3 flex-1 overflow-y-auto" aria-label="Admin sections">
+        {NAV.map((group) => (
+          <div key={group.title} className="mb-3">
+            <p className="px-3 pb-1.5 text-[10px] font-medium uppercase tracking-[0.18em] text-faint">
+              {group.title}
+            </p>
+            <ul className="space-y-0.5">
+              {group.items.map(({ href, label, icon: Icon }) => {
+                const active = isActive(href);
+                return (
+                  <li key={href}>
+                    <Link
+                      href={href}
+                      onClick={() => setOpen(false)}
+                      aria-current={active ? "page" : undefined}
+                      className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-colors ${
+                        active
+                          ? "bg-gold font-semibold text-black"
+                          : "text-body hover:bg-panel-2 hover:text-strong"
+                      }`}
+                    >
+                      <Icon className={`h-4 w-4 shrink-0 ${active ? "" : "text-faint"}`} />
+                      <span className="truncate">{label}</span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
 
         <div className="mt-4">
           <Link
