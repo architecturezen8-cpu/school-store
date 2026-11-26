@@ -10,6 +10,10 @@ export const revalidate = 300;
 // `dynamicParams = false` meant a product created at 9am answered 404 until the
 // next deploy. A static export simply does not contain the new page until the
 // next build, which is what an export is.
+// Literal `true`: a running server renders a slug that did not exist at build
+// time, because products are added from the admin now, and `false` meant a
+// product created at 9am answered 404 until the next deploy. The static export
+// cannot allow that, so `npm run build:pages` flips this line for its build.
 export const dynamicParams = true;
 
 type Params = Promise<{ slug: string }>;
