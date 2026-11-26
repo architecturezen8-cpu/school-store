@@ -23,7 +23,7 @@ import {
   buttonClass,
   inputClass,
 } from "@/components/admin/ui";
-import { ExternalLink, Mail, RefreshCw } from "lucide-react";
+import { ExternalLink, History, Mail, RefreshCw } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -85,6 +85,9 @@ export default async function MailPage({
           description="Every message carries one ticket file per person and the sale's bill as a PDF. The wording is yours; the ticket artwork is the design you uploaded. Check it here, send yourself a copy, and you are done."
           actions={
             <>
+              <Link href="/admin/mail/log" className={buttonClass("secondary")}>
+                <History className="h-4 w-4" /> Email log
+              </Link>
               <a href={frameSrc} target="_blank" rel="noreferrer" className={buttonClass("secondary")}>
                 <ExternalLink className="h-4 w-4" /> Open full size
               </a>

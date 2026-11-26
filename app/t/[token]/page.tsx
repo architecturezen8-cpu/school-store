@@ -4,16 +4,24 @@ import { getTicketByToken } from "@/lib/bookings";
 import { hasDatabase } from "@/lib/db";
 import { verifyTicketSignature } from "@/lib/tickets/sign";
 import { fullDate } from "@/lib/dates";
-import { lkr } from "@/lib/format";
 import { asset } from "@/lib/assets";
 import { safeDecode } from "@/lib/safe-decode";
 
 /**
  * The page a customer's camera opens after scanning their ticket.
  *
- * Everything here is read-only: it shows the booking, the seats and whether the
- * ticket has already been used. Admitting happens on /gate, so a customer can
- * never hand themselves in at the door by refreshing this page.
+ * Everything here is read-only: it names the ticket and nothing else. It used to
+ * print the purchaser — name, reference, what was paid and which tiers were
+ * bought — and that is the wrong document for the reader. The person holding the
+ * phone is not the person who paid: it is a guest, a friend, a steward who has
+ * just scanned somebody else's code. What all of them need is the one answer the
+ * page can give honestly — *which* admission is this, for which event, for which
+ * ticket type — and none of them need the buyer's name, the price of the party's
+ * seats, or a running total.
+ *
+ * What it still does not say, by design: whether the ticket has been scanned.
+ * Admitting happens on /gate, so a customer can never hand themselves in at the
+ * door by refreshing this page, and a screenshot cannot be checked for validity.
  */
 
 export const dynamic = "force-dynamic";
@@ -66,7 +74,9 @@ export default async function TicketPage({
     );
   }
 
-  const seats = ticket.tiers.reduce((n, t) => n + t.qty, 0);
+  // The ticket's own type, and only it: "Grandstand Seat", not the four rows of
+  // the sale. A booking of six may hold three types; each ticket carries one.
+  const type = ticket.tierName || ticket.tiers.map((t) => t.name).join(", ") || "Admission";
 
   return (
     <section className="mx-auto max-w-2xl px-6 pb-20 pt-32 md:pt-36">
@@ -115,38 +125,27 @@ export default async function TicketPage({
         </p>
         <p className="mt-1 text-sm text-white/70">
           {ticket.blocked
-            ? "The school has stopped this ticket, so the gate will not admit it. If you bought it, contact the store with the code above — the rest of the booking is unaffected."
+            ? "The school has stopped this ticket, so the gate will not admit it. Contact the store with the code below — the rest of the party is unaffected."
             : ticket.of > 1
-              ? `It admits one person — this is ticket ${ticket.seq} of ${ticket.of} on the booking, and each of the ${ticket.of} arrived in its own email. Keep it to yourself: a screenshot is how somebody gets in on your seat.`
+              ? `It admits one person — this is ticket ${ticket.seq} of ${ticket.of} on the sale, and every seat in it has a code of its own. Keep it to yourself: a screenshot is how somebody gets in on your seat.`
               : "It admits one person, once. Keep it to yourself: a screenshot is how somebody gets in on your seat."}
         </p>
       </div>
 
-      <dl className="mt-8 grid grid-cols-2 gap-5 rounded-2xl border border-white/10 bg-white/[0.02] p-6 sm:grid-cols-3">
-        <Seat label="Reference" value={ticket.reference} />
-        <Seat label="Ticket code" value={ticket.code} />
-        <Seat label="Name" value={ticket.name} />
-        <Seat
-          label={ticket.of > 1 ? "Ticket" : "Seats"}
-          value={ticket.of > 1 ? `${ticket.seq} of ${ticket.of}` : String(seats)}
-        />
-        <Seat label="Doors" value={ticket.doors || "—"} />
-        <Seat label="Paid" value={lkr(ticket.total)} />
-      </dl>
+      {/* The code, large: this page is what a volunteer reads when the QR will
+          not scan and the phone has to be handed over. */}
+      <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.02] p-6">
+        <p className="text-[11px] uppercase tracking-[0.2em] text-white/65">Ticket code</p>
+        <p className="mt-1 font-mono text-2xl font-semibold tracking-[0.08em] text-white sm:text-3xl">
+          {ticket.code}
+        </p>
 
-      <ul className="mt-6 space-y-2">
-        {ticket.tiers.map((t) => (
-          <li
-            key={t.id}
-            className="flex items-center justify-between rounded-xl border border-white/10 px-4 py-3 text-sm"
-          >
-            <span className="text-white/80">{t.name}</span>
-            <span className="text-white/65">
-              {t.qty} × {lkr(t.price)}
-            </span>
-          </li>
-        ))}
-      </ul>
+        <dl className="mt-6 grid grid-cols-2 gap-5 sm:grid-cols-3">
+          <Seat label="Ticket type" value={type} />
+          <Seat label="Ticket" value={`${ticket.seq} of ${ticket.of}`} />
+          <Seat label="Doors" value={ticket.doors || "—"} />
+        </dl>
+      </div>
 
       <p className="mt-8 text-center text-xs text-white/65">
         St. Thomas&apos; College Matale · Animo et Fide · Est. 1873

@@ -15,6 +15,7 @@ import {
   Mail,
   Menu,
   ScanLine,
+  Send,
   Settings,
   X,
 } from "lucide-react";
@@ -34,6 +35,7 @@ const NAV = [
   { href: "/admin/events", label: "Events", icon: CalendarDays },
   { href: "/admin/bookings", label: "Bookings", icon: CalendarCheck },
   { href: "/admin/mail", label: "Ticket email", icon: Mail },
+  { href: "/admin/mail/log", label: "Email log", icon: Send },
   { href: "/admin/gate", label: "Gate scanner", icon: ScanLine },
   { href: "/admin/settings", label: "School logo", icon: Settings },
 ];
@@ -59,9 +61,14 @@ export default function AdminShell({
     return <main className="min-h-screen bg-page">{children}</main>;
   }
 
-  const isActive = (href: string) =>
-    href === "/admin" ? pathname === "/admin" : Boolean(pathname?.startsWith(href));
-  const current = NAV.find((n) => isActive(n.href));
+  // The longest matching section wins, so /admin/mail/log lights "Email log" and
+  // not "Ticket email" as well — two gold tiles would say the admin is in two
+  // places at once.
+  const section = NAV.filter((n) =>
+    n.href === "/admin" ? pathname === "/admin" : Boolean(pathname?.startsWith(n.href))
+  ).sort((a, b) => b.href.length - a.href.length)[0];
+  const isActive = (href: string) => href === section?.href;
+  const current = section;
 
   const navTile = (
     <div className="flex h-full flex-col rounded-2xl bg-panel p-3">

@@ -12,6 +12,7 @@ import {
   blockTicket,
   deleteTicket,
   pauseTicket,
+  getTicketByCode,
   getTicketByReference,
   getTicketByToken,
   issueTicket,
@@ -137,6 +138,65 @@ export async function resendTicketAction(formData: FormData) {
   );
 }
 
+/* ---------- sending one ticket again, by hand ----------------------- */
+
+/**
+ * Sends one ticket to the address an admin types, and writes it to the log.
+ *
+ * This is the answer to "the email never came": the parent is at the counter,
+ * the ticket exists, and the fix is that one code — not the whole party, not a
+ * new sale, and not the address on the booking, which is exactly the mailbox
+ * that is not working.
+ *
+ * What arrives is resolved the same way the gate resolves a scan — ticket first,
+ * then sale — so a code sends one person's ticket and a reference sends the
+ * party. The redirect says which of the two happened, in numbers.
+ */
+export async function emailTicketAction(formData: FormData) {
+  await requireAdmin();
+
+  const scan = String(formData.get("code") ?? "").trim();
+  const to = String(formData.get("to") ?? "").trim();
+
+  const back = "/admin/mail/log";
+  const fail: (message: string) => never = (message) =>
+    redirect(`${back}?error=${encodeURIComponent(message)}`);
+
+  if (!scan) fail("Type the ticket code, or the sale's reference.");
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) {
+    fail("That does not look like an email address.");
+  }
+
+  // A code or a QR token names one person; the sale's reference names the party.
+  // Code before reference, because a reference is shared and a code is not.
+  const one = (await getTicketByToken(scan)) ?? (await getTicketByCode(scan));
+  const sending = one ? [one] : await ticketsForBooking(scan);
+
+  if (!sending.length) {
+    fail(`No ticket or sale matches “${scan}”.`);
+  }
+
+  const result = await sendTicketEmail(sending, {}, { kind: "resend", to });
+  if (!result) return;
+
+  if (!result.sent) {
+    fail(
+      result.reason === "not-configured"
+        ? "Email is not configured — set RESEND_API_KEY or SMTP_HOST. The attempt is in the log."
+        : `The mail server refused it: ${result.error ?? "unknown reason"}`
+    );
+  }
+
+  revalidatePath("/admin/mail/log");
+  revalidatePath("/admin/bookings");
+
+  const what =
+    sending.length === 1
+      ? `Ticket ${sending[0].code} sent to ${to}.`
+      : `${sending.length} tickets for ${sending[0].reference} sent to ${to}.`;
+  redirect(`${back}?ok=${encodeURIComponent(what)}`);
+}
+
 /* ---------- the ticket email ---------------------------------------- */
 
 /**
@@ -190,10 +250,12 @@ export async function sendTestMailAction(
     );
   }
 
-  const sending = { ...(ticket ?? sample!), email: to };
+  // The address is the admin's, not the booking's, and the log labels the row a
+  // test so nobody mistakes their own inbox for a customer's delivery.
+  const sending = ticket ?? sample!;
   let result: Awaited<ReturnType<typeof sendTicketEmail>>;
   try {
-    result = await sendTicketEmail([sending]);
+    result = await sendTicketEmail([sending], {}, { kind: "test", to });
   } catch (err) {
     redirect(`/admin/mail?error=${encodeURIComponent(friendlyError(err))}`);
   }
