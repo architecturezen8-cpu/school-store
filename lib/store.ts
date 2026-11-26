@@ -14,6 +14,7 @@ import {
 import { asset } from "./assets";
 import type { EventImage, EventLink, EventRule } from "@/data/seed";
 import { hasDatabase, query } from "./db";
+import { DEFAULT_FILTERS, listFilters, type ShopFilter } from "./catalog";
 import { errorMessage } from "./errors";
 
 /* ------------------------------------------------------------------ *
@@ -133,13 +134,62 @@ async function safe<T>(run: () => Promise<T>, fallback: T): Promise<T> {
 }
 
 /* ---------- categories ------------------------------------------------------ */
+
+/**
+ * The "16 badges" under a category name was a sentence in the seed file, and it
+ * was never true: the collection holds three. A count that the shop computes
+ * cannot drift from the shelf, so the blurb became a line of copy instead and the
+ * number comes from the products themselves.
+ */
+function withCounts(cats: Category[], products: { category: string }[]): Category[] {
+  const tally = new Map<string, number>();
+  for (const p of products) tally.set(p.category, (tally.get(p.category) ?? 0) + 1);
+  return cats.map((c) => {
+    const n = tally.get(c.slug) ?? 0;
+    return { ...c, count: `${n} ${n === 1 ? "item" : "items"}` };
+  });
+}
+
 export async function getCategories(): Promise<Category[]> {
+  const fallback = withCounts(seedCategories.map(withAsset), seedProducts);
   return safe(async () => {
-    const rows = await query<CategoryRow>(
-      "select slug, title, description, image, blurb from categories order by position, title"
+    const rows = await query<CategoryRow & { items: number }>(
+      `select c.slug, c.title, c.description, c.image, c.blurb,
+              (select count(*) from products p where p.category = c.slug and p.active)::int as items
+         from categories c
+        order by c.position, c.title`
     );
-    return rows.length ? rows.map(toCategory) : seedCategories.map(withAsset);
-  }, seedCategories.map(withAsset));
+    if (!rows.length) return fallback;
+    return rows.map((r) => ({
+      ...toCategory(r),
+      count: `${Number(r.items)} ${Number(r.items) === 1 ? "item" : "items"}`,
+    }));
+  }, fallback);
+}
+
+/* ---------- filters --------------------------------------------------------- */
+
+/**
+ * The chips the shop offers: colours and sizes, in the order the admin set.
+ *
+ * Only the visible ones — a filter the office has switched off is a filter the
+ * shop does not print — and the caller narrows them further to the ones that
+ * would actually find something in the collection on screen.
+ */
+export async function getShopFilters(): Promise<ShopFilter[]> {
+  const fallback: ShopFilter[] = DEFAULT_FILTERS.map((f, i) => ({
+    id: `${f.kind}-${i}`,
+    kind: f.kind,
+    label: f.label,
+    swatch: f.swatch,
+    position: i,
+    isActive: true,
+  }));
+  return safe(async () => {
+    const rows = await listFilters();
+    const visible = rows.filter((f) => f.isActive);
+    return visible.length ? visible : fallback;
+  }, fallback);
 }
 
 export async function getHomeCategories(): Promise<Category[]> {

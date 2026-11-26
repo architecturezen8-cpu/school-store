@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import ShopPage from "@/components/pages/ShopPage";
-import { getCategories, getProducts } from "@/lib/store";
+import { getCategories, getProducts, getShopFilters } from "@/lib/store";
 
 /**
  * Shared renderer for /shop and /shop/[category].
@@ -32,6 +32,12 @@ export async function shopCategories() {
 }
 
 export default async function ShopView({ category }: { category?: string }) {
-  const [products, categories] = await Promise.all([getProducts(), getCategories()]);
-  return <ShopPage category={category} products={products} categories={categories} />;
+  const [products, categories, filters] = await Promise.all([
+    getProducts(),
+    getCategories(),
+    getShopFilters(),
+  ]);
+  return (
+    <ShopPage category={category} products={products} categories={categories} filters={filters} />
+  );
 }
