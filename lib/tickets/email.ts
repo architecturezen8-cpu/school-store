@@ -12,6 +12,7 @@ import { getTemplateForEvent } from "./templates";
 import { composeTicket, detectWhiteSquare } from "./detect";
 import { fallbackTicketSvg } from "./fallback";
 import { buildTicketReceipt, receiptFilename } from "./receipt";
+import { recordMailAttempt, type MailLogKind } from "./mail-log";
 import { qrPayload } from "./sign";
 
 /**
@@ -91,7 +92,7 @@ async function ticketArtworks(tickets: Ticket[]): Promise<{ filename: string; bu
   // No design uploaded (or its file is gone): fall back to the plain ticket the
   // image route draws. A sale with no ticket file in the mail is a queue at the
   // gate, and it used to be exactly what a fresh install produced.
-  let design: Buffer;
+  let design: Buffer | null;
   let square: { x: number; y: number; size: number; confidence: number };
 
   if (template) {
@@ -104,8 +105,13 @@ async function ticketArtworks(tickets: Ticket[]): Promise<{ filename: string; bu
     }
     square = { x: template.qrX, y: template.qrY, size: template.qrSize, confidence: 1 };
   } else {
-    design = Buffer.from(fallbackTicketSvg(tickets[0]));
-    const detected = await detectWhiteSquare(design).catch(() => null);
+    // The plain ticket is drawn per seat — it prints the ticket's own code and
+    // seat, so using one drawing for a party of four would print the first
+    // person's code on everybody's file. The white square is in the same place
+    // on every one of them, so it is detected once.
+    design = null;
+    const probe = Buffer.from(fallbackTicketSvg(tickets[0]));
+    const detected = await detectWhiteSquare(probe).catch(() => null);
     if (!detected) return [];
     square = detected;
   }
@@ -114,16 +120,17 @@ async function ticketArtworks(tickets: Ticket[]): Promise<{ filename: string; bu
   for (const t of tickets) {
     try {
       const { image } = await composeTicket({
-        design,
+        design: design ?? Buffer.from(fallbackTicketSvg(t)),
         qrPayload: qrPayload(t.token, signTicket(t.token)),
         square,
         format: "png",
       });
       out.push({
+        // Named for the seat, not for the message. Resending one ticket of four
+        // by hand used to produce `-ticket.png`, which is a different file in
+        // the same party's inbox and says nothing about who it admits.
         filename:
-          tickets.length > 1
-            ? `${t.reference}-ticket-${t.seq}.png`
-            : `${t.reference}-ticket.png`,
+          t.of > 1 ? `${t.reference}-ticket-${t.seq}.png` : `${t.reference}-ticket.png`,
         buffer: image,
       });
     } catch {
@@ -603,20 +610,66 @@ export async function sampleTicket(): Promise<Ticket> {
  */
 export async function sendTicketEmails(
   tickets: Ticket[],
-  overrides: Partial<MailTemplate> = {}
+  overrides: Partial<MailTemplate> = {},
+  options: SendOptions = {}
 ): Promise<MailResult> {
   if (!tickets.length) return { sent: false, reason: "failed", error: "No tickets to send." };
-  return sendTicketEmail(tickets, overrides);
+  return sendTicketEmail(tickets, overrides, options);
 }
+
+/**
+ * Where a message is going, and what to call it in the log.
+ *
+ * `to` exists because a ticket is sometimes sent again by hand — to the address
+ * a parent gives over the counter, which is often not the one on the sale. The
+ * ticket itself is untouched; only the envelope changes.
+ */
+export type SendOptions = {
+  to?: string;
+  kind?: MailLogKind;
+};
 
 /** The whole sale in one message. Kept as one function so mail can be retried. */
 export async function sendTicketEmail(
   tickets: Ticket[],
-  overrides: Partial<MailTemplate> = {}
+  overrides: Partial<MailTemplate> = {},
+  options: SendOptions = {}
 ): Promise<MailResult> {
   const built = await buildBookingMail(tickets, overrides);
   const { subject, html, text: body, hero, logo, artworks } = built;
   const ticket = tickets[0];
+  const to = (options.to ?? ticket.email).trim() || ticket.email;
+
+  /**
+   * Every way out of this function goes through here.
+   *
+   * The log is written before the answer is returned, so the admin page and the
+   * toast on the bookings list can never disagree about whether a message left.
+   * `recordMailAttempt` swallows its own failures: the send is the thing that
+   * matters, and a database that is down should not turn a delivered ticket into
+   * an error on screen.
+   */
+  const done = async (result: MailResult): Promise<MailResult> => {
+    await recordMailAttempt({
+      reference: ticket.reference,
+      codes: tickets
+        .map((t) => t.code)
+        .filter(Boolean)
+        .join(", "),
+      to,
+      subject,
+      kind: options.kind ?? "booking",
+      status: result.sent ? "sent" : result.reason === "not-configured" ? "skipped" : "failed",
+      provider: result.sent ? result.provider : "",
+      messageId: result.sent ? result.id : "",
+      error: result.sent
+        ? ""
+        : result.reason === "not-configured"
+          ? "No mail transport configured (RESEND_API_KEY or SMTP_HOST)."
+          : (result.error ?? "Send failed."),
+    });
+    return result;
+  };
 
   // The bill travels with the tickets.
   //
@@ -691,7 +744,7 @@ export async function sendTicketEmail(
         },
         body: JSON.stringify({
           from: fromAddress(),
-          to: [ticket.email],
+          to: [to],
           subject,
           html,
           text: body,
@@ -706,12 +759,16 @@ export async function sendTicketEmail(
 
       if (!res.ok) {
         const detail = await res.text();
-        return { sent: false, reason: "failed", error: `Resend ${res.status}: ${detail.slice(0, 300)}` };
+        return done({
+          sent: false,
+          reason: "failed",
+          error: `Resend ${res.status}: ${detail.slice(0, 300)}`,
+        });
       }
       const json = (await res.json()) as { id?: string };
-      return { sent: true, provider: "resend", id: json.id ?? "" };
+      return done({ sent: true, provider: "resend", id: json.id ?? "" });
     } catch (err) {
-      return { sent: false, reason: "failed", error: errorMessage(err) };
+      return done({ sent: false, reason: "failed", error: errorMessage(err) });
     }
   }
 
@@ -730,7 +787,7 @@ export async function sendTicketEmail(
     try {
       const info = await transport.sendMail({
         from: fromAddress(),
-        to: ticket.email,
+        to,
         subject,
         text: body,
         html,
@@ -741,18 +798,18 @@ export async function sendTicketEmail(
           ...(a.contentId ? { cid: a.contentId } : {}),
         })),
       });
-      return { sent: true, provider: "smtp", id: info.messageId ?? "" };
+      return done({ sent: true, provider: "smtp", id: info.messageId ?? "" });
     } catch (err) {
-      return { sent: false, reason: "failed", error: errorMessage(err) };
+      return done({ sent: false, reason: "failed", error: errorMessage(err) });
     }
   }
 
   console.log(
     `[tickets] email not configured — would have sent ${ticket.reference} (${tickets.length} ticket${
       tickets.length === 1 ? "" : "s"
-    }) to ${ticket.email}`
+    }) to ${to}`
   );
-  return { sent: false, reason: "not-configured" };
+  return done({ sent: false, reason: "not-configured" });
 }
 
 /** Ignores empty strings so a blank admin field keeps the default. */
