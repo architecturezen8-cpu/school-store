@@ -65,6 +65,11 @@ npm run db:migrate   # apply db/schema.sql (idempotent)
 npm run db:seed      # upsert catalogue from data/seed.ts
 ```
 
+A database that is behind the app no longer has to be diagnosed from a terminal:
+the admin shows a bar naming the missing table, with an **Update the database**
+button that runs the same `db/schema.sql` — and fills an empty project with the
+starter catalogue. The embedded database does this for itself on first boot.
+
 Money is stored as whole LKR integers. Order totals, the delivery fee and ticket
 availability are all computed **server-side** — the browser only ever sends
 `{ slug, qty }`.
