@@ -31,6 +31,16 @@ export type DetectOptions = {
 
 const CHANNELS = 3;
 
+/**
+ * The white border a QR needs around it, in modules.
+ *
+ * Four is the number in the standard, and it is not decoration: a scanner finds
+ * the symbol's edge by the contrast between the code and the *white* around it.
+ * With no quiet zone the code ends against the artwork and many phones just do
+ * not lock on.
+ */
+export const QUIET_MODULES = 4;
+
 /** True when the pixel at (x, y) is within `threshold` of pure white. */
 function isWhiteAt(
   data: Buffer,
@@ -231,23 +241,29 @@ export function checkSquareForQr(
  */
 export async function qrModuleCount(qrPayload: string): Promise<number> {
   const { default: QRCode } = await import("qrcode");
-  const { modules } = await QRCode.create(qrPayload, { errorCorrectionLevel: "H" });
-  return modules.size;
+  // The quiet zone counts: the symbol the camera has to find is the data modules
+  // *plus* the white border around them, and `composeTicket` draws both.
+  const { modules } = await QRCode.create(qrPayload, { errorCorrectionLevel: "Q" });
+  return modules.size + QUIET_MODULES * 2;
 }
 
 /**
- * Pastes a QR code into a detected square, leaving an inner margin so the code
- * is not flush to the artwork's edge (a QR needs a quiet zone to scan reliably).
+ * Pastes a QR code into a detected square.
  *
- * `inset` is the fraction of the square left as padding on each side. The spec
- * the admin works to is "use about 80% of the square", which is exactly
- * inset ≈ 0.10.
+ * `inset` is the fraction of the square left as padding on each side. It is
+ * small on purpose: the code now carries its own quiet zone (four modules of
+ * white, inside the image), so the white square is already the margin. Leaving
+ * 10% of the square empty as padding *as well* just made the code smaller than
+ * it needed to be — and a smaller code is the one that does not scan.
+ *
+ * The admin's rule is unchanged: draw a white square about a fifth of the
+ * design, and the code fills it.
  */
 export async function composeTicket({
   design,
   qrPayload,
   square,
-  inset = 0.1,
+  inset = 0.03,
   format = "png",
 }: {
   design: Buffer | string;
@@ -258,44 +274,95 @@ export async function composeTicket({
 }): Promise<{ image: Buffer; width: number; height: number }> {
   const { default: QRCode } = await import("qrcode");
 
-  // A QR code needs about 4 pixels per module before a camera can resolve it
-  // reliably. A long URL makes a dense code (a 22-character signature pushes it
-  // to 53×53 modules, i.e. 212 px minimum); the `qrcode` encoder quietly
-  // *upscales* to that minimum, which would push the code past the square the
-  // admin drew and over their artwork. Hold the modules at 1 px and paste at the
-  // width we actually have, so `qrcode` cannot round up behind our back.
+  /**
+   * Why the code is built this way — it is the answer to "sometimes it does not
+   * scan", and every line here is one of the reasons.
+   *
+   *   · **A quiet zone.** The code used to be drawn edge to edge (`margin: 0`).
+   *     Screenshots of real tickets showed the symbol ending wherever the white
+   *     square ended, so there was nothing for a scanner to find the edge
+   *     against. Four modules of white now travel *inside* the image, which is
+   *     free — the square is white anyway.
+   *   · **Level Q, not H.** The heaviest error correction makes the symbol about
+   *     a third denser: more, smaller modules for the same physical width. On a
+   *     phone screen at arm's length that is a worse trade than the redundancy it
+   *     buys. Q still recovers a quarter of the code — a crease, a thumbprint.
+   *   · **Whole pixels per module.** Resizing 41 modules into an arbitrary width
+   *     gives modules 7.3 px wide and, after rounding, some 7 and some 8. Scanners
+   *     expect a grid. The code is sized to an exact multiple of its module count
+   *     and centred in the square.
+   *   · **Enough pixels.** If the design gives the square too few pixels, the
+   *     artwork is scaled up rather than the code being drawn too fine to read.
+   *
+   * None of this changes the design: the QR still fills the white square the
+   * admin drew, at about 80% of it.
+   */
+  const MIN_PX_PER_MODULE = 4;
+
   const qr = await QRCode.toBuffer(qrPayload, {
     type: "png",
     scale: 1,
-    margin: 0,
-    errorCorrectionLevel: "H", // survives a crease or a dirty phone lens
+    margin: QUIET_MODULES,
+    errorCorrectionLevel: "Q",
     color: { dark: "#000000", light: "#ffffff" },
   });
 
-  // Size the QR from how many modules it actually has, never from an assumed
-  // minimum, then fit it inside the square. `inset` is the quiet zone.
-  const modules = (await sharp(qr).metadata()).width ?? 21;
-  const target = Math.max(1, Math.floor(square.size * (1 - inset * 2)));
-  const size = Math.max(modules, target); // below 1 px/module nothing scans anyway
+  // `margin` is part of the buffer's width, so this is the whole symbol: data
+  // modules plus the quiet zone on both sides.
+  let qrModules = (await sharp(qr).metadata()).width ?? 29;
+  if (!qrModules) qrModules = 29;
 
-  const pad = Math.max(0, Math.floor((square.size - size) / 2));
+  let designBuffer = design;
+  let squareOut = { ...square };
+  const designMeta = await sharp(design).metadata();
+  const designWidth = designMeta.width ?? 0;
+
+  // Too few pixels under the code? Scale the artwork up — capped at 3×, because
+  // a 300 px design blown up eight times is a different problem.
+  if (square.size > 0 && square.size < qrModules * MIN_PX_PER_MODULE && designWidth) {
+    const factor = Math.min(3, Math.ceil((qrModules * MIN_PX_PER_MODULE) / square.size));
+    if (factor > 1) {
+      designBuffer = await sharp(design)
+        .resize({ width: Math.round(designWidth * factor), kernel: "lanczos3" })
+        .png()
+        .toBuffer();
+      squareOut = {
+        x: Math.round(square.x * factor),
+        y: Math.round(square.y * factor),
+        size: Math.round(square.size * factor),
+        confidence: square.confidence,
+      };
+    }
+  }
+
+  // The admin's inset is the breathing room around the symbol; the quiet zone is
+  // already inside the image, so this only has to keep it off the artwork.
+  const usable = Math.max(qrModules, Math.floor(squareOut.size * (1 - inset * 2)));
+  const perModule = Math.max(1, Math.floor(usable / qrModules));
+  const size = perModule * qrModules;
 
   const scaled = await sharp(qr)
     .resize(size, size, { kernel: "nearest" }) // never blur a QR's edges
     .png()
     .toBuffer();
 
-  const meta = await sharp(design).metadata();
+  const meta = await sharp(designBuffer).metadata();
 
-  const image = await sharp(design)
+  // Centred in the square, and clamped inside the artwork: a code that overhangs
+  // the white onto dark print has a quiet zone on three sides only.
+  const pad = Math.max(0, Math.floor((squareOut.size - size) / 2));
+  const maxLeft = Math.max(0, (meta.width ?? size) - size);
+  const maxTop = Math.max(0, (meta.height ?? size) - size);
+
+  const image = await sharp(designBuffer)
     .composite([
       {
         input: scaled,
-        left: square.x + pad,
-        top: square.y + pad,
+        left: Math.min(squareOut.x + pad, maxLeft),
+        top: Math.min(squareOut.y + pad, maxTop),
       },
     ])
-    .toFormat(format, format === "jpeg" ? { quality: 92 } : {})
+    .toFormat(format, format === "jpeg" ? { quality: 95 } : {})
     .toBuffer();
 
   return { image, width: meta.width ?? 0, height: meta.height ?? 0 };

@@ -369,3 +369,54 @@ create index if not exists booking_tickets_blocked_idx
 alter table bookings
   add column if not exists channel text not null default 'shop',
   add column if not exists note    text not null default '';
+
+-- ---------- a code of its own for every ticket --------------------------------
+-- The first attempt at a per-ticket code was the sale's reference with the seat
+-- number on the end (`BM-ABC12345-03`). It named the ticket, but it named it in a
+-- way anybody could compute: type `-04` and you are somebody else's ticket. A
+-- code that is typed at a door has to be both unique and unguessable, so it is
+-- random, ten characters from an alphabet with no letters that look like other
+-- letters, in two groups of five: `BK7MQ-9WXT3`.
+--
+-- It is the ticket's own name for people — the QR carries the token, which has
+-- always been secret. This is the one the office types, reads over the phone and
+-- prints on the bill.
+alter table booking_tickets add column if not exists code text not null default '';
+
+-- Existing tickets get a code now.
+--
+-- A loop rather than one clever `update … select`: inside an aggregate, an
+-- expression that does not mention the series' own column is evaluated once, so
+-- the first version of this produced ten identical characters and exactly one
+-- code for the whole school. Per row and per character, in a loop, the draws are
+-- independent.
+do $$
+declare
+  ticket record;
+  generated text;
+  i integer;
+begin
+  for ticket in select id from booking_tickets where code = '' loop
+    generated := '';
+    for i in 1..10 loop
+      generated := generated ||
+        substr('23456789ABCDEFGHJKMNPQRSTVWXYZ', 1 + floor(random() * 30)::int, 1);
+    end loop;
+    update booking_tickets
+       set code = 'BM-' || substr(generated, 1, 5) || '-' || substr(generated, 6, 5)
+     where id = ticket.id;
+  end loop;
+end $$;
+
+-- One ticket per code, and lookups ignore the dashes and the case so a volunteer
+-- can type `bk7mq9wxt3` and still admit the right person.
+create unique index if not exists booking_tickets_code_key
+  on booking_tickets (upper(replace(code, '-', '')))
+  where code <> '';
+
+-- ---------- a pause, as distinct from a block --------------------------------
+-- A block is a decision the admin will undo when they decide to. A pause is a
+-- door held shut for a while: a ticket under investigation, a refund being
+-- argued, somebody who should come back after the interval. Both stop the gate;
+-- only the pause lifts itself.
+alter table booking_tickets add column if not exists blocked_until timestamptz;

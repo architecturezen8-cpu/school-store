@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, Ban, Mail, Trash2, Undo2 } from "lucide-react";
+import { ArrowLeft, Mail } from "lucide-react";
 import { isAdmin } from "@/lib/admin/auth";
 import { databaseProblem } from "@/lib/admin/db-guard";
 import { databaseDown, hasDatabase } from "@/lib/db";
@@ -14,7 +14,8 @@ import ParamToast from "@/components/admin/ParamToast";
 import DownloadReceipt from "@/components/DownloadReceipt";
 import SubmitButton from "@/components/SubmitButton";
 import { Empty, Notice, PageHeader, Panel, Pill, buttonClass } from "@/components/admin/ui";
-import { blockTicketAction, deleteTicketAction, resendTicketAction, unblockTicketAction } from "../../actions";
+import { resendTicketAction } from "../../actions";
+import TicketControls from "@/components/admin/TicketControls";
 
 export const dynamic = "force-dynamic";
 
@@ -134,79 +135,24 @@ export default async function BookingDetailPage({
         {tickets.length === 0 ? (
           <Empty>Nothing here — the reference may be wrong, or every ticket was deleted.</Empty>
         ) : (
-          <ul className="space-y-2">
-            {tickets.map((t) => {
-              const blocked = Boolean(t.blockedAt);
-              const admitted = Boolean(t.admittedAt);
-              return (
-                <li
-                  key={t.token}
-                  className="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-xl bg-well px-4 py-3"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-strong">
-                      Ticket {t.seq} of {t.of}
-                      <span className="ml-2 font-mono text-xs font-normal text-muted">{t.code}</span>
-                    </p>
-                    <p className="mt-0.5 text-xs text-muted">
-                      {t.tierName || t.tiers[0]?.name || "Ticket"}
-                      {blocked && ` · blocked ${new Date(t.blockedAt!).toLocaleString("en-GB")}`}
-                    </p>
-                  </div>
-
-                  {blocked ? (
-                    <Pill tone="stop">blocked</Pill>
-                  ) : admitted ? (
-                    <Pill tone="muted">
-                      admitted {new Date(t.admittedAt!).toLocaleString("en-GB")}
-                    </Pill>
-                  ) : (
-                    <Pill tone="ok">valid</Pill>
-                  )}
-
-                  <div className="flex items-center gap-2">
-                    {blocked ? (
-                      <form action={unblockTicketAction}>
-                        <input type="hidden" name="token" value={t.token} />
-                        <input type="hidden" name="reference" value={t.reference} />
-                        <SubmitButton
-                          pending="Lifting…"
-                          className={`${buttonClass("secondary")} !px-3 !py-1.5 !text-xs`}
-                          icon={<Undo2 className="h-3.5 w-3.5" />}
-                        >
-                          Unblock
-                        </SubmitButton>
-                      </form>
-                    ) : (
-                      <form action={blockTicketAction}>
-                        <input type="hidden" name="token" value={t.token} />
-                        <input type="hidden" name="reference" value={t.reference} />
-                        <SubmitButton
-                          pending="Blocking…"
-                          className={`${buttonClass("secondary")} !px-3 !py-1.5 !text-xs`}
-                          icon={<Ban className="h-3.5 w-3.5" />}
-                        >
-                          Block
-                        </SubmitButton>
-                      </form>
-                    )}
-
-                    <form action={deleteTicketAction}>
-                      <input type="hidden" name="token" value={t.token} />
-                      <input type="hidden" name="reference" value={t.reference} />
-                      <SubmitButton
-                        pending="Deleting…"
-                        confirm={`Delete ${t.code}? The sale and its total stay as they are — only this ticket is removed. Use Block for a ticket that was shared.`}
-                        className={`${buttonClass("danger")} !px-3 !py-1.5 !text-xs`}
-                        icon={<Trash2 className="h-3.5 w-3.5" />}
-                      >
-                        Delete
-                      </SubmitButton>
-                    </form>
-                  </div>
-                </li>
-              );
-            })}
+          <ul className="space-y-1.5">
+            {tickets.map((t) => (
+              <TicketControls
+                key={t.token}
+                ticket={{
+                  seq: t.seq,
+                  token: t.token,
+                  code: t.code,
+                  tierName: t.tierName,
+                  admittedAt: t.admittedAt,
+                  blocked: t.blocked,
+                  blockedAt: t.blockedAt,
+                  blockedUntil: t.blockedUntil,
+                }}
+                reference={t.reference}
+                back={`/admin/bookings/${encodeURIComponent(t.reference)}`}
+              />
+            ))}
           </ul>
         )}
       </Panel>
@@ -223,7 +169,8 @@ export default async function BookingDetailPage({
           </li>
           <li>
             <span className="text-strong">Blocked — do not admit.</span> A ticket you
-            stopped here. The volunteer is told to send the person to the office.
+            stopped here, or one paused until later. The volunteer is told to send the
+            person to the office.
           </li>
         </ul>
       </Panel>

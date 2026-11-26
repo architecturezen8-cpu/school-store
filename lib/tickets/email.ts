@@ -9,7 +9,9 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { getSettings, absoluteLogoUrl } from "../settings";
 import { getTemplateForEvent } from "./templates";
-import { composeTicket } from "./detect";
+import { composeTicket, detectWhiteSquare } from "./detect";
+import { fallbackTicketSvg } from "./fallback";
+import { buildTicketReceipt, receiptFilename } from "./receipt";
 import { qrPayload } from "./sign";
 
 /**
@@ -85,25 +87,28 @@ function coverImageUrl(image: string): string {
  */
 async function ticketArtworks(tickets: Ticket[]): Promise<{ filename: string; buffer: Buffer }[]> {
   const template = await getTemplateForEvent(tickets[0]?.event ?? "").catch(() => null);
-  if (!template) return [];
 
+  // No design uploaded (or its file is gone): fall back to the plain ticket the
+  // image route draws. A sale with no ticket file in the mail is a queue at the
+  // gate, and it used to be exactly what a fresh install produced.
   let design: Buffer;
-  try {
-    design = await readFile(
-      path.join(process.cwd(), "public", template.file.replace(/^\//, ""))
-    );
-  } catch {
-    // A missing design file must not stop the email: the ticket page still
-    // shows a working code for every seat.
-    return [];
-  }
+  let square: { x: number; y: number; size: number; confidence: number };
 
-  const square = {
-    x: template.qrX,
-    y: template.qrY,
-    size: template.qrSize,
-    confidence: 1,
-  };
+  if (template) {
+    try {
+      design = await readFile(
+        path.join(process.cwd(), "public", template.file.replace(/^\//, ""))
+      );
+    } catch {
+      return [];
+    }
+    square = { x: template.qrX, y: template.qrY, size: template.qrSize, confidence: 1 };
+  } else {
+    design = Buffer.from(fallbackTicketSvg(tickets[0]));
+    const detected = await detectWhiteSquare(design).catch(() => null);
+    if (!detected) return [];
+    square = detected;
+  }
 
   const out: { filename: string; buffer: Buffer }[] = [];
   for (const t of tickets) {
@@ -578,8 +583,10 @@ export async function sampleTicket(): Promise<Ticket> {
     admittedBy: "",
     blockedAt: null,
     blockedBy: "",
-    code: "BM-SAMPLE-01",
-  tierName: "Grandstand Seat",
+    blockedUntil: null,
+    blocked: false,
+    code: "BM-BK7MQ-9WXT3",
+    tierName: "Grandstand Seat",
   };
 }
 
@@ -610,6 +617,18 @@ export async function sendTicketEmail(
   const built = await buildBookingMail(tickets, overrides);
   const { subject, html, text: body, hero, logo, artworks } = built;
   const ticket = tickets[0];
+
+  // The bill travels with the tickets.
+  //
+  // It used to live only behind a button on the confirmation screen, which meant
+  // the document a parent needs for a claim was one link away from somebody who
+  // had closed that tab — and the admin's Resend sent tickets only. It is the
+  // same PDF the button produces, drawn from the same rows, so the two can never
+  // say different amounts.
+  const receipt = await buildTicketReceipt(tickets, {
+    logoFile: (await getSettings().catch(() => ({ logo: "" }))).logo || undefined,
+  }).catch(() => null);
+
   const attachments = [
     // The header photograph, inline. It is part of the message, not a link to
     // one: the header is the thing the admin designed, and a client that blocks
@@ -635,6 +654,18 @@ export async function sendTicketEmail(
             content: logo,
             inline: true,
             contentId: "brand-logo",
+          },
+        ]
+      : []),
+    // The bill for the whole sale, one file: proof of what was paid, printable,
+    // and the thing a school asks for when somebody claims at the office.
+    ...(receipt
+      ? [
+          {
+            filename: receiptFilename(ticket.reference),
+            content: Buffer.from(receipt),
+            inline: false,
+            contentId: "",
           },
         ]
       : []),
