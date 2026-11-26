@@ -420,3 +420,42 @@ create unique index if not exists booking_tickets_code_key
 -- argued, somebody who should come back after the interval. Both stop the gate;
 -- only the pause lifts itself.
 alter table booking_tickets add column if not exists blocked_until timestamptz;
+
+-- ---------- what happened to each email ---------------------------------------
+-- A ticket email that did not arrive leaves no trace: the sale is in the
+-- bookings list, the money is in the till, and the parent is standing at the
+-- counter saying nothing came. The dashboard cannot tell a morning with no sales
+-- from a morning where every message bounced.
+--
+-- So every attempt is written down here — sent, refused, or skipped because no
+-- transport is configured — with the address it went to, the codes it carried and
+-- the mail server's own words when it refused. It is a log, not a queue: nothing
+-- re-sends itself. The admin reads it, sees what failed, and sends that one
+-- ticket again to whichever address the parent gives.
+create table if not exists email_log (
+  id                uuid primary key default gen_random_uuid(),
+  created_at        timestamptz not null default now(),
+  -- The sale, so a row can be found by the reference on the phone.
+  booking_reference text not null default '',
+  -- The ticket codes in the message, comma separated: `BM-BK7MQ-9WXT3`.
+  ticket_codes      text not null default '',
+  to_email          text not null default '',
+  subject           text not null default '',
+  -- 'booking' (the sale), 'resend' (sent again by hand), 'test' (the admin's own
+  -- inbox from the ticket email page).
+  kind              text not null default 'booking',
+  -- 'sent' — the mail server accepted it; 'failed' — it refused, and `error`
+  -- says why; 'skipped' — there is no transport configured, nothing left.
+  status            text not null,
+  provider          text not null default '',
+  message_id        text not null default '',
+  error             text not null default ''
+);
+
+create index if not exists email_log_created_idx on email_log (created_at desc);
+
+-- A parent rings with a reference and asks whether the mail went. One index for
+-- the sale, one for the address, both case-insensitive, because neither is ever
+-- typed the same way twice.
+create index if not exists email_log_reference_idx on email_log (upper(booking_reference));
+create index if not exists email_log_to_idx on email_log (lower(to_email));

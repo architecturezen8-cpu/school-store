@@ -215,6 +215,14 @@ finished panel live in `docs/screens/` — `admin-overview.png`, `admin-bookings
   whether the ticket has been scanned, and offers no bill: the person holding a
   photo of somebody else's QR must not be able to learn whether it is still good,
   and the receipt stays on the confirmation screen and in the admin.
+- It names the **ticket**, not the purchaser: the event, the date and venue, the
+  ticket type, which of the party it is, the doors time and its code. Not the
+  buyer's name, not what was paid, not the order lines — the person reading the
+  page is usually a guest or a steward, not the payer. The plain ticket drawn
+  when no design is uploaded prints the same things, and no sale reference:
+  the gate accepts the reference and admits the next seat that has not been in,
+  so printing it on something anybody can photograph would put the party behind
+  one shared string.
 
 ### One code per ticket, and stopping one
 
@@ -268,6 +276,20 @@ the confirmation screen. The customer's ticket page does not link it.
 scanned, a **Resend** button that re-sends that customer's ticket, and a link to
 the booking's own page.
 
+### The email log
+
+`/admin/mail/log` records every attempt to send a ticket email — sent, refused,
+or never tried because no transport is configured — with the address, the codes
+in the message, the provider and, when the mail server said no, its own words.
+
+Nothing re-sends itself. The office reads the page, sees what failed, and sends
+**one ticket** again from it: type the ticket's code and any address (the parent's
+work inbox, not necessarily the one on the sale). A sale reference sends the
+whole party. Both are ordinary sends, so they appear in the log too.
+
+The table is `email_log`; rows are written from `sendTicketEmail` through
+`lib/tickets/mail-log.ts`, and a failure to write a row never fails a send.
+
 ## 4. Where the pieces live
 
 | Path | What it does |
@@ -277,6 +299,7 @@ the booking's own page.
 | `lib/tickets/templates.ts` | Upload, list, activate and delete designs. |
 | `lib/tickets/email.ts` | The message HTML and the Resend/SMTP send. |
 | `lib/tickets/mail-settings.ts` | The message wording and its shipped defaults. |
+| `lib/tickets/mail-log.ts` | What each email attempt did, and the reads behind `/admin/mail/log`. |
 | `lib/admin/auth.ts` | The password and the signed session cookie. |
 | `lib/db.ts` | Backend choice, pool, and the recorded failure the admin reports. |
 | `lib/errors.ts` | Turning anything thrown — even an `AggregateError` with no message — into a sentence. |
@@ -286,6 +309,7 @@ the booking's own page.
 | `components/admin/AdminShell.tsx` | The sidebar, the mobile bar, the profile block. |
 | `components/admin/ui.tsx` | The bento primitives: tiles, stat cells, fields, pills. |
 | `app/admin/mail/preview` | The real mail, rendered for the iframe on `/admin/mail`. |
+| `app/admin/mail/log` | Every send, and sending one ticket again to any address. |
 | `app/admin/` | Dashboard, designs, ticket email, bookings (list, one sale, issue), gate. |
 | `app/gate/` | The volunteer's scanner. |
 | `app/t/[token]/` | The page a customer's camera opens. |
