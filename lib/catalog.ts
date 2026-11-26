@@ -1,6 +1,7 @@
-import { hasDatabase, query } from "./db";
+import { hasDatabase, query, schemaFailure } from "./db";
 import { errorMessage } from "./errors";
 import { slugify } from "./slug";
+import { categories as seedCategories, products as seedProducts } from "@/data/seed";
 
 /**
  * The shop's own admin: categories, products, and the vocabulary the filters use.
@@ -74,24 +75,93 @@ export type SaveResult<T = undefined> =
   | { ok: false; error: string };
 
 /* ------------------------------------------------------------------ *\
+ *  Reading, when the database is behind the app
+\* ------------------------------------------------------------------ */
+
+/**
+ * Read, or fall back to the built-in catalogue.
+ *
+ * These are the admin's *read* paths, and they used to throw. A database one
+ * migration behind the app — the case that reaches the office as "SOMETHING
+ * BROKE" on the new-product screen — took the whole page into the error
+ * boundary, because `shop_filters` did not exist yet. An admin cannot act on a
+ * crash. It can act on a shelf of its own catalogue with a banner that names the
+ * missing table and offers the one button that fixes it.
+ *
+ * Writes are deliberately *not* wrapped: a save that quietly failed against a
+ * fallback would be worse than the crash.
+ */
+async function readOr<T>(fallback: T, fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    // Only the "database is behind" case falls back. A connection failure is
+    // already reported by the admin's own banner, and pretending to have rows
+    // then would be the lie that banner exists to prevent.
+    if (!schemaFailure()) throw err;
+    console.warn("[catalog] serving the built-in catalogue:", errorMessage(err));
+    return fallback;
+  }
+}
+
+/** The seed catalogue, shaped like the admin's rows. */
+function seedAdminCategories(): AdminCategory[] {
+  return seedCategories.map((c, i) => ({
+    slug: c.slug,
+    title: c.title,
+    description: c.desc,
+    image: c.image,
+    blurb: c.count,
+    position: i,
+    items: seedProducts.filter((p) => p.category === c.slug).length,
+  }));
+}
+
+function seedAdminProducts(): AdminProduct[] {
+  return seedProducts.map((p) => ({
+    slug: p.slug,
+    name: p.name,
+    price: p.price,
+    image: p.image,
+    tag: p.tag ?? "",
+    category: p.category,
+    rating: p.rating,
+    reviews: p.reviews,
+    description: p.description,
+    details: p.details,
+    options: p.options ?? null,
+    gallery: p.gallery ?? [],
+    colours: p.colours ?? [],
+    isFeatured: Boolean(p.isFeatured),
+    isNew: Boolean(p.isNew),
+    active: true,
+  }));
+}
+
+/* ------------------------------------------------------------------ *\
  *  Categories
 \* ------------------------------------------------------------------ */
 
+type CategoryRow = {
+  slug: string;
+  title: string;
+  description: string;
+  image: string;
+  blurb: string;
+  position: number;
+  items: number;
+};
+
 export async function listAdminCategories(): Promise<AdminCategory[]> {
-  const rows = await query<{
-    slug: string;
-    title: string;
-    description: string;
-    image: string;
-    blurb: string;
-    position: number;
-    items: number;
-  }>(
-    `select c.slug, c.title, c.description, c.image, c.blurb, c.position,
-            (select count(*) from products p where p.category = c.slug and p.active)::int as items
-       from categories c
-      order by c.position, c.title`
+  const rows = await readOr<CategoryRow[] | null>(null, () =>
+    query<CategoryRow>(
+      `select c.slug, c.title, c.description, c.image, c.blurb, c.position,
+              (select count(*) from products p where p.category = c.slug and p.active)::int as items
+         from categories c
+        order by c.position, c.title`
+    )
   );
+  if (!rows) return seedAdminCategories();
   return rows.map((r) => ({ ...r, position: Number(r.position), items: Number(r.items) }));
 }
 
@@ -231,22 +301,27 @@ function safeJson(text: string): unknown {
 }
 
 export async function listAdminProducts(): Promise<AdminProduct[]> {
-  const rows = await query<ProductRow>(
-    `select slug, name, price, image, tag, category, rating, reviews, description,
-            details, options, gallery, colours, is_featured, is_new, active
-       from products
-      order by category, name`
+  const rows = await readOr<ProductRow[] | null>(null, () =>
+    query<ProductRow>(
+      `select slug, name, price, image, tag, category, rating, reviews, description,
+              details, options, gallery, colours, is_featured, is_new, active
+         from products
+        order by category, name`
+    )
   );
-  return rows.map(toProduct);
+  return rows ? rows.map(toProduct) : seedAdminProducts();
 }
 
 export async function getAdminProduct(slug: string): Promise<AdminProduct | undefined> {
-  const rows = await query<ProductRow>(
-    `select slug, name, price, image, tag, category, rating, reviews, description,
-            details, options, gallery, colours, is_featured, is_new, active
-       from products where slug = $1`,
-    [slug]
+  const rows = await readOr<ProductRow[] | null>(null, () =>
+    query<ProductRow>(
+      `select slug, name, price, image, tag, category, rating, reviews, description,
+              details, options, gallery, colours, is_featured, is_new, active
+         from products where slug = $1`,
+      [slug]
+    )
   );
+  if (!rows) return seedAdminProducts().find((p) => p.slug === slug);
   return rows[0] ? toProduct(rows[0]) : undefined;
 }
 
@@ -428,14 +503,29 @@ export const DEFAULT_FILTERS: { kind: "colour" | "size"; label: string; swatch: 
 
 /** Every filter, hidden ones too — the admin needs those. */
 export async function listFilters(): Promise<ShopFilter[]> {
-  const rows = await query<{
-    id: string;
-    kind: "colour" | "size";
-    label: string;
-    swatch: string;
-    position: number;
-    is_active: boolean;
-  }>(`select id, kind, label, swatch, position, is_active from shop_filters order by kind, position, label`);
+  const rows = await readOr<
+    { id: string; kind: "colour" | "size"; label: string; swatch: string; position: number; is_active: boolean }[] | null
+  >(null, () =>
+    query<{
+      id: string;
+      kind: "colour" | "size";
+      label: string;
+      swatch: string;
+      position: number;
+      is_active: boolean;
+    }>(`select id, kind, label, swatch, position, is_active from shop_filters order by kind, position, label`)
+  );
+  // No table yet: the chips the shop ships with, so the editor still opens.
+  if (!rows) {
+    return DEFAULT_FILTERS.map((f, i) => ({
+      id: `builtin-${f.kind}-${i}`,
+      kind: f.kind,
+      label: f.label,
+      swatch: f.swatch,
+      position: i,
+      isActive: true,
+    }));
+  }
   return rows.map((r) => ({
     id: r.id,
     kind: r.kind,

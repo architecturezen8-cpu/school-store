@@ -262,6 +262,27 @@ and if the tables are empty as well, `npm run db:seed` after it. `npm run
 db:check` tells you which of the two it is, including the exact column that is
 missing.
 
+**You do not have to reach a terminal for this.** A database that is behind the
+app now says so itself, in a gold bar across the top of the admin:
+
+> The database is older than this version of the store: the “shop_filters”
+> table is not there yet. …
+
+and the button next to it — **Update the database** — sends exactly the file
+`npm run db:migrate` sends. Every statement in it is idempotent, so it is safe to
+press twice, safe on a database that is already current, and it fills an empty
+project with the starter catalogue the way the embedded database fills itself.
+
+Two things changed because this used to be much worse than the sentence above
+suggests:
+
+- A missing table is **not** treated as an outage any more. It used to latch the
+  whole process as "the database is down", so one table behind ate every screen
+  and every later query until a restart.
+- The admin's own error boundary now sits *inside* the admin layout, so a screen
+  that throws still leaves the sidebar and that bar on screen — the one place
+  that explains the problem used to be the part that was hidden.
+
 ### Windows: `npm run build` works from cmd and PowerShell
 
 The build used to be `STORE_STRICT=1 next build` in `package.json`. That is POSIX

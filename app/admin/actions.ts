@@ -23,7 +23,7 @@ import {
 import { saveLogo, saveLogoScale } from "@/lib/settings";
 import { sendTicketEmail, sendTicketEmails, sampleTicket } from "@/lib/tickets/email";
 import { friendlyError } from "@/lib/errors";
-import { query } from "@/lib/db";
+import { applySchema, query } from "@/lib/db";
 import {
   deleteEvent,
   saveEvent,
@@ -60,6 +60,28 @@ export async function signIn(formData: FormData) {
 export async function signOut() {
   await endSession();
   redirect("/admin");
+}
+
+/* ---------- the database itself -------------------------------------- */
+
+/**
+ * Bring the database up to date with `db/schema.sql`.
+ *
+ * Offered as a button because the alternative — "run npm run db:migrate" — is a
+ * sentence a school office cannot act on. The script and this action send the
+ * same file, and every statement in it is idempotent, so this is safe to press
+ * twice, and safe to press when nothing is missing.
+ */
+export async function applySchemaAction() {
+  await requireAdmin();
+  const result = await applySchema();
+  revalidatePath("/admin", "layout");
+  revalidatePath("/", "layout");
+  redirect(
+    result.ok
+      ? "/admin/shop?ok=The+database+is+up+to+date."
+      : `/admin/shop?error=${encodeURIComponent(result.error)}`
+  );
 }
 
 /* ---------- templates ------------------------------------------------ */

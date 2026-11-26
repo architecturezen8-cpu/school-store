@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { isAdmin } from "@/lib/admin/auth";
 import AdminShell from "@/components/admin/AdminShell";
+import DatabaseBar from "@/components/admin/DatabaseBar";
 import { getSettings, logoUrl } from "@/lib/settings";
 
 /**
@@ -32,6 +33,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     : ["", null];
   return (
     <AdminShell signedIn={signedIn} logo={logo} logoScale={settings?.logoScale}>
+      {/* Only when the database is behind the app: one bar, on every screen,
+          carrying the button that fixes it. */}
+      {signedIn && <DatabaseBar />}
       {children}
     </AdminShell>
   );
