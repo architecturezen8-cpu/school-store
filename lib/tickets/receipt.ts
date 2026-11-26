@@ -140,7 +140,7 @@ export async function buildTicketReceipt(
   page.drawRectangle({ x: MARGIN, y: y, width: PAGE.width - MARGIN * 2, height: 2.5, color: GOLD });
   y -= 26;
 
-  /* ---------- the two-column facts ---------- */
+  /* ---------- the facts ---------- */
   const fact = (label: string, value: string, x: number, width: number) => {
     page.drawText(label.toUpperCase(), { x, y, size: 7, font: bold, color: MUTED });
     page.drawText(value, { x, y: y - 13, size: 10.5, font: regular, color: INK, maxWidth: width });
@@ -170,9 +170,83 @@ export async function buildTicketReceipt(
     color: MUTED,
   });
 
-  /* ---------- the money: one row per ticket type ---------- */
-  y -= 34;
+  /* ---------- one reference per ticket ---------- */
   const right = PAGE.width - MARGIN;
+
+  // First, before the money, and one code under another.
+  //
+  // Every ticket has its own code now — `BM-BK7MQ-9WXT3` — and the buyer needs
+  // to know which is which before the sheets are torn apart: it is the only name
+  // the office will accept for one seat, and the only thing that can be stopped
+  // at the gate without stopping the party.
+  //
+  // The first version of this block sat under the total in two columns to save
+  // lines. It was read as a pair of codes per line by everybody who picked it
+  // up, including the school, which is the only review a bill needs. One code per
+  // line, numbered, and the document is longer and unambiguous — which is the
+  // right trade on a receipt.
+  const codes = tickets
+    .map((t) => ({ code: t.code, blocked: t.blocked }))
+    .filter((c) => c.code);
+  if (codes.length) {
+    y -= 30;
+    page.drawText(
+      codes.length > 1 ? "TICKETS ON THIS BILL — ONE CODE EACH" : "TICKET CODE",
+      { x: MARGIN, y, size: 7, font: bold, color: MUTED }
+    );
+    y -= 8;
+    page.drawLine({ start: { x: MARGIN, y }, end: { x: right, y }, thickness: 0.7, color: LINE });
+    y -= 16;
+
+    // Eight codes at a comfortable pitch, and then the pitch closes up rather
+    // than the total sliding off the bottom of the page.
+    const line = codes.length <= 8 ? 14 : codes.length <= 16 ? 12 : 10.5;
+    const size = codes.length <= 16 ? 9.5 : 8.5;
+
+    codes.forEach((entry, i) => {
+      page.drawText(String(i + 1).padStart(2, "0"), {
+        x: MARGIN,
+        y,
+        size: 7.5,
+        font: regular,
+        color: MUTED,
+      });
+      page.drawText(entry.code, {
+        x: MARGIN + 22,
+        y,
+        size,
+        font: bold,
+        color: entry.blocked ? MUTED : INK,
+      });
+      if (entry.blocked) {
+        // Struck through, not coloured red: a receipt is printed, often on a
+        // school photocopier, and red is the first thing a mono print loses.
+        const w = bold.widthOfTextAtSize(entry.code, size);
+        page.drawLine({
+          start: { x: MARGIN + 22, y: y + 3 },
+          end: { x: MARGIN + 22 + w, y: y + 3 },
+          thickness: 0.7,
+          color: MUTED,
+        });
+      }
+      y -= line;
+    });
+
+    if (codes.some((c) => c.blocked)) {
+      page.drawText("Struck through = stopped by the school; the gate will not admit it.", {
+        x: MARGIN,
+        y: y + 2,
+        size: 7,
+        font: regular,
+        color: MUTED,
+        maxWidth: PAGE.width - MARGIN * 2,
+      });
+      y -= -2;
+    }
+  }
+
+  /* ---------- the money: one row per ticket type ---------- */
+  y -= 26;
   const colQty = right - 210;
   const colAmount = right;
 
@@ -233,8 +307,8 @@ export async function buildTicketReceipt(
   // and it was the wrong document: sixteen status rows pushed the whole thing
   // onto a second page, with the total stranded on the first. The codes are
   // back, because each ticket now has its own reference and the bill has to say
-  // which is which — but as a compact two-column block under the total, not a
-  // table of admissions. No status column: a receipt records what was sold.
+  // which is which — one per line, above the money. No status column: a receipt
+  // records what was sold, and the strike-through is the one exception.
   const totalQty = items.reduce((n, t) => n + t.qty, 0);
 
   y -= 2;
@@ -271,77 +345,6 @@ export async function buildTicketReceipt(
     font: bold,
     color: INK,
   });
-
-  /* ---------- one reference per ticket ---------- */
-  // Every ticket has its own code — `BM-ABC12345-03` — and the buyer needs to
-  // know which code is which before they tear the sheets apart, because that is
-  // the only name the office will accept for one seat. Two columns, so a party of
-  // sixteen costs eight lines instead of sixteen and still fits on this page.
-  const codes = tickets.map((t) => ({ code: t.code, blocked: Boolean(t.blockedAt) }));
-  if (codes.length) {
-    y -= 40;
-    page.drawText(
-      codes.length > 1 ? "TICKETS ON THIS BILL — ONE REFERENCE EACH" : "TICKET REFERENCE",
-      { x: MARGIN, y, size: 7, font: bold, color: MUTED }
-    );
-
-    // Right column starts past the middle, so the two halves never collide even
-    // when a reference is long.
-    const half = Math.ceil(codes.length / 2);
-    const colRight = MARGIN + (right - MARGIN) / 2 + 8;
-    const line = 13;
-    let rowY = y - 16;
-
-    const drawCode = (code: { code: string; blocked: boolean }, x: number, rowY: number) => {
-      page.drawText(code.code, { x, y: rowY, size: 9, font: bold, color: code.blocked ? MUTED : INK });
-      if (code.blocked) {
-        // Struck through, not coloured red: a receipt is printed, often on a
-        // school photocopier, and red is the first thing a mono print loses.
-        const w = bold.widthOfTextAtSize(code.code, 9);
-        page.drawLine({
-          start: { x, y: rowY + 3 },
-          end: { x: x + w, y: rowY + 3 },
-          thickness: 0.7,
-          color: MUTED,
-        });
-      }
-    };
-
-    for (let i = 0; i < half; i++) {
-      page.drawText(String(i + 1).padStart(2, "0"), {
-        x: MARGIN,
-        y: rowY,
-        size: 7.5,
-        font: regular,
-        color: MUTED,
-      });
-      drawCode(codes[i], MARGIN + 20, rowY);
-
-      const rightCode = codes[i + half];
-      if (rightCode) {
-        page.drawText(String(i + half + 1).padStart(2, "0"), {
-          x: colRight,
-          y: rowY,
-          size: 7.5,
-          font: regular,
-          color: MUTED,
-        });
-        drawCode(rightCode, colRight + 20, rowY);
-      }
-      rowY -= line;
-    }
-
-    if (codes.some((c) => c.blocked)) {
-      page.drawText("Struck through = stopped by the school; the gate will not admit it.", {
-        x: MARGIN,
-        y: rowY - 2,
-        size: 7,
-        font: regular,
-        color: MUTED,
-        maxWidth: PAGE.width - MARGIN * 2,
-      });
-    }
-  }
 
   /* ---------- footer ---------- */
   const footerY = MARGIN + 46;

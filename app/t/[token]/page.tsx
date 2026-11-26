@@ -105,16 +105,16 @@ export default async function TicketPage({
       */}
       <div
         className={`mt-6 rounded-2xl border p-5 ${
-          ticket.blockedAt
+          ticket.blocked
             ? "border-red-400/40 bg-red-500/10"
             : "border-gold/25 bg-white/[0.03]"
         }`}
       >
         <p className="font-display text-lg font-semibold text-white">
-          {ticket.blockedAt ? "This ticket has been cancelled" : "Show this at the gate"}
+          {ticket.blocked ? "This ticket has been cancelled" : "Show this at the gate"}
         </p>
         <p className="mt-1 text-sm text-white/70">
-          {ticket.blockedAt
+          {ticket.blocked
             ? "The school has stopped this ticket, so the gate will not admit it. If you bought it, contact the store with the code above — the rest of the booking is unaffected."
             : ticket.of > 1
               ? `It admits one person — this is ticket ${ticket.seq} of ${ticket.of} on the booking, and each of the ${ticket.of} arrived in its own email. Keep it to yourself: a screenshot is how somebody gets in on your seat.`

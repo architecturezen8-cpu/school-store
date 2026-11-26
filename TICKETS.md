@@ -220,19 +220,28 @@ finished panel live in `docs/screens/` — `admin-overview.png`, `admin-bookings
 
 A booking reference is shared by everybody in the party (`BM-ABC12345`), so it
 cannot name the one QR that was forwarded to a stranger. Every ticket therefore
-carries its own code — `BM-ABC12345-03` — printed on the bill, shown on the
-ticket page, and returned by the gate.
+carries its own code — **`BM-BK7MQ-9WXT3`** — shown on the ticket page, printed on
+the bill, and accepted by the gate when typed.
 
-`/admin/bookings/<reference>` is the page for one sale: every ticket in it, its
-code, whether it has been used, and two buttons.
+The code is **random**, not the reference plus a seat number. The first version
+was `BM-ABC12345-03`, which named the ticket perfectly and told anybody holding
+one ticket what the next one was called. Ten characters from an alphabet with no
+`0/O`, `1/I/L` or `U`; the gate ignores case, dashes and spaces, so `bk7mq 9wxt3`
+admits the same person.
+
+Every sale in `/admin/bookings` folds open to show its tickets — code, type,
+whether it has been in — with three buttons:
 
 | Button | What it does | Use it when |
 | --- | --- | --- |
-| **Block** | The ticket stays on the sale and on the bill; the gate answers *blocked — do not admit*. Reversible. | A code was forwarded, a refund is being argued, somebody is barred. |
+| **Block** | The ticket stays on the sale and on the bill; the gate answers *blocked — do not admit*. Reversible. | A code was forwarded, somebody is barred. |
+| **Pause** | The same, but with an end time (15 minutes to a day) that lifts itself. | A refund being argued, a holder fetching their ID, a duplicate to sort out at the interval. |
 | **Delete** | The ticket is removed; its QR stops existing. The sale, its items and its total are untouched. | The ticket should never have existed — a double click, a seat typed twice. |
 
 Blocking is the tool for a shared code: it leaves proof of what was sold and a
-door that will not open. Deleting leaves nothing to explain.
+door that will not open. Deleting leaves nothing to explain. The same three
+buttons are on `/admin/bookings/<reference>`, which also carries the bill and the
+resend.
 
 ### Issuing a ticket by hand
 
@@ -244,6 +253,16 @@ there is one kind of ticket in the building and not two.
 
 `bookings.channel` records where a sale came from (`shop` or `counter`) and
 `bookings.note` holds the line the paperwork always needs ("Comp — headmaster").
+
+### The bill
+
+The bill is a one-page PDF: the crest, the sale, **every ticket's code on its own
+line**, then the items, the ticket count and the total paid. A blocked or paused
+ticket is struck through.
+
+It is attached to the ticket email (`receipt-BM-….pdf`, one per sale, next to one
+ticket file per person), and it is behind the **Bill** button in the admin and on
+the confirmation screen. The customer's ticket page does not link it.
 
 `/admin/bookings` lists every booking: what was paid, whether it has been
 scanned, a **Resend** button that re-sends that customer's ticket, and a link to

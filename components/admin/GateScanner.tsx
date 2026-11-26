@@ -31,7 +31,7 @@ type ScanTicket = {
   /** Which person this is, and how many the booking holds. */
   seq: number;
   of: number;
-  /** This ticket's own reference, e.g. `BM-ABC12345-03`. */
+  /** This ticket's own code, e.g. `BM-BK7MQ-9WXT3`. */
   code: string;
   tierName: string;
 };
@@ -222,12 +222,12 @@ export default function GateScanner() {
       >
         <label className="block">
           <span className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-muted">
-            <Keyboard className="h-3.5 w-3.5" /> Paste link or type reference
+            <Keyboard className="h-3.5 w-3.5" /> Paste the link, or type the code
           </span>
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="https://…/t/…?s=…  or  BM-ABC123"
+            placeholder="the QR link, a ticket code (BM-…), or a booking reference"
             className="mt-2 w-full rounded-xl bg-well px-4 py-3 text-sm text-strong outline-none transition-colors focus:bg-panel-2 focus:ring-2 focus:ring-gold"
           />
         </label>

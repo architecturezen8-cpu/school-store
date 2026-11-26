@@ -11,6 +11,7 @@ import {
 import {
   blockTicket,
   deleteTicket,
+  pauseTicket,
   getTicketByReference,
   getTicketByToken,
   issueTicket,
@@ -456,6 +457,20 @@ export async function deleteEventDesignAction(id: string) {
 /* ---------- one ticket at a time ------------------------------------- */
 
 /**
+ * Where to send the admin back to.
+ *
+ * The same three actions are used from the bookings list and from one booking's
+ * page, so the caller says where it came from rather than being guessed at. The
+ * only accepted answers are admin paths, because a redirect is a fine place to
+ * put a phishing link if you let the form decide the address.
+ */
+function backTo(formData: FormData, reference: string): string {
+  const asked = String(formData.get("back") ?? "");
+  if (asked.startsWith("/admin/bookings")) return asked;
+  return reference ? `/admin/bookings/${encodeURIComponent(reference)}` : "/admin/bookings";
+}
+
+/**
  * Stop one ticket.
  *
  * The case this exists for: a parent forwards a screenshot of their QR, and the
@@ -468,7 +483,7 @@ export async function blockTicketAction(formData: FormData) {
   const token = String(formData.get("token") ?? "");
   const reference = String(formData.get("reference") ?? "");
   const note = String(formData.get("note") ?? "");
-  const back = reference ? `/admin/bookings/${encodeURIComponent(reference)}` : "/admin/bookings";
+  const back = backTo(formData, reference);
   if (!token) redirect(`${back}?error=${encodeURIComponent("No ticket given.")}`);
 
   const result = await blockTicket(token, "admin", note);
@@ -486,7 +501,7 @@ export async function unblockTicketAction(formData: FormData) {
   await requireAdmin();
   const token = String(formData.get("token") ?? "");
   const reference = String(formData.get("reference") ?? "");
-  const back = reference ? `/admin/bookings/${encodeURIComponent(reference)}` : "/admin/bookings";
+  const back = backTo(formData, reference);
 
   const result = await unblockTicket(token);
   revalidatePath("/admin/bookings");
@@ -498,12 +513,43 @@ export async function unblockTicketAction(formData: FormData) {
   );
 }
 
+/**
+ * Hold one ticket shut for a while.
+ *
+ * A block waits for the admin to decide; a pause is for the things that end by
+ * themselves — a refund argued at the office, a ticket whose holder has gone to
+ * fetch their ID. The gate refuses it exactly like a block, and the gate never
+ * has to be told it ended: `blocked_until` is compared with the clock.
+ */
+export async function pauseTicketAction(formData: FormData) {
+  await requireAdmin();
+  const token = String(formData.get("token") ?? "");
+  const reference = String(formData.get("reference") ?? "");
+  const minutes = Number(formData.get("minutes") ?? 60);
+  const note = String(formData.get("note") ?? "");
+  const back = backTo(formData, reference);
+  if (!token) redirect(`${back}?error=${encodeURIComponent("No ticket given.")}`);
+
+  const result = await pauseTicket(token, Number.isFinite(minutes) ? minutes : 60, "admin", note);
+  revalidatePath("/admin/bookings");
+  revalidatePath(back.split("?")[0]);
+  redirect(
+    result.ok
+      ? `${back}?ok=${encodeURIComponent(
+          `${result.ticket.code} paused until ${new Date(
+            result.ticket.blockedUntil ?? Date.now()
+          ).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`
+        )}`
+      : `${back}?error=${encodeURIComponent(result.error)}`
+  );
+}
+
 /** Remove a ticket that should never have existed. Blocking is for the rest. */
 export async function deleteTicketAction(formData: FormData) {
   await requireAdmin();
   const token = String(formData.get("token") ?? "");
   const reference = String(formData.get("reference") ?? "");
-  const back = reference ? `/admin/bookings/${encodeURIComponent(reference)}` : "/admin/bookings";
+  const back = backTo(formData, reference);
   if (!token) redirect(`${back}?error=${encodeURIComponent("No ticket given.")}`);
 
   const ticket = await getTicketByToken(token);
