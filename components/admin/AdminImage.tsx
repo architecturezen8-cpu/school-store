@@ -28,7 +28,7 @@ export default function AdminImage({
 }) {
   return (
     <span className={`block overflow-hidden ${className}`}>
-      <ProductImage src={src} alt={alt} />
+      <ProductImage src={src} alt={alt} tone="admin" />
     </span>
   );
 }

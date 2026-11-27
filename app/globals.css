@@ -81,6 +81,15 @@
   --color-line: #34383d;
   --color-gold-bright: #ffe066;
 
+  /* ---- stock ---------------------------------------------------------------
+     "In stock" is the one line on a product that is purely good news, so it
+     wears green — not the gold of a warning and not the grey of a footnote.
+     #5fdc9a on the 10 % charcoal storefront clears 8:1; on the near-black ink
+     it is higher still. `stock-dim` is the same hue for a surface that is
+     already tinted. */
+  --color-stock: #5fdc9a;
+  --color-stock-dim: #3d9e6d;
+
   /* ---- admin text ramp -----------------------------------------------------
      Four steps, each named for its job rather than its opacity. Every one of
      them clears 4.5:1 on every admin surface — including `faint`, which is the

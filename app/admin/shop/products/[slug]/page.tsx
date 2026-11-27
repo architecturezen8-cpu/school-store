@@ -96,6 +96,7 @@ export default async function EditProductPage({
           options: product.options,
           gallery: product.gallery,
           colours: product.colours,
+          colourSwatches: product.colourSwatches,
           isFeatured: product.isFeatured,
           isNew: product.isNew,
           active: product.active,

@@ -21,6 +21,7 @@ import {
   unblockTicket,
 } from "@/lib/bookings";
 import { saveFavicon, saveLogo, saveLogoScale } from "@/lib/settings";
+import { deleteHeroSlide, importSeedHero, saveHeroSlide } from "@/lib/hero-db";
 import { sendTicketEmail, sendTicketEmails, sampleTicket } from "@/lib/tickets/email";
 import { friendlyError } from "@/lib/errors";
 import { applySchema, query } from "@/lib/db";
@@ -31,7 +32,7 @@ import {
   unsetFeatured,
   type EventDraft,
 } from "@/lib/events";
-import { uploadFavicon, uploadImage, uploadLogo } from "@/lib/uploads";
+import { uploadFavicon, uploadHeroImage, uploadImage, uploadLogo, removeUpload } from "@/lib/uploads";
 
 /**
  * Admin server actions.
@@ -726,4 +727,58 @@ export async function issueTicketAction(formData: FormData) {
 
   revalidatePath("/admin/bookings");
   redirect(`/admin/bookings/${encodeURIComponent(created.reference)}?ok=${encodeURIComponent(`Ticket issued${mailNote}`)}`);
+}
+
+/* ------------------------------------------------------------------ *
+ *  The home page's slideshow
+ * ------------------------------------------------------------------ */
+
+/**
+ * One photograph for the hero, uploaded and stored against nothing yet.
+ *
+ * The file is written first, the row second: a picked image that vanishes
+ * because the browser was closed before the second press is the annoyance this
+ * avoids — the admin sees the picture in the slide before saving it.
+ */
+export async function uploadHeroImageAction(formData: FormData) {
+  await requireAdmin();
+  const file = formData.get("image");
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false as const, error: "Choose a photograph first." };
+  }
+  const result = await uploadHeroImage(file);
+  if (!result.ok) return { ok: false as const, error: result.error };
+  return { ok: true as const, url: result.url };
+}
+
+export async function saveHeroSlideAction(input: { id?: string; image: string; caption: string }) {
+  await requireAdmin();
+  if (!input.image?.trim()) {
+    return { ok: false as const, error: "Upload a photograph for this slide first." };
+  }
+  const result = await saveHeroSlide(input);
+  if (!result.ok) return { ok: false as const, error: result.error };
+  revalidatePath("/");
+  revalidatePath("/admin/hero");
+  return { ok: true as const, id: result.id };
+}
+
+export async function deleteHeroSlideAction(input: { id: string; image: string }) {
+  await requireAdmin();
+  const result = await deleteHeroSlide(input.id);
+  if (!result.ok) return { ok: false as const, error: result.error };
+  // Only uploads in our own folders are ever unlinked.
+  await removeUpload(input.image).catch(() => {});
+  revalidatePath("/");
+  revalidatePath("/admin/hero");
+  return { ok: true as const };
+}
+
+export async function importSeedHeroAction() {
+  await requireAdmin();
+  const result = await importSeedHero();
+  if (!result.ok) return { ok: false as const, error: result.error };
+  revalidatePath("/");
+  revalidatePath("/admin/hero");
+  return { ok: true as const, count: result.count };
 }

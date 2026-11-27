@@ -189,7 +189,11 @@ export async function listAllEvents(): Promise<AdminEvent[]> {
         perks: string[] | null;
         note: string | null;
         position: number;
-      }>("select id, event, name, price, perks, note, position from ticket_tiers order by event, position"),
+        capacity: number | null;
+        sold: number | null;
+      }>(
+        "select id, event, name, price, perks, note, position, capacity, sold from ticket_tiers order by event, position"
+      ),
     ]);
 
     const byEvent = new Map<string, Tier[]>();
@@ -201,6 +205,8 @@ export async function listAllEvents(): Promise<AdminEvent[]> {
         price: Number(t.price),
         perks: Array.isArray(t.perks) ? t.perks : [],
         note: t.note ?? undefined,
+        capacity: t.capacity === null ? null : Number(t.capacity),
+        sold: Number(t.sold ?? 0),
       });
       byEvent.set(t.event, list);
     }
@@ -228,8 +234,10 @@ export async function getEventDraft(slug: string): Promise<AdminEvent | null> {
       price: number;
       perks: string[] | null;
       note: string | null;
+      capacity: number | null;
+      sold: number | null;
     }>(
-      "select id, name, price, perks, note from ticket_tiers where event = $1 order by position",
+      "select id, name, price, perks, note, capacity, sold from ticket_tiers where event = $1 order by position",
       [slug]
     );
     const mapped: Tier[] = tiers.map((t) => ({
@@ -238,6 +246,8 @@ export async function getEventDraft(slug: string): Promise<AdminEvent | null> {
       price: Number(t.price),
       perks: Array.isArray(t.perks) ? t.perks : [],
       note: t.note ?? undefined,
+      capacity: t.capacity === null ? null : Number(t.capacity),
+      sold: Number(t.sold ?? 0),
     }));
     return { ...toDraft(rows[0]), tiers: mapped, tierCount: mapped.length };
   } catch (err) {
@@ -358,15 +368,44 @@ export async function saveEvent(draft: EventDraft, mode: "create" | "update"): P
       // Tiers: update the ones that are still here, add the new ones, and only
       // delete a removed one if no booking has ever referenced it.
       for (const [i, t] of draft.tiers.entries()) {
+        // Blank means "as many as turn up" — the shop then prints no countdown
+        // and the booking refuses nothing. A number is a hard cap on seats.
+        const raw = t.capacity;
+        const capacity =
+          raw === null || raw === undefined || String(raw).trim() === ""
+            ? null
+            : Math.max(0, Math.round(Number(raw)) || 0);
+
+        /*
+          A cap below the seats already sold is not a smaller cap, it is a lie:
+          the database refuses it (sold <= capacity) and the office gets a
+          constraint name instead of a sentence. Say the sentence here, with the
+          numbers, while there is still a form on screen to correct.
+        */
+        if (capacity !== null) {
+          const { rows: soldRows } = await tx.query<{ sold: number; name: string }>(
+            "select sold, name from ticket_tiers where id = $1",
+            [t.id]
+          );
+          const sold = Number(soldRows[0]?.sold ?? 0);
+          if (sold > capacity) {
+            const label = t.name.trim() || soldRows[0]?.name || "That ticket type";
+            throw new Error(
+              `${label} has ${sold} seat${sold === 1 ? "" : "s"} sold — the cap cannot be lower than that.`
+            );
+          }
+        }
+
         await tx.query(
-          `insert into ticket_tiers (id, event, name, price, perks, note, position)
-           values ($1,$2,$3,$4,$5,$6,$7)
+          `insert into ticket_tiers (id, event, name, price, perks, note, position, capacity)
+           values ($1,$2,$3,$4,$5,$6,$7,$8)
            on conflict (id) do update set
              name = excluded.name,
              price = excluded.price,
              perks = excluded.perks,
              note = excluded.note,
-             position = excluded.position
+             position = excluded.position,
+             capacity = excluded.capacity
            where ticket_tiers.event = excluded.event`,
           [
             t.id,
@@ -376,6 +415,7 @@ export async function saveEvent(draft: EventDraft, mode: "create" | "update"): P
             JSON.stringify((t.perks ?? []).map((p) => p.trim()).filter(Boolean)),
             t.note?.trim() || null,
             i,
+            capacity,
           ]
         );
       }

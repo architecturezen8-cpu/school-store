@@ -153,9 +153,12 @@ export async function createBooking(input: BookingInput): Promise<Booking> {
       capacity: number | null;
       sold: number;
     }>(
+      // `order by id` keeps two simultaneous bookings locking in one agreed
+      // order, so they queue instead of deadlocking each other.
       `select id, event, name, price, capacity, sold
          from ticket_tiers
         where id = any($1) and event = $2
+        order by id
         for update`,
       [ids, parsed.event]
     );
@@ -166,8 +169,11 @@ export async function createBooking(input: BookingInput): Promise<Booking> {
     for (const wanted of parsed.tiers) {
       const tier = tiers.find((t) => t.id === wanted.id)!;
       const remaining = tier.capacity === null ? Infinity : tier.capacity - tier.sold;
+      if (remaining <= 0) {
+        throw new Error(`${tier.name} is sold out.`);
+      }
       if (wanted.qty > remaining) {
-        throw new Error(`${tier.name} is sold out for that quantity.`);
+        throw new Error(`Only ${remaining} ${tier.name} left — please reduce the quantity.`);
       }
       total += Number(tier.price) * wanted.qty;
     }
@@ -187,7 +193,27 @@ export async function createBooking(input: BookingInput): Promise<Booking> {
         wanted.id,
         qty,
       ]);
-      await c.query("update ticket_tiers set sold = sold + $2 where id = $1", [wanted.id, qty]);
+      /*
+        The seat count rises only if a seat is still free.
+
+        Reading `sold`, deciding in Node and then writing back is a race the
+        database can lose for you: two browsers, one seat, both read 199 of 200.
+        The condition lives on the row, so the second update matches nothing and
+        the whole booking rolls back — and because the tiers were locked above in
+        a fixed order for the burst to queue rather than deadlock, the loser is
+        told "sold out" instead of seeing a database error.
+      */
+      const { rows: bumped } = await c.query<{ sold: number }>(
+        `update ticket_tiers
+            set sold = sold + $2
+          where id = $1 and (capacity is null or sold + $2 <= capacity)
+          returning sold`,
+        [wanted.id, qty]
+      );
+      if (!bumped.length) {
+        const tier = tiers.find((t) => t.id === wanted.id)!;
+        throw new Error(`${tier.name} sold out while you were choosing seats. Please pick fewer.`);
+      }
     }
 
     /**

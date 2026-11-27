@@ -22,10 +22,20 @@ export default function ProductImage({
   src,
   alt,
   className = "",
+  tone = "site",
 }: {
   src: string;
   alt: string;
   className?: string;
+  /**
+   * Which surface the failure state sits on.
+   *
+   * The storefront is navy, and a missing photo there should look like a gap in
+   * the shop rather than a white hole. The admin wears charcoal and no navy at
+   * all, so it asks for `admin` — the same crest, the same words, on the tile
+   * colour of the page it is on.
+   */
+  tone?: "site" | "admin";
 }) {
   const ref = useRef<HTMLImageElement>(null);
   const [failed, setFailed] = useState(false);
@@ -48,10 +58,18 @@ export default function ProductImage({
       <div
         role="img"
         aria-label={`${alt} — photo unavailable`}
-        className={`flex h-full w-full flex-col items-center justify-center gap-3 bg-[radial-gradient(circle_at_50%_35%,#1a2a52,#0b1220_70%)] ${className}`}
+        className={`flex h-full w-full flex-col items-center justify-center gap-3 ${
+          tone === "admin"
+            ? "bg-well"
+            : "bg-[radial-gradient(circle_at_50%_35%,#1a2a52,#0b1220_70%)]"
+        } ${className}`}
       >
-        <CrestLogo className="h-12 w-12 text-white/25" decorative />
-        <span className="px-4 text-center text-[9px] font-semibold uppercase tracking-[0.22em] text-white/35">
+        <CrestLogo className={`h-12 w-12 ${tone === "admin" ? "text-white/20" : "text-white/25"}`} decorative />
+        <span
+          className={`px-4 text-center text-[9px] font-semibold uppercase tracking-[0.22em] ${
+            tone === "admin" ? "text-faint" : "text-white/35"
+          }`}
+        >
           Photo unavailable
         </span>
       </div>

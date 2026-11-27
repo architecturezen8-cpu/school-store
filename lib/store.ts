@@ -52,6 +52,7 @@ type ProductRow = {
   options: Product["options"] | null;
   gallery: string[];
   colours: string[];
+  colour_swatches: unknown;
   is_featured: boolean;
   is_new: boolean;
 };
@@ -81,6 +82,10 @@ const toProduct = (r: ProductRow): Product => ({
   gallery:
     Array.isArray(r.gallery) && r.gallery.length ? r.gallery.map(asset) : undefined,
   colours: Array.isArray(r.colours) && r.colours.length ? r.colours : undefined,
+  colourSwatches:
+    r.colour_swatches && typeof r.colour_swatches === "object" && !Array.isArray(r.colour_swatches)
+      ? (r.colour_swatches as Record<string, string>)
+      : undefined,
   isFeatured: r.is_featured,
   isNew: r.is_new,
 });
@@ -207,7 +212,7 @@ export async function getHomeCategories(): Promise<Category[]> {
 
 /* ---------- products -------------------------------------------------------- */
 const productColumns = `slug, name, price, image, tag, category, rating, reviews,
-  description, details, options, gallery, colours, is_featured, is_new`;
+  description, details, options, gallery, colours, colour_swatches, is_featured, is_new`;
 
 /**
  * Adds the shelf to products that are stock-counted.

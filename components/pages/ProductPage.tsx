@@ -13,6 +13,7 @@ import ReviewsBlock from "@/components/ReviewsBlock";
 import ProductImage from "@/components/ProductImage";
 import QuickView from "@/components/QuickView";
 import { stockFor, stockLabel } from "@/lib/stock-core";
+import { colourHex, isLightColour } from "@/lib/colour";
 
 const perks = [
   { icon: Truck, text: "Free delivery over LKR 5,000" },
@@ -220,7 +221,7 @@ export default function ProductPage({
               {available !== null && (
                 <p
                   className={`mt-5 text-[11px] font-semibold uppercase tracking-[0.18em] ${
-                    soldOut ? "text-red-300" : available <= 5 ? "text-gold" : "text-white/60"
+                    soldOut ? "text-red-300" : available <= 5 ? "text-gold" : "text-stock"
                   }`}
                 >
                   {soldOut
@@ -267,23 +268,53 @@ export default function ProductPage({
                   <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-white/65">
                     Colour
                   </p>
-                  <div className="mt-3.5 flex flex-wrap gap-2.5">
+                  {/*
+                    The colour itself, then the word for it.
+
+                    A pill that says "Navy" asks the customer to translate; a
+                    navy dot does not. The name stays because a dot alone is not
+                    readable to everyone, or over the phone — and because the
+                    office's own colours ("House tie green") are names first.
+                  */}
+                  <div className="mt-4 flex flex-wrap gap-4">
                     {product.colours.map((c) => {
                       const left = stockFor(product, c, picked ?? "");
                       const gone = left !== null && left <= 0;
+                      const on = colour === c;
+                      const dot = colourHex(c, product.colourSwatches);
                       return (
                         <button
                           key={c}
                           onClick={() => chooseColour(c)}
+                          aria-pressed={on}
                           aria-label={gone ? `${c} — sold out` : c}
                           title={gone ? `${c} — sold out` : undefined}
-                          className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors duration-300 ${
-                            colour === c
-                              ? "bg-white text-ink"
-                              : "bg-navy-900 text-white/65 hover:bg-navy-800 hover:text-white"
-                          } ${gone && colour !== c ? "line-through" : ""}`}
+                          className="group flex w-16 flex-col items-center gap-1.5"
                         >
-                          {c}
+                          <span
+                            aria-hidden
+                            className={`grid h-9 w-9 place-items-center rounded-full ring-1 ring-inset ring-black/25 transition-all duration-300 ${
+                              on
+                                ? "ring-2 ring-white ring-offset-2 ring-offset-ink"
+                                : "group-hover:scale-105"
+                            } ${gone && !on ? "opacity-45" : ""}`}
+                            style={{ background: dot }}
+                          >
+                            {on && (
+                              <Check
+                                size={14}
+                                strokeWidth={3}
+                                className={isLightColour(dot) ? "text-ink" : "text-white"}
+                              />
+                            )}
+                          </span>
+                          <span
+                            className={`text-[11px] leading-none transition-colors ${
+                              on ? "font-semibold text-white" : "text-white/60 group-hover:text-white/85"
+                            } ${gone && !on ? "line-through" : ""}`}
+                          >
+                            {c}
+                          </span>
                         </button>
                       );
                     })}

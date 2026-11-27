@@ -82,7 +82,14 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
      * and then fail honestly.
      */
     const { rows: shelves } = await c.query<{ slug: string; colour: string; size: string; qty: number }>(
-      "select slug, colour, size, qty from product_stock where slug = any($1) for update",
+      // `order by` is not cosmetic: two carts holding the same two shirts in a
+      // different order otherwise lock the rows in a different order and
+      // deadlock. One agreed order and the second checkout simply waits.
+      `select slug, colour, size, qty
+         from product_stock
+        where slug = any($1)
+        order by slug, colour, size
+          for update`,
       [slugs]
     );
     const shelf = new Map<string, Map<string, number>>();
@@ -138,12 +145,30 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
         [order.id, l.slug, l.name, l.price, l.qty, l.variant, l.colour, l.size]
       );
       if (shelf.has(l.slug)) {
-        await c.query(
+        /*
+          Decrement only if there is still enough on the shelf.
+          
+          `greatest(0, qty - n)` was the old shape: it never went negative, but
+          it also silently sold stock that was not there and left the sheet
+          claiming a shirt had been sold that never existed. The `qty >= $4`
+          guard makes the row itself the referee — the update either takes the
+          stock or matches nothing — so a burst of checkouts cannot oversell
+          even if the read above were stale. The transaction rolls back on the
+          throw, so no order row survives either.
+        */
+        const { rows: taken } = await c.query<{ qty: number }>(
           `update product_stock
-              set qty = greatest(0, qty - $4), updated_at = now()
-            where slug = $1 and colour = $2 and size = $3`,
+              set qty = qty - $4, updated_at = now()
+            where slug = $1 and colour = $2 and size = $3 and qty >= $4
+            returning qty`,
           [l.slug, l.colour, l.size, l.qty]
         );
+        if (!taken.length) {
+          const label = [l.colour, l.size].filter(Boolean).join(" / ");
+          throw new Error(
+            `${l.name}${label ? ` (${label})` : ""} has just sold out. Nothing was charged — please adjust the bag and try again.`
+          );
+        }
       }
     }
     await c.query(

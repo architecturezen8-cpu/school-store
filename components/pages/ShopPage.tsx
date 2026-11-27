@@ -9,6 +9,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { href, openSearch } from "@/lib/nav";
 import QuickView from "@/components/QuickView";
+import { colourHex } from "@/lib/colour";
 import ProductImage from "@/components/ProductImage";
 import Reveal from "@/components/Reveal";
 
@@ -213,7 +214,11 @@ export function ShopProductCard({
           {product.stock && (
             <span
               className={`text-[10px] font-semibold uppercase tracking-[0.14em] ${
-                product.stock.soldOut ? "text-white/60" : product.stock.low ? "text-gold" : "text-white/55"
+                product.stock.soldOut
+                  ? "text-white/60"
+                  : product.stock.total <= 5
+                    ? "text-gold"
+                    : "text-stock"
               }`}
             >
               {product.stock.soldOut
@@ -606,7 +611,7 @@ function SwatchChip({
       <span
         aria-hidden
         className="h-4 w-4 rounded-full ring-1 ring-inset ring-black/20"
-        style={{ background: swatch || "#8b9099" }}
+        style={{ background: swatch || colourHex(label) }}
       />
       {label}
     </button>

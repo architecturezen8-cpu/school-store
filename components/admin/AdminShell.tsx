@@ -14,6 +14,7 @@ import {
   LayoutDashboard,
   LogOut,
   LayoutGrid,
+  Images,
   Mail,
   Menu,
   Package,
@@ -70,6 +71,10 @@ const NAV: { title: string; items: { href: string; label: string; icon: typeof M
       { href: "/admin/mail", label: "Ticket email", icon: Mail },
       { href: "/admin/mail/log", label: "Email log", icon: Send },
     ],
+  },
+  {
+    title: "The website",
+    items: [{ href: "/admin/hero", label: "Hero slideshow", icon: Images }],
   },
   {
     title: "Settings",

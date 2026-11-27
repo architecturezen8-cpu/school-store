@@ -62,6 +62,7 @@ export default async function NewProductPage() {
           options: null,
           gallery: [],
           colours: [],
+          colourSwatches: {},
           isFeatured: false,
           isNew: true,
           active: true,

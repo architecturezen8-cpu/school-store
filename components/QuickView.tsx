@@ -8,33 +8,7 @@ import { useCart } from "@/components/context/CartContext";
 import { href, withBase } from "@/lib/nav";
 import ProductImage from "@/components/ProductImage";
 import { stockFor, stockLabel } from "@/lib/stock-core";
-
-const SWATCHES: Record<string, string> = {
-  Navy: "#0f1a33",
-  Black: "#0b0b0d",
-  White: "#f4f4ef",
-  Grey: "#6b7280",
-  Maroon: "#5b1a2b",
-  Green: "#1e3d2f",
-  Gold: "#c9a227",
-  Sky: "#a9c4dd",
-  Khaki: "#8a7a52",
-};
-
-/**
- * A dot for any colour, including one the office typed in itself.
- *
- * "House tie green" has no hex code in the table above, and a row of identical
- * #333 circles is a colour picker that says nothing. Deriving a steady hue from
- * the name means a custom colour gets its own dot, and always the same one.
- */
-function swatchFor(name: string): string {
-  const known = SWATCHES[name];
-  if (known) return known;
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) % 360;
-  return `hsl(${hash} 30% 34%)`;
-}
+import { colourHex } from "@/lib/colour";
 
 export default function QuickView({
   product,
@@ -233,7 +207,7 @@ export default function QuickView({
           {available !== null && (
             <p
               className={`mt-2 text-[11px] font-semibold uppercase tracking-[0.18em] ${
-                soldOut ? "text-red-300" : available <= 5 ? "text-gold" : "text-white/60"
+                soldOut ? "text-red-300" : available <= 5 ? "text-gold" : "text-stock"
               }`}
             >
               {soldOut
@@ -271,7 +245,7 @@ export default function QuickView({
                           ? "border-white ring-2 ring-white/70"
                           : "border-white/20 hover:border-white/60"
                       } ${gone ? "opacity-40" : ""}`}
-                      style={{ backgroundColor: swatchFor(c) }}
+                      style={{ backgroundColor: colourHex(c, product.colourSwatches) }}
                     >
                       {colour === c && (
                         <Check size={13} className="text-white mix-blend-difference" />
