@@ -38,6 +38,10 @@ create table if not exists products (
   created_at  timestamptz not null default now()
 );
 
+-- The colours a product is sold in. Added with the custom-colour work; the
+-- `create table` above only helps a database that does not exist yet.
+alter table products add column if not exists colours jsonb not null default '[]'::jsonb;
+
 create index if not exists products_category_idx on products (category) where active;
 create index if not exists products_featured_idx on products (is_featured) where active;
 
@@ -99,6 +103,13 @@ create table if not exists ticket_tiers (
 );
 
 create index if not exists ticket_tiers_event_idx on ticket_tiers (event);
+
+-- Seat caps. A project created before this round has the table but not these
+-- columns, and `create table if not exists` above will never add them — so the
+-- ticket screen would quietly lose its caps on a database that is otherwise
+-- healthy. Same reason as every other `alter` further down.
+alter table ticket_tiers add column if not exists capacity integer;
+alter table ticket_tiers add column if not exists sold integer not null default 0;
 
 -- ---------- orders ----------------------------------------------------------
 create sequence if not exists order_number_seq start 1042;

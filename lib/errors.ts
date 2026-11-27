@@ -57,8 +57,30 @@ export function errorMessage(err: unknown): string {
  * is not reachable is the common case here, and "ECONNREFUSED" means nothing to
  * a shopkeeper.
  */
+/** The object a Postgres "does not exist" message is about, in plain words. */
+function missingThing(raw: string): string {
+  const column = raw.match(/column "([^"]+)" of relation "([^"]+)"/i);
+  if (column) return `the “${column[1]}” column on “${column[2]}”`;
+  const relation = raw.match(/relation "([^"]+)"/i);
+  if (relation) return `the “${relation[1]}” table`;
+  const fn = raw.match(/function "?([^"(]+)"?\s*\(/i);
+  if (fn) return `the ${fn[1]}() function`;
+  return "a table or column it needs";
+}
+
 export function friendlyError(err: unknown): string {
   const raw = errorMessage(err);
+
+  /**
+   * A database one migration behind is not a failure to apologise for — it is a
+   * missing column and one command. Postgres says it in its own dialect
+   * (`column "favicon" of relation "site_settings" does not exist`); this turns
+   * that into the sentence the office needs, because the raw one arrived in the
+   * middle of the tab-icon form and read like the app was broken.
+   */
+  if (/does not exist|undefined_(?:table|column|function)/i.test(raw)) {
+    return `The database is one version behind this app: ${missingThing(raw)} is not there yet. Run npm run db:migrate once (or press “Update the database” in the admin), then try again.`;
+  }
   if (/DATABASE_URL is not configured|No database is configured/i.test(raw)) {
     return "The database is not configured. Check DATABASE_URL and restart the server.";
   }
