@@ -1,4 +1,5 @@
 import { NextResponse, after } from "next/server";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createBooking, ticketsForBooking } from "@/lib/bookings";
 import { hasDatabase } from "@/lib/db";
@@ -54,17 +55,45 @@ export async function POST(req: Request) {
     // their reference and their codes the moment the seats are booked, and the
     // single email for the sale is delivered in the background.
     const tickets = await ticketsForBooking(booking.reference);
-    const email: { sent: boolean; reason?: string; tickets?: number } = {
+    /**
+     * What the buyer is told, and only what is true.
+     *
+     * `sent` used to be set from "a transport exists", which is a promise about
+     * the future, not a delivery — and when the mail server then refused, the
+     * screen had already said "Emailed to …". The send happens after this
+     * response, so nothing is claimed as sent: the answer says whether one is on
+     * its way (`queued`) and the mail log on /admin/mail/log holds the truth.
+     */
+    const transport = Boolean(process.env.RESEND_API_KEY || process.env.SMTP_HOST);
+    const email: {
+      sent: boolean;
+      queued: boolean;
+      reason?: string;
+      tickets?: number;
+    } = {
       sent: false,
-      reason: "queued",
+      queued: transport,
+      reason: transport ? "queued" : "not-configured",
       tickets: tickets.length,
     };
-    // Saying "emailed" when there is no mail transport is the kind of small lie
-    // that gets a buyer to the gate with nothing to show, so the confirmation
-    // only claims an email when one can actually go out.
-    email.sent = Boolean(process.env.RESEND_API_KEY || process.env.SMTP_HOST);
 
-    if (tickets.length) {
+    /**
+     * The seats just sold are visible on the event page straight away.
+     *
+     * That page is generated once a minute; a buyer who books the last three
+     * seats would otherwise leave "3 left" up behind them for a minute. Done
+     * after the response, like the mail, because it is nobody's emergency.
+     */
+    after(() => {
+      try {
+        revalidatePath("/events/[slug]", "page");
+        revalidatePath("/tickets");
+      } catch (err) {
+        console.error("[api/bookings] could not refresh the event page:", errorMessage(err));
+      }
+    });
+
+    if (tickets.length && transport) {
       // `after()` runs once the response is on the wire. If it fails or is not
       // available, the admin's "Resend" on the booking is the fallback, so this
       // is never the only copy.
@@ -106,7 +135,9 @@ export async function POST(req: Request) {
     );
   } catch (err) {
     const message = errorMessage(err);
-    const status = /sold out|Unknown/i.test(message) ? 409 : 500;
+    // "Only 3 left — please reduce the quantity" is a refusal, not a fault: the
+    // browser shows a 409's message as-is, where a 500 reads as "the shop broke".
+    const status = /sold out|only \d+|Unknown/i.test(message) ? 409 : 500;
     console.error("[api/bookings] failed:", message);
     return NextResponse.json({ error: message }, { status });
   }

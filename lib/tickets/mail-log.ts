@@ -146,6 +146,35 @@ export async function mailLogForReference(reference: string): Promise<MailLogEnt
   return rows.map(toEntry);
 }
 
+/**
+ * The last thing that happened to each sale's email, for a list of sales.
+ *
+ * The bookings list is where the office notices a parent is still waiting, so it
+ * carries one word per row — emailed, not sent, or no mail set up at all. One
+ * query for the whole page, and an empty answer is not an error: a sale with no
+ * row has simply never been mailed (or the table predates it).
+ */
+export async function mailStatusByReference(
+  refs: string[]
+): Promise<Map<string, MailLogEntry>> {
+  const out = new Map<string, MailLogEntry>();
+  const wanted = refs.map((r) => r.toUpperCase()).filter(Boolean);
+  if (!wanted.length || !hasDatabase() || databaseDown()) return out;
+  try {
+    const rows = await query<Row>(
+      `select distinct on (upper(booking_reference)) ${COLUMNS}
+         from email_log
+        where upper(booking_reference) = any($1::text[])
+        order by upper(booking_reference), created_at desc`,
+      [wanted]
+    );
+    for (const r of rows) out.set(r.reference.toUpperCase(), toEntry(r));
+  } catch (err) {
+    console.warn("[mail] could not read the per-sale status:", errorMessage(err));
+  }
+  return out;
+}
+
 export async function mailLogSummary(): Promise<MailLogSummary> {
   const rows = await query<{
     total: number;

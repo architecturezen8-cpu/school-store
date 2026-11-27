@@ -365,6 +365,29 @@ export async function saveEvent(draft: EventDraft, mode: "create" | "update"): P
         ]
       );
 
+      /**
+       * A save with no ticket types must not be read as "remove them all".
+       *
+       * The tier rows are built by the editor's own client component; if it
+       * fails to mount — a slow page, a browser that gave up, a form posted from
+       * a half-rendered screen — the post arrives with an empty list. That used
+       * to delete every tier of the event that nothing had booked yet, taking
+       * the seat caps and the shop's ticket list with it, with no error and no
+       * undo. The event already has tiers and this save says none: refuse, and
+       * say so, rather than quietly emptying the ticket office.
+       */
+      if (!draft.tiers.length) {
+        const { rows: existing } = await tx.query<{ n: number }>(
+          "select count(*)::int as n from ticket_tiers where event = $1",
+          [draft.slug]
+        );
+        if (Number(existing[0]?.n ?? 0) > 0) {
+          throw new Error(
+            "That save carried no ticket types, so nothing was changed — the event would have lost its tickets. Reload the editor and try again."
+          );
+        }
+      }
+
       // Tiers: update the ones that are still here, add the new ones, and only
       // delete a removed one if no booking has ever referenced it.
       for (const [i, t] of draft.tiers.entries()) {

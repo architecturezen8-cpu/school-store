@@ -116,8 +116,18 @@ async function ticketArtworks(tickets: Ticket[]): Promise<{ filename: string; bu
     square = detected;
   }
 
+  /**
+   * Drawn a few at a time rather than one after another.
+   *
+   * Each ticket is a full-size PNG with a QR cut into it — a second or so of
+   * sharp work. Eight of them in a row was eight seconds of rendering before the
+   * mail could even be handed to the server, which is most of why a big booking
+   * felt like the email had been forgotten. Three at once keeps the memory
+   * footprint sane; the order of the files is kept, so seat 1 is still first.
+   */
   const out: { filename: string; buffer: Buffer }[] = [];
-  for (const t of tickets) {
+  const queue = [...tickets];
+  const draw = async (t: Ticket) => {
     try {
       const { image } = await composeTicket({
         design: design ?? Buffer.from(fallbackTicketSvg(t)),
@@ -125,18 +135,32 @@ async function ticketArtworks(tickets: Ticket[]): Promise<{ filename: string; bu
         square,
         format: "png",
       });
-      out.push({
+      return {
         // Named for the seat, not for the message. Resending one ticket of four
         // by hand used to produce `-ticket.png`, which is a different file in
         // the same party's inbox and says nothing about who it admits.
         filename:
           t.of > 1 ? `${t.reference}-ticket-${t.seq}.png` : `${t.reference}-ticket.png`,
         buffer: image,
-      });
+      };
     } catch {
       // One unrenderable seat should not cost the buyer the other nine.
+      return null;
     }
-  }
+  };
+
+  const slots: { filename: string; buffer: Buffer }[] = new Array(tickets.length);
+  let next = 0;
+  const worker = async () => {
+    for (;;) {
+      const i = next++;
+      if (i >= queue.length) return;
+      const drawn = await draw(queue[i]);
+      if (drawn) slots[i] = drawn;
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(3, tickets.length) }, worker));
+  for (const slot of slots) if (slot) out.push(slot);
   return out;
 }
 
@@ -617,6 +641,25 @@ export async function sendTicketEmails(
   return sendTicketEmail(tickets, overrides, options);
 }
 
+/** How long one Resend POST may take before it is abandoned. */
+const RESEND_TIMEOUT_MS = 15_000;
+
+/** The pause before the one retry. Long enough for a blip, short enough to hide. */
+const RETRY_DELAY_MS = 700;
+
+/**
+ * Is this failure the network's fault rather than the settings'?
+ *
+ * A timeout, a dropped socket, a refused connection, a rate limit or a 5xx from
+ * the provider is worth a second try. A refused recipient or a bad password is
+ * not: it will fail identically, and the log is clearer with one honest line.
+ */
+function worthRetrying(error: string): boolean {
+  return /ETIMEDOUT|ECONNRESET|ECONNREFUSED|EPIPE|EAI_AGAIN|ENOTFOUND|socket|timed? ?out|hang ?up|429|rate limit|\b50[0234]\b/i.test(
+    error
+  );
+}
+
 /**
  * Where a message is going, and what to call it in the log.
  *
@@ -732,84 +775,133 @@ export async function sendTicketEmail(
     })),
   ];
 
-  // Resend: one POST, no SMTP. Preferred when the key is set.
-  const resendKey = process.env.RESEND_API_KEY;
-  if (resendKey) {
-    try {
-      const res = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          authorization: `Bearer ${resendKey}`,
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
+  /**
+   * One trip to the mail server.
+   *
+   * Pulled into its own function so it can be attempted twice, and so every
+   * transport gets the same timeouts. There were none: nodemailer would sit on a
+   * silent socket for up to ten minutes, and a send that far behind the booking
+   * is one the buyer has already given up on — or one the host has killed
+   * mid-flight, which is exactly how an email "sometimes never arrives".
+   */
+  const attempt = async (): Promise<MailResult> => {
+    // Resend: one POST, no SMTP. Preferred when the key is set.
+    const resendKey = process.env.RESEND_API_KEY;
+    if (resendKey) {
+      try {
+        const res = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${resendKey}`,
+            "content-type": "application/json",
+          },
+          // A POST with a handful of PNGs on it; fifteen seconds is already
+          // generous, and past that the answer is worth more than the wait.
+          signal: AbortSignal.timeout(RESEND_TIMEOUT_MS),
+          body: JSON.stringify({
+            from: fromAddress(),
+            to: [to],
+            subject,
+            html,
+            text: body,
+            attachments: attachments.map((a) => ({
+              filename: a.filename,
+              content: a.content.toString("base64"),
+              inline: a.inline,
+              contentId: a.contentId,
+            })),
+          }),
+        });
+
+        if (!res.ok) {
+          const detail = await res.text();
+          return {
+            sent: false,
+            reason: "failed",
+            error: `Resend ${res.status}: ${detail.slice(0, 300)}`,
+          };
+        }
+        const json = (await res.json()) as { id?: string };
+        return { sent: true, provider: "resend", id: json.id ?? "" };
+      } catch (err) {
+        return { sent: false, reason: "failed", error: errorMessage(err) };
+      }
+    }
+
+    // SMTP: Gmail, the school's own mail server, anything.
+    if (process.env.SMTP_HOST) {
+      const transport: Transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: Number(process.env.SMTP_PORT ?? 587),
+        secure: process.env.SMTP_SECURE === "1",
+        // Bounded at every step: dial, greeting, and the whole conversation.
+        connectionTimeout: 10_000,
+        greetingTimeout: 10_000,
+        socketTimeout: 20_000,
+        auth:
+          process.env.SMTP_USER && process.env.SMTP_PASS
+            ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+            : undefined,
+      });
+
+      try {
+        const info = await transport.sendMail({
           from: fromAddress(),
-          to: [to],
+          to,
           subject,
-          html,
           text: body,
+          html,
           attachments: attachments.map((a) => ({
             filename: a.filename,
-            content: a.content.toString("base64"),
-            inline: a.inline,
-            contentId: a.contentId,
+            content: a.content,
+            // Only inline parts get a cid; the ticket file is a normal attachment.
+            ...(a.contentId ? { cid: a.contentId } : {}),
           })),
-        }),
-      });
-
-      if (!res.ok) {
-        const detail = await res.text();
-        return done({
-          sent: false,
-          reason: "failed",
-          error: `Resend ${res.status}: ${detail.slice(0, 300)}`,
         });
+        return { sent: true, provider: "smtp", id: info.messageId ?? "" };
+      } catch (err) {
+        return { sent: false, reason: "failed", error: errorMessage(err) };
+      } finally {
+        // Without this a broken server leaves a socket per booking open.
+        transport.close();
       }
-      const json = (await res.json()) as { id?: string };
-      return done({ sent: true, provider: "resend", id: json.id ?? "" });
-    } catch (err) {
-      return done({ sent: false, reason: "failed", error: errorMessage(err) });
     }
-  }
 
-  // SMTP: Gmail, the school's own mail server, anything.
-  if (process.env.SMTP_HOST) {
-    const transport: Transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT ?? 587),
-      secure: process.env.SMTP_SECURE === "1",
-      auth:
-        process.env.SMTP_USER && process.env.SMTP_PASS
-          ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
-          : undefined,
-    });
+    console.log(
+      `[tickets] email not configured — would have sent ${ticket.reference} (${tickets.length} ticket${
+        tickets.length === 1 ? "" : "s"
+      }) to ${to}`
+    );
+    return { sent: false, reason: "not-configured" };
+  };
 
-    try {
-      const info = await transport.sendMail({
-        from: fromAddress(),
-        to,
-        subject,
-        text: body,
-        html,
-        attachments: attachments.map((a) => ({
-          filename: a.filename,
-          content: a.content,
-          // Only inline parts get a cid; the ticket file is a normal attachment.
-          ...(a.contentId ? { cid: a.contentId } : {}),
-        })),
-      });
-      return done({ sent: true, provider: "smtp", id: info.messageId ?? "" });
-    } catch (err) {
-      return done({ sent: false, reason: "failed", error: errorMessage(err) });
-    }
-  }
+  /**
+   * Two goes at most, and only for the kind of failure that clears by itself.
+   *
+   * "Sometimes the email never comes" is usually one refused connection or one
+   * 503 from the provider; asking again half a second later is the whole fix. A
+   * wrong password or an address the server will not accept is left alone —
+   * retrying it only doubles the noise in the log the office has to read.
+   */
+  const first = await attempt();
+  if (first.sent || first.reason === "not-configured") return done(first);
+  if (!worthRetrying(first.error ?? "")) return done(first);
 
-  console.log(
-    `[tickets] email not configured — would have sent ${ticket.reference} (${tickets.length} ticket${
-      tickets.length === 1 ? "" : "s"
-    }) to ${to}`
-  );
-  return done({ sent: false, reason: "not-configured" });
+  await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+  const second = await attempt();
+  if (second.sent) return done(second);
+  // Said once when the second go failed the same way: the office needs the
+  // reason, not a transcript of how many times it was the reason.
+  const firstError = first.error ?? "Send failed.";
+  const secondError = second.error ?? "failed";
+  return done({
+    sent: false,
+    reason: "failed",
+    error:
+      secondError === firstError
+        ? `${firstError} (tried twice)`
+        : `${firstError} (tried again: ${secondError})`,
+  });
 }
 
 /** Ignores empty strings so a blank admin field keeps the default. */
