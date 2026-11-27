@@ -870,6 +870,73 @@ export async function deleteTicket(
   return { ok: true, reference: before.reference };
 }
 
+/**
+ * Remove a whole sale.
+ *
+ * Every other tool on this page takes one thing away: a ticket, a seat, an
+ * admission. This is the one that removes the *sale* — the booking, its items and
+ * every ticket row — and it exists because the office needs it for sales that
+ * should never have existed at all: a test at the counter, a duplicate a flaky
+ * line sent twice, a parent who paid cash and then asked for the money back.
+ *
+ * Two things it does that a bare delete would not:
+ *
+ *   · the seats go back on sale. `ticket_tiers.sold` is the counter the event
+ *     page reads, so deleting a booking from a sold-out night without giving the
+ *     seats back leaves seats that nobody can buy and nobody can use;
+ *   · it happens in one transaction, so a failure half way leaves the sale whole
+ *     rather than a booking with no tickets under it.
+ *
+ * The tickets are removed by `on delete cascade` — they cannot outlive the sale
+ * they belong to.
+ */
+export async function deleteBooking(
+  reference: string
+): Promise<
+  { ok: true; reference: string; name: string; event: string; seats: number } | { ok: false; error: string }
+> {
+  const wanted = reference.trim();
+  if (!wanted) return { ok: false, error: "No booking given." };
+
+  return transaction(async (c) => {
+    // Case-insensitive: the reference is printed in capitals, but it arrives from
+    // a URL, a spreadsheet or a phone call, and nobody types BM- the same way twice.
+    const { rows } = await c.query<{ id: string; reference: string; name: string; event: string }>(
+      "select id, reference, name, event from bookings where upper(reference) = upper($1) for update",
+      [wanted]
+    );
+    const booking = rows[0];
+    if (!booking) return { ok: false as const, error: "No booking with that reference." };
+
+    const { rows: items } = await c.query<{ tier: string; qty: number }>(
+      "select tier, qty from booking_items where booking = $1 order by tier",
+      [booking.id]
+    );
+
+    let seats = 0;
+    for (const item of items) {
+      const qty = Number(item.qty) || 0;
+      seats += qty;
+      // `greatest(0, …)`: `sold` is a counter that a hand-edited cap could have
+      // left below the seats in one old sale. It must never go negative.
+      await c.query("update ticket_tiers set sold = greatest(0, sold - $2) where id = $1", [
+        item.tier,
+        qty,
+      ]);
+    }
+
+    await c.query("delete from bookings where id = $1", [booking.id]);
+
+    return {
+      ok: true as const,
+      reference: booking.reference,
+      name: booking.name,
+      event: booking.event,
+      seats,
+    };
+  });
+}
+
 /** What the admin supplies when they issue a ticket at the counter. */
 export type IssueTicketInput = {
   /** The ticket type decides the event; one select cannot disagree with itself. */

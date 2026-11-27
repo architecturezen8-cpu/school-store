@@ -251,6 +251,19 @@ door that will not open. Deleting leaves nothing to explain. The same three
 buttons are on `/admin/bookings/<reference>`, which also carries the bill and the
 resend.
 
+### Deleting a whole sale
+
+The bottom of `/admin/bookings/<reference>` carries **Delete this sale**, behind a
+confirm that names the reference and the seats. It removes the booking, its items
+and every ticket row, and puts the seats back on the tier — so an event that read
+*498 left* goes back to *500*, rather than keeping two seats that nobody can buy
+and nobody can use. It is the tool for a test sale at the counter, a duplicate a
+flaky line sent twice, or cash handed back; for one ticket that leaked, use
+**Block**.
+
+There is no undo. If somebody on the sale has already been admitted the page says
+so before the button, because deleting it erases the admission record too.
+
 ### Issuing a ticket by hand
 
 `/admin/bookings/new` creates a comp, a sponsor's seat or cash taken at the door:
@@ -304,7 +317,7 @@ The table is `email_log`; rows are written from `sendTicketEmail` through
 | `lib/db.ts` | Backend choice, pool, and the recorded failure the admin reports. |
 | `lib/errors.ts` | Turning anything thrown — even an `AggregateError` with no message — into a sentence. |
 | `lib/admin/db-guard.tsx` | What the admin is told when the database is not answering. |
-| `lib/bookings.ts` | Booking, ticket lookup, admission, reopen, block/unblock, delete one ticket, issue one by hand. |
+| `lib/bookings.ts` | Booking, ticket lookup, admission, reopen, block/unblock, delete one ticket or a whole sale, issue one by hand. |
 | `app/admin/layout.tsx` | The admin's own layout — the storefront chrome stays out. |
 | `components/admin/AdminShell.tsx` | The sidebar, the mobile bar, the profile block. |
 | `components/admin/ui.tsx` | The bento primitives: tiles, stat cells, fields, pills. |

@@ -10,6 +10,7 @@ import {
 } from "@/lib/tickets/templates";
 import {
   blockTicket,
+  deleteBooking,
   deleteTicket,
   pauseTicket,
   getTicketByCode,
@@ -686,6 +687,38 @@ export async function deleteTicketAction(formData: FormData) {
     result.ok
       ? `${back}?ok=${encodeURIComponent(`${code} deleted`)}`
       : `${back}?error=${encodeURIComponent(result.error)}`
+  );
+}
+
+/**
+ * Delete a whole sale.
+ *
+ * The button lives on the booking's own page, behind a confirm that names the
+ * reference, the seats and what will be lost — because this is the one action in
+ * the bookings screens that cannot be undone. It returns to the list rather than
+ * to the (now nonexistent) booking.
+ */
+export async function deleteBookingAction(formData: FormData) {
+  await requireAdmin();
+  const reference = String(formData.get("reference") ?? "").trim();
+  if (!reference) redirect(`/admin/bookings?error=${encodeURIComponent("No booking given.")}`);
+
+  const result = await deleteBooking(reference);
+
+  revalidatePath("/admin/bookings");
+  revalidatePath("/tickets");
+  revalidatePath("/");
+
+  if (!result.ok) {
+    redirect(`/admin/bookings/${encodeURIComponent(reference)}?error=${encodeURIComponent(result.error)}`);
+  }
+
+  revalidatePath(`/events/${result.event}`);
+  const seats = result.seats === 1 ? "1 seat" : `${result.seats} seats`;
+  redirect(
+    `/admin/bookings?ok=${encodeURIComponent(
+      `${result.reference} deleted — ${seats} back on sale`
+    )}`
   );
 }
 

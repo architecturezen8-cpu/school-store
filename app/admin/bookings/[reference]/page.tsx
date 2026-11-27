@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, Mail } from "lucide-react";
+import { ArrowLeft, Mail, Trash2 } from "lucide-react";
 import { isAdmin } from "@/lib/admin/auth";
 import { databaseProblem } from "@/lib/admin/db-guard";
 import { databaseDown, hasDatabase } from "@/lib/db";
@@ -14,7 +14,7 @@ import ParamToast from "@/components/admin/ParamToast";
 import DownloadReceipt from "@/components/DownloadReceipt";
 import SubmitButton from "@/components/SubmitButton";
 import { Empty, Notice, PageHeader, Panel, Pill, buttonClass } from "@/components/admin/ui";
-import { resendTicketAction } from "../../actions";
+import { deleteBookingAction, resendTicketAction } from "../../actions";
 import TicketControls from "@/components/admin/TicketControls";
 
 export const dynamic = "force-dynamic";
@@ -156,6 +156,52 @@ export default async function BookingDetailPage({
           </ul>
         )}
       </Panel>
+
+      {/*
+        The last panel on the page, and the only destructive one.
+
+        It is here rather than in the list's row because a delete that cannot be
+        undone should happen with the *sale* in front of you: the reference, the
+        seats being given up, whether anybody has already been through the gate.
+        The list stays a list.
+      */}
+      {first && (
+        <Panel
+          title="Delete this sale"
+          tone="sunken"
+          description={`${first.reference} · ${
+            first.tiers.reduce((n, t) => n + t.qty, 0)
+          } seat(s) · ${first.total === 0 ? "complimentary" : `paid ${lkr(first.total)}`}`}
+        >
+          <p className="text-xs leading-relaxed text-muted">
+            Removes the booking, its {tickets.length === 1 ? "ticket" : `${tickets.length} tickets`} and
+            every record of it, and puts the seats back on sale.{" "}
+            <span className="text-body">
+              There is no undo — for one ticket that leaked, use Block instead.
+            </span>
+          </p>
+
+          {tickets.some((t) => t.admittedAt) && (
+            <div className="mt-3">
+              <Notice tone="warn">
+                Somebody on this sale has already been admitted. Deleting it erases that record too.
+              </Notice>
+            </div>
+          )}
+
+          <form action={deleteBookingAction} className="mt-4">
+            <input type="hidden" name="reference" value={first.reference} />
+            <SubmitButton
+              pending="Deleting…"
+              className={`${buttonClass("danger")}`}
+              icon={<Trash2 className="h-4 w-4" />}
+              confirm={`Delete ${first.reference}?\n\nThe booking, its ${tickets.length} ticket(s) and the admission records are removed, and the seats go back on sale. This cannot be undone.`}
+            >
+              Delete this sale
+            </SubmitButton>
+          </form>
+        </Panel>
+      )}
 
       <Panel title="What the gate will say" tone="sunken">
         <ul className="space-y-2 text-xs leading-relaxed text-muted">
