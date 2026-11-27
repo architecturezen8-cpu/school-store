@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { Field, Notice, buttonClass, inputClass, labelClass } from "@/components/admin/ui";
+import { comboKey, combosFor } from "@/lib/stock-core";
 import { useToast } from "@/components/admin/Toasts";
 import AdminImage from "@/components/admin/AdminImage";
 import type { ProductDraft } from "@/lib/catalog";
@@ -64,6 +65,8 @@ export default function ProductEditor({
   const [uploading, setUploading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState("");
+  const [newColour, setNewColour] = useState("");
+  const [newSize, setNewSize] = useState("");
   const mainInput = useRef<HTMLInputElement>(null);
   const galleryInput = useRef<HTMLInputElement>(null);
 
@@ -71,6 +74,50 @@ export default function ProductEditor({
     setDraft((d) => ({ ...d, [key]: value }));
 
   const category = categories.find((c) => c.slug === draft.category);
+
+  /**
+   * The chips to draw.
+   *
+   * The office's list first, then anything this product already carries that the
+   * list does not know — a colour typed in here yesterday is still a chip today,
+   * and it can still be clicked off. Without the second half, removing a custom
+   * colour would need a database console.
+   */
+  const allColours = [...colourOptions, ...draft.colours.filter((c) => !colourOptions.includes(c))];
+  const allSizes = [
+    ...sizeOptions,
+    ...(draft.options?.values ?? []).filter((v) => !sizeOptions.includes(v)),
+  ];
+
+  const shelfSizes = (draft.options?.values ?? []).map((v) => v.trim()).filter(Boolean);
+  const shelf = combosFor(draft.colours, shelfSizes);
+  const stock = draft.stock ?? {};
+  const anyStock = Object.values(stock).some((v) => Number(v) > 0 || String(v ?? "") !== "");
+  const stockTotal = shelf.reduce((sum, cell) => sum + (Number(stock[comboKey(cell.colour, cell.size)]) || 0), 0);
+
+  const addColour = () => {
+    const value = newColour.trim();
+    if (!value) return;
+    if (!draft.colours.includes(value)) set("colours", [...draft.colours, value]);
+    setNewColour("");
+  };
+  const addSize = () => {
+    const value = newSize.trim();
+    if (!value) return;
+    const values = draft.options?.values ?? [];
+    if (!values.includes(value)) {
+      set("options", { label: draft.options?.label || "Size", values: [...values, value] });
+    }
+    setNewSize("");
+  };
+
+  const setStock = (colour: string, size: string, raw: string) => {
+    const next: Record<string, number> = { ...stock };
+    const key = comboKey(colour, size);
+    if (raw.trim() === "") delete next[key];
+    else next[key] = Math.max(0, Math.round(Number(raw)) || 0);
+    set("stock", next);
+  };
   const isBadge = /badge/i.test(category?.title ?? draft.category);
   const isClothing = /cloth|shirt|uniform/i.test(category?.title ?? draft.category);
 
@@ -187,7 +234,7 @@ export default function ProductEditor({
                   <ImagePlus className="h-7 w-7" />
                 </span>
               )}
-              <span className="absolute inset-x-2 bottom-2 flex items-center justify-center gap-1.5 rounded-lg bg-ink/85 px-2 py-1.5 text-[11px] font-medium text-white">
+              <span className="absolute inset-x-2 bottom-2 flex items-center justify-center gap-1.5 rounded-lg bg-page/90 px-2 py-1.5 text-[11px] font-medium text-strong">
                 {uploading === "main" ? (
                   <>
                     <Loader2 className="h-3.5 w-3.5 animate-spin" /> Uploading…
@@ -318,7 +365,7 @@ export default function ProductEditor({
               <span className="text-[11px] text-muted">{draft.colours.length} chosen</span>
             </div>
             <div className="mt-3 flex flex-wrap gap-1.5">
-              {colourOptions.map((label) => {
+              {allColours.map((label) => {
                 const on = draft.colours.includes(label);
                 return (
                   <button
@@ -340,9 +387,34 @@ export default function ProductEditor({
                 );
               })}
             </div>
+            {/* A colour the office only has on this one item. */}
+            <div className="mt-3 flex items-center gap-1.5">
+              <input
+                value={newColour}
+                onChange={(e) => setNewColour(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addColour();
+                  }
+                }}
+                placeholder="Add a colour of your own — e.g. House tie green"
+                aria-label="New colour"
+                className={`${inputClass} !mt-0 !py-1.5 !text-[11px]`}
+              />
+              <button
+                type="button"
+                onClick={addColour}
+                aria-label="Add colour"
+                className={`${buttonClass("ghost")} shrink-0 !px-2.5 !py-1.5`}
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+            </div>
             {draft.colours.some((c) => !colourOptions.includes(c)) && (
-              <p className="mt-2 text-[11px] text-muted">
-                Also: {draft.colours.filter((c) => !colourOptions.includes(c)).join(", ")}
+              <p className="mt-2 text-[11px] leading-relaxed text-muted">
+                Only on this product: {draft.colours.filter((c) => !colourOptions.includes(c)).join(", ")}.
+                Add one to Filters if the whole shop should offer it too.
               </p>
             )}
             {isBadge && draft.colours.length > 0 && (
@@ -377,7 +449,7 @@ export default function ProductEditor({
               className={`${inputClass} !mt-2 !py-2 !text-xs`}
             />
             <div className="mt-2 flex flex-wrap gap-1.5">
-              {sizeOptions.map((label) => {
+              {allSizes.map((label) => {
                 const on = Boolean(draft.options?.values.includes(label));
                 return (
                   <button
@@ -400,12 +472,100 @@ export default function ProductEditor({
                 );
               })}
             </div>
+            <div className="mt-3 flex items-center gap-1.5">
+              <input
+                value={newSize}
+                onChange={(e) => setNewSize(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addSize();
+                  }
+                }}
+                placeholder={`Add your own ${(draft.options?.label || "size").toLowerCase()} — e.g. 3XL`}
+                aria-label="New size"
+                className={`${inputClass} !mt-0 !py-1.5 !text-[11px]`}
+              />
+              <button
+                type="button"
+                onClick={addSize}
+                aria-label="Add size"
+                className={`${buttonClass("ghost")} shrink-0 !px-2.5 !py-1.5`}
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+            </div>
             {/shirt|tee|hoodie|blazer|polo/i.test(draft.name) && !draft.options?.values.length && (
               <p className="mt-3 rounded-lg bg-panel px-3 py-2 text-[11px] leading-relaxed text-gold">
                 Clothing with no sizes: somebody will order a shirt that fits nobody in particular.
               </p>
             )}
           </div>
+        </div>
+
+        {/* ---------------- stock ---------------- */}
+        <div className="mt-4 rounded-xl bg-well p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className={labelClass}>Stock on the shelf</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-muted">
+                One box per colour and size. Leave every box empty and this product is not
+                counted — the shop simply says it is available.
+              </p>
+            </div>
+            <span
+              className={`rounded-full px-3 py-1 text-[11px] font-semibold ${
+                !anyStock
+                  ? "bg-panel text-muted"
+                  : stockTotal === 0
+                    ? "bg-panel text-red-300"
+                    : stockTotal <= 5
+                      ? "bg-gold text-black"
+                      : "bg-panel text-strong"
+              }`}
+            >
+              {!anyStock ? "not counted" : stockTotal === 0 ? "sold out" : `${stockTotal} in total`}
+            </span>
+          </div>
+
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {shelf.map((cell) => {
+              const key = comboKey(cell.colour, cell.size);
+              const value = stock[key];
+              const shown = value === undefined ? "" : String(value);
+              return (
+                <label
+                  key={key}
+                  className="flex items-center justify-between gap-2 rounded-lg bg-panel px-3 py-2"
+                >
+                  <span className="min-w-0 truncate text-[11px] font-medium text-body">
+                    {[cell.colour, cell.size].filter(Boolean).join(" / ") || "This item"}
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    inputMode="numeric"
+                    value={shown}
+                    onChange={(e) => setStock(cell.colour, cell.size, e.target.value)}
+                    placeholder="—"
+                    aria-label={`Stock for ${[cell.colour, cell.size].filter(Boolean).join(" ") || "this item"}`}
+                    className="w-16 rounded-md border border-line bg-well px-2 py-1 text-right text-xs text-strong outline-none focus:border-gold"
+                  />
+                </label>
+              );
+            })}
+          </div>
+
+          {anyStock &&
+            shelf.some((cell) => {
+              const n = Number(stock[comboKey(cell.colour, cell.size)]);
+              return n > 0 && n <= 5;
+            }) && (
+              <p className="mt-3 rounded-lg bg-panel px-3 py-2 text-[11px] leading-relaxed text-gold">
+                Something here is down to five or fewer — it will show an “Only N left” note on
+                the shop, and the stocks screen will list it first.
+              </p>
+            )}
         </div>
 
         {/* ---------------- details ---------------- */}
@@ -503,7 +663,7 @@ export default function ProductEditor({
                     type="button"
                     onClick={() => set("gallery", draft.gallery.filter((_, j) => j !== i))}
                     aria-label="Remove this photo"
-                    className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-md bg-ink/85 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                    className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-md bg-page/90 text-strong opacity-0 transition-opacity group-hover:opacity-100"
                   >
                     <X className="h-3 w-3" />
                   </button>

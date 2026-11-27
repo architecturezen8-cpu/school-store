@@ -288,8 +288,16 @@ async function createPool(): Promise<Pool> {
 export const pool: Promise<Pool> | null =
   backend === "pg" ? (global.__pgPool ??= createPool()) : null;
 
-/** Absolute so every worker process resolves the same directory. */
-const PGLITE_DIR = path.join(process.cwd(), ".pglite");
+/**
+ * Absolute so every worker process resolves the same directory.
+ *
+ * `PGLITE_DIR` points it somewhere else. That is for the build: a production
+ * build opens the database to render pages, and pointing it at a throwaway copy
+ * means a build can never leave the dev database (or its demo data) in a state a
+ * half-finished process had to be killed out of. It is also how a second copy of
+ * the app is run beside this one without both reaching for `.pglite/`.
+ */
+const PGLITE_DIR = path.resolve(process.env.PGLITE_DIR || path.join(process.cwd(), ".pglite"));
 
 async function pglite(): Promise<PGliteLike> {
   if (!global.__pglite) {

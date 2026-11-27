@@ -36,7 +36,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ order }, { status: 201 });
   } catch (err) {
     const message = errorMessage(err);
-    const status = /Unknown product/.test(message) ? 400 : 500;
+    // A shelf that ran out between the page and the payment is not a server
+    // fault: 409 says "the shop is fine, this line is not available", which is
+    // what the checkout's message says too.
+    const status = /Unknown product/.test(message)
+      ? 400
+      : /sold out|left — please reduce/.test(message)
+        ? 409
+        : 500;
     console.error("[api/orders] failed:", message);
     return NextResponse.json({ error: message }, { status });
   }

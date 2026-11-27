@@ -12,6 +12,7 @@ import SectionHead from "@/components/SectionHead";
 import ReviewsBlock from "@/components/ReviewsBlock";
 import ProductImage from "@/components/ProductImage";
 import QuickView from "@/components/QuickView";
+import { stockFor, stockLabel } from "@/lib/stock-core";
 
 const perks = [
   { icon: Truck, text: "Free delivery over LKR 5,000" },
@@ -43,8 +44,22 @@ export default function ProductPage({
     setQty(1);
     setAdded(false);
     setActive(0);
-    setPicked(product?.options?.values[0] ?? null);
-    setColour(product?.colours?.[0] ?? null);
+
+    // Start on something that can actually be bought. Landing on the first
+    // size, when that size sold out this morning, greets every visitor with
+    // "Sold out" on a product that has twelve mediums on the shelf.
+    const colours = product?.colours ?? [];
+    const sizes = product?.options?.values ?? [];
+    const counted = Boolean(product?.stock);
+    const has = (c: string, s: string) =>
+      !counted || (product?.stock?.cells.find((x) => x.colour === c && x.size === s)?.qty ?? 0) > 0;
+
+    const firstColour =
+      colours.find((c) => sizes.length === 0 || sizes.some((sz) => has(c, sz))) ?? colours[0] ?? null;
+    const firstSize = sizes.find((sz) => has(firstColour ?? "", sz)) ?? sizes[0] ?? null;
+
+    setColour(firstColour);
+    setPicked(firstSize);
   }, [slug, product]);
 
   if (!product) {
@@ -70,8 +85,30 @@ export default function ProductPage({
     .filter((p) => p.category === product.category && p.slug !== product.slug)
     .slice(0, 4);
 
+  const available = stockFor(product, colour ?? "", picked ?? "");
+  const soldOut = available !== null && available <= 0;
+  const cap = available === null ? 99 : Math.max(1, Math.min(available, 99));
+
+  /**
+   * Picking a colour that has none of the chosen size moves the size along.
+   *
+   * Otherwise a visitor who tapped "3XL" while browsing navy is walked into a
+   * dead end: every colour looks sold out, because every colour *is* sold out in
+   * 3XL. The colour is the bigger question; the size follows it.
+   */
+  const chooseColour = (next: string) => {
+    setColour(next);
+    if (stockFor(product, next, picked ?? "") === 0) {
+      const alt = (product.options?.values ?? []).find(
+        (v) => (stockFor(product, next, v) ?? 1) > 0
+      );
+      if (alt) setPicked(alt);
+    }
+  };
+
   const handleAdd = (goToBag = false) => {
-    add(product);
+    if (soldOut) return;
+    add(product, { colour: colour ?? undefined, size: picked ?? undefined }, Math.min(qty, cap));
     if (goToBag) {
       setOpen(true);
       return;
@@ -180,6 +217,20 @@ export default function ProductPage({
                 {product.description}
               </p>
 
+              {available !== null && (
+                <p
+                  className={`mt-5 text-[11px] font-semibold uppercase tracking-[0.18em] ${
+                    soldOut ? "text-red-300" : available <= 5 ? "text-gold" : "text-white/60"
+                  }`}
+                >
+                  {soldOut
+                    ? "Sold out in this colour and size"
+                    : stockLabel(available) === "In stock"
+                      ? "In stock — ships in 2 days"
+                      : stockLabel(available)}
+                </p>
+              )}
+
               {/* size / option picker */}
               {product.options && (
                 <div className="mt-8">
@@ -187,19 +238,25 @@ export default function ProductPage({
                     {product.options.label}
                   </p>
                   <div className="mt-3.5 flex flex-wrap gap-2.5">
-                    {product.options.values.map((v) => (
-                      <button
-                        key={v}
-                        onClick={() => setPicked(v)}
-                        className={`min-w-[3.25rem] rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors duration-300 ${
-                          picked === v
-                            ? "bg-white text-ink"
-                            : "bg-navy-900 text-white/65 hover:bg-navy-800 hover:text-white"
-                        }`}
-                      >
-                        {v}
-                      </button>
-                     ))}
+                    {product.options.values.map((v) => {
+                      const left = stockFor(product, colour ?? "", v);
+                      const gone = left !== null && left <= 0;
+                      return (
+                        <button
+                          key={v}
+                          onClick={() => setPicked(v)}
+                          aria-label={gone ? `${v} — sold out` : v}
+                          title={gone ? `${v} — sold out` : undefined}
+                          className={`min-w-[3.25rem] rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors duration-300 ${
+                            picked === v
+                              ? "bg-white text-ink"
+                              : "bg-navy-900 text-white/65 hover:bg-navy-800 hover:text-white"
+                          } ${gone && picked !== v ? "line-through" : ""}`}
+                        >
+                          {v}
+                        </button>
+                      );
+                    })}
                    </div>
                  </div>
                )}
@@ -211,19 +268,25 @@ export default function ProductPage({
                     Colour
                   </p>
                   <div className="mt-3.5 flex flex-wrap gap-2.5">
-                    {product.colours.map((c) => (
-                      <button
-                        key={c}
-                        onClick={() => setColour(c)}
-                        className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors duration-300 ${
-                          colour === c
-                            ? "bg-white text-ink"
-                            : "bg-navy-900 text-white/65 hover:bg-navy-800 hover:text-white"
-                        }`}
-                      >
-                        {c}
-                      </button>
-                    ))}
+                    {product.colours.map((c) => {
+                      const left = stockFor(product, c, picked ?? "");
+                      const gone = left !== null && left <= 0;
+                      return (
+                        <button
+                          key={c}
+                          onClick={() => chooseColour(c)}
+                          aria-label={gone ? `${c} — sold out` : c}
+                          title={gone ? `${c} — sold out` : undefined}
+                          className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors duration-300 ${
+                            colour === c
+                              ? "bg-white text-ink"
+                              : "bg-navy-900 text-white/65 hover:bg-navy-800 hover:text-white"
+                          } ${gone && colour !== c ? "line-through" : ""}`}
+                        >
+                          {c}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -238,11 +301,14 @@ export default function ProductPage({
                   >
                     <Minus size={15} />
                   </button>
-                  <span className="min-w-8 text-center text-sm font-semibold">{qty}</span>
+                  <span className="min-w-8 text-center text-sm font-semibold">
+                    {Math.min(qty, cap)}
+                  </span>
                   <button
-                    onClick={() => setQty((q) => q + 1)}
+                    onClick={() => setQty((q) => Math.min(q + 1, cap))}
                     aria-label="Increase quantity"
-                    className="grid h-12 w-11 place-items-center rounded-r-full text-white/65 transition hover:text-white"
+                    disabled={qty >= cap}
+                    className="grid h-12 w-11 place-items-center rounded-r-full text-white/65 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
                   >
                     <Plus size={15} />
                   </button>
@@ -250,13 +316,16 @@ export default function ProductPage({
 
                 <button
                   onClick={() => handleAdd()}
-                  className={`flex flex-1 items-center justify-center gap-2 rounded-full text-[11px] font-extrabold uppercase tracking-[0.22em] transition-all duration-500 ${
+                  disabled={soldOut}
+                  className={`flex flex-1 items-center justify-center gap-2 rounded-full text-[11px] font-extrabold uppercase tracking-[0.22em] transition-all duration-500 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/55 ${
                     added
                       ? "bg-white text-ink"
                       : "bg-gold text-ink hover:shadow-[0_0_40px_rgba(255,212,68,0.28)]"
                   }`}
                 >
-                  {added ? (
+                  {soldOut ? (
+                    "Sold out"
+                  ) : added ? (
                     <>
                       <Check size={15} /> Added
                     </>
@@ -268,7 +337,8 @@ export default function ProductPage({
 
               <button
                 onClick={() => handleAdd(true)}
-                className="mt-3 w-full rounded-full bg-white py-4 text-[11px] font-bold uppercase tracking-[0.22em] text-ink transition-all duration-300 hover:shadow-[0_0_36px_rgba(255,255,255,0.2)]"
+                disabled={soldOut}
+                className="mt-3 w-full rounded-full bg-white py-4 text-[11px] font-bold uppercase tracking-[0.22em] text-ink transition-all duration-300 hover:shadow-[0_0_36px_rgba(255,255,255,0.2)] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/55"
               >
                 Buy it now
               </button>

@@ -138,6 +138,31 @@ export function ShopProductCard({
             </span>
           )}
 
+          {/*
+            The shelf, on the picture.
+
+            Three states, and the numbers have to be honest in each: gone, the
+            last handful, or "some of it is gone" — a hoodie with two sizes left
+            is not "Only 34 left", it is a product you cannot buy in grey.
+          */}
+          {product.stock && (product.stock.soldOut || product.stock.low) && (
+            <span
+              className={`absolute right-4 top-16 rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] ${
+                product.stock.soldOut
+                  ? "bg-ink/90 text-white/85"
+                  : product.stock.total <= 5
+                    ? "bg-gold text-ink"
+                    : "bg-ink/90 text-white/85"
+              }`}
+            >
+              {product.stock.soldOut
+                ? "Sold out"
+                : product.stock.total <= 5
+                  ? `Only ${product.stock.total} left`
+                  : "Some sizes low"}
+            </span>
+          )}
+
           {/* wishlist */}
           <button
             onClick={(e) => e.preventDefault()}
@@ -180,9 +205,24 @@ export function ShopProductCard({
           {product.name}
         </h2>
 
-        <div className="mt-2.5 flex items-center gap-2">
-          <Stars rating={product.rating} />
-          <span className="text-xs text-white/60">({product.reviews})</span>
+        <div className="mt-2.5 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Stars rating={product.rating} />
+            <span className="text-xs text-white/60">({product.reviews})</span>
+          </div>
+          {product.stock && (
+            <span
+              className={`text-[10px] font-semibold uppercase tracking-[0.14em] ${
+                product.stock.soldOut ? "text-white/60" : product.stock.low ? "text-gold" : "text-white/55"
+              }`}
+            >
+              {product.stock.soldOut
+                ? "Sold out"
+                : product.stock.total <= 5
+                  ? `Only ${product.stock.total} left`
+                  : "In stock"}
+            </span>
+          )}
         </div>
       </div>
     </Reveal>

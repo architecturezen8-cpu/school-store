@@ -90,7 +90,7 @@ export default async function CategoriesPage({
                       no picture
                     </span>
                   )}
-                  <span className="absolute right-2 top-2 rounded-md bg-ink/85 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-white">
+                  <span className="absolute right-2 top-2 rounded-md bg-page/90 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-strong">
                     {c.items} {c.items === 1 ? "item" : "items"}
                   </span>
                 </div>

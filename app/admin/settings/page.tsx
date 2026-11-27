@@ -1,16 +1,17 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { isAdmin } from "@/lib/admin/auth";
-import { getSettings } from "@/lib/settings";
+import { faviconUrl, getSettings } from "@/lib/settings";
 import { hasDatabase } from "@/lib/db";
 import { databaseProblem } from "@/lib/admin/db-guard";
 import { Eyebrow, Notice, PageHeader } from "@/components/admin/ui";
 import LogoForm from "@/components/admin/LogoForm";
+import FaviconForm from "@/components/admin/FaviconForm";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "School logo",
+  title: "Logo & tab icon",
   robots: { index: false, follow: false },
 };
 
@@ -25,7 +26,7 @@ export default async function SettingsPage() {
   if (!(await isAdmin())) redirect("/admin?next=/admin/settings");
   if (!hasDatabase()) redirect("/admin?error=database");
 
-  const settings = await getSettings();
+  const [settings, icon] = await Promise.all([getSettings(), faviconUrl()]);
   const problem = databaseProblem();
 
   return (
@@ -48,7 +49,18 @@ export default async function SettingsPage() {
         </div>
       </section>
 
-      <aside className="space-y-3">
+      <section id="icon" className="rounded-2xl bg-panel p-6 xl:col-span-2">
+        <PageHeader
+          eyebrow="Site"
+          title="Browser tab icon"
+          description="The little mark on the tab, in the bookmarks bar, and on a phone's home screen. It is a separate picture from the logo because a crest that reads at 44 px in a circle is not always one that reads at 16 px."
+        />
+        <div className="mt-6">
+          <FaviconForm current={icon} />
+        </div>
+      </section>
+
+      <aside aria-label="About the logo and the tab icon" className="space-y-3">
         <section className="rounded-2xl bg-panel p-6">
           <Eyebrow>Where it appears</Eyebrow>
           <ul className="mt-3 space-y-2 text-sm leading-relaxed text-body">
@@ -72,8 +84,8 @@ export default async function SettingsPage() {
             <li>At least 512 px on the short side</li>
           </ul>
           <p className="mt-4 text-xs leading-relaxed text-muted">
-            It is padded onto a white square and saved at 512 px, so a phone photo of the
-            crest will look soft. Scan or export it if you have the original.
+            It is padded to a 512 px square with its transparency kept, so a phone photo of
+            the crest will look soft. Scan or export it if you have the original.
           </p>
         </section>
       </aside>

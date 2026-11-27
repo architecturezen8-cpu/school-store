@@ -91,7 +91,7 @@ export default function CartDrawer() {
             <div className="flex-1 overflow-y-auto px-6 py-4">
               <ul className="divide-y divide-white/5">
                 {items.map((item) => (
-                  <li key={item.slug} className="flex gap-4 py-5">
+                  <li key={item.id} className="flex gap-4 py-5">
                     <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-white/10">
                       <ProductImage src={item.image} alt={item.name} />
                     </div>
@@ -101,19 +101,24 @@ export default function CartDrawer() {
                           {item.name}
                         </p>
                         <button
-                          onClick={() => remove(item.slug)}
+                          onClick={() => remove(item.id)}
                           aria-label={`Remove ${item.name}`}
                           className="text-white/50 transition hover:text-red-400"
                         >
                           <Trash2 size={15} />
                         </button>
                       </div>
+                      {item.variant && (
+                        <p className="mt-0.5 text-[11px] uppercase tracking-[0.14em] text-white/60">
+                          {item.variant}
+                        </p>
+                      )}
                       <p className="mt-0.5 text-sm font-semibold text-white">
                         {lkr(item.price)}
                       </p>
                       <div className="mt-auto flex items-center gap-3 pt-2">
                         <button
-                          onClick={() => setQty(item.slug, item.qty - 1)}
+                          onClick={() => setQty(item.id, item.qty - 1)}
                           aria-label="Decrease quantity"
                           className="grid h-7 w-7 place-items-center rounded-full border border-white/15 text-white/60 transition hover:bg-navy-800 hover:text-white"
                         >
@@ -123,7 +128,7 @@ export default function CartDrawer() {
                           {item.qty}
                         </span>
                         <button
-                          onClick={() => setQty(item.slug, item.qty + 1)}
+                          onClick={() => setQty(item.id, item.qty + 1)}
                           aria-label="Increase quantity"
                           className="grid h-7 w-7 place-items-center rounded-full border border-white/15 text-white/60 transition hover:bg-navy-800 hover:text-white"
                         >

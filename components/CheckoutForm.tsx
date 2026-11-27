@@ -52,7 +52,13 @@ export default function CheckoutForm({ onClose }: { onClose: () => void }) {
           email,
           phone,
           note,
-          items: items.map((i) => ({ slug: i.slug, qty: i.qty, variant: i.variant ?? "" })),
+          items: items.map((i) => ({
+            slug: i.slug,
+            qty: i.qty,
+            variant: i.variant ?? "",
+            colour: i.colour,
+            size: i.size,
+          })),
         }),
       });
       if (!res.headers.get("content-type")?.includes("application/json")) {

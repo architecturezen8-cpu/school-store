@@ -41,6 +41,26 @@ create table if not exists products (
 create index if not exists products_category_idx on products (category) where active;
 create index if not exists products_featured_idx on products (is_featured) where active;
 
+-- ---------- stock, per colour and per size -----------------------------------
+-- A product with *no* rows here is not stock-counted at all: it sells until the
+-- office decides otherwise. That is deliberate, because the catalogue predates
+-- this table and a new column defaulting to 0 would have emptied the whole shop
+-- on the morning of the migration. The moment one row exists, every combination
+-- of that product is counted, and a combination with no row is sold out.
+--
+-- '' is a real key part: a product with no colours or no sizes still has to be
+-- countable, so the empty string stands for "the only one".
+create table if not exists product_stock (
+  slug       text not null references products (slug) on delete cascade,
+  colour     text not null default '',
+  size       text not null default '',
+  qty        integer not null default 0 check (qty >= 0),
+  updated_at timestamptz not null default now(),
+  primary key (slug, colour, size)
+);
+
+create index if not exists product_stock_low_idx on product_stock (qty) where qty <= 5;
+
 create table if not exists reviews (
   id         bigserial primary key,
   name       text not null,
@@ -110,10 +130,17 @@ create table if not exists order_items (
   name        text not null,                          -- snapshot at purchase time
   price       integer not null check (price >= 0),    -- snapshot
   qty         integer not null check (qty > 0 and qty <= 99),
-  variant     text not null default ''
+  variant     text not null default '',
+  -- The chosen colour and size, kept apart from the display label above so the
+  -- stock table can be asked the same question the shop asked the customer.
+  colour      text not null default '',
+  size        text not null default ''
 );
 
 create index if not exists order_items_order_idx on order_items (order_id);
+
+alter table order_items add column if not exists colour text not null default '';
+alter table order_items add column if not exists size text not null default '';
 
 create table if not exists order_events (
   id         bigserial primary key,
@@ -332,6 +359,10 @@ create table if not exists site_settings (
 );
 
 alter table site_settings add column if not exists logo_scale numeric(3,2) not null default 0.86;
+
+-- The tab icon ("favicon"). Same deal as the logo: a path under public/, and
+-- empty means the built-in crest mark in public/favicon.svg.
+alter table site_settings add column if not exists favicon text not null default '';
 
 drop trigger if exists site_settings_touch_updated_at on site_settings;
 create trigger site_settings_touch_updated_at

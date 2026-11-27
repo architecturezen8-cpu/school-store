@@ -6,11 +6,12 @@ import { databaseDown, hasDatabase } from "@/lib/db";
 import { signIn } from "./actions";
 import { listBookings } from "@/lib/bookings";
 import { listAdminCategories, listAdminProducts } from "@/lib/catalog";
+import { runningLow } from "@/lib/stock";
 import { lkr } from "@/lib/format";
 import SubmitButton from "@/components/SubmitButton";
 import { Eyebrow, Notice, Pill, Stat, buttonClass, inputClass } from "@/components/admin/ui";
 import AdminImage from "@/components/admin/AdminImage";
-import { ArrowUpRight, CalendarCheck, CalendarDays, Package, ScanLine } from "lucide-react";
+import { ArrowUpRight, Boxes, CalendarCheck, CalendarDays, Package, ScanLine } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -132,6 +133,10 @@ export default async function AdminPage({
   const seats = bookings.reduce((n, b) => n + b.seats, 0);
   const latest = bookings.slice(0, 5);
   const outstanding = bookings.length - admitted;
+  // Anything nearly gone, products and ticket tiers together. Empty when there
+  // is nothing to say, so the overview stays quiet on a healthy shop.
+  const low = live ? await runningLow() : [];
+  const lowSoldOut = low.filter((l) => l.left === 0).length;
 
   return (
     /* A single 4-column grid owns the whole page, and every child states its
@@ -194,6 +199,40 @@ export default async function AdminPage({
         <Notice tone="warn" className="sm:col-span-2 xl:col-span-4">
           {problem}
         </Notice>
+      )}
+
+      {/* The one warning worth interrupting a summary for: something is nearly
+          gone, and reordering is a job for this week, not at the gate. */}
+      {low.length > 0 && (
+        <Link
+          href="/admin/stock"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-panel px-5 py-4 sm:col-span-2 xl:col-span-4"
+        >
+          <span className="flex items-center gap-3">
+            <span className="grid h-9 w-9 place-items-center rounded-xl bg-gold text-black">
+              <Boxes className="h-4 w-4" />
+            </span>
+            <span>
+              <span className="block text-sm font-semibold text-strong">
+                {lowSoldOut > 0
+                  ? `${lowSoldOut} sold out, ${low.length - lowSoldOut} running low`
+                  : `${low.length} running low`}
+              </span>
+              <span className="block text-[11px] text-muted">
+                {low
+                  .slice(0, 3)
+                  .map((l) =>
+                    l.kind === "product"
+                      ? `${l.name} — ${l.detail}`
+                      : `${l.name} (${l.group}) — ${l.left} left`
+                  )
+                  .join(" · ")}
+                {low.length > 3 ? ` · and ${low.length - 3} more` : ""}
+              </span>
+            </span>
+          </span>
+          <span className="text-[11px] uppercase tracking-[0.16em] text-muted">Stocks →</span>
+        </Link>
       )}
 
       {/* row 2 — four numbers, four equal cells */}
@@ -259,9 +298,9 @@ export default async function AdminPage({
                     </span>
                   )}
                 </div>
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/90 to-transparent p-3">
-                  <p className="truncate text-sm font-medium text-white">{c.title}</p>
-                  <p className="text-[11px] text-white/70">
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-page/95 to-transparent p-3">
+                  <p className="truncate text-sm font-medium text-strong">{c.title}</p>
+                  <p className="text-[11px] text-muted">
                     {c.items} {c.items === 1 ? "item" : "items"}
                   </p>
                 </div>

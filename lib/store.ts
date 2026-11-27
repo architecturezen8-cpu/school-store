@@ -15,6 +15,8 @@ import { asset } from "./assets";
 import type { EventImage, EventLink, EventRule } from "@/data/seed";
 import { hasDatabase, query } from "./db";
 import { DEFAULT_FILTERS, listFilters, type ShopFilter } from "./catalog";
+import { readStock } from "./stock";
+import { summarise } from "./stock-core";
 import { errorMessage } from "./errors";
 
 /* ------------------------------------------------------------------ *
@@ -207,12 +209,35 @@ export async function getHomeCategories(): Promise<Category[]> {
 const productColumns = `slug, name, price, image, tag, category, rating, reviews,
   description, details, options, gallery, colours, is_featured, is_new`;
 
+/**
+ * Adds the shelf to products that are stock-counted.
+ *
+ * One query for the whole list, and products with no stock rows are left exactly
+ * as they were — `stock` undefined means "not counted", which every storefront
+ * surface treats as "always available, print no number".
+ */
+async function withStock(products: Product[]): Promise<Product[]> {
+  if (!products.length) return products;
+  try {
+    const shelves = await readStock(products.map((p) => p.slug));
+    if (!shelves.size) return products;
+    return products.map((p) => {
+      const cells = shelves.get(p.slug);
+      const stock = cells ? summarise(cells) : undefined;
+      return stock ? { ...p, stock } : p;
+    });
+  } catch (err) {
+    console.warn("[store] stock unavailable, selling uncounted:", errorMessage(err));
+    return products;
+  }
+}
+
 export async function getProducts(): Promise<Product[]> {
   return safe(async () => {
     const rows = await query<ProductRow>(
       `select ${productColumns} from products where active order by created_at, name`
     );
-    return rows.length ? rows.map(toProduct) : seedProducts.map(withAsset);
+    return withStock(rows.length ? rows.map(toProduct) : seedProducts.map(withAsset));
   }, seedProducts.map(withAsset));
 }
 
@@ -227,7 +252,10 @@ export async function getProduct(slug: string): Promise<Product | undefined> {
       `select ${productColumns} from products where slug = $1 and active`,
       [slug]
     );
-    if (rows[0]) return toProduct(rows[0]);
+    if (rows[0]) {
+      const [product] = await withStock([toProduct(rows[0])]);
+      return product;
+    }
     const seed = seedProducts.find((p) => p.slug === slug);
     return seed ? withAsset(seed) : undefined;
   }, (() => {
@@ -332,6 +360,8 @@ type TierRow = {
   price: number;
   perks: string[];
   note: string | null;
+  capacity: number | null;
+  sold: number;
 };
 
 export async function getEvents(): Promise<CollegeEvent[]> {
@@ -345,7 +375,8 @@ export async function getEvents(): Promise<CollegeEvent[]> {
            from events where published order by position, starts_at`
       ),
       query<TierRow>(
-        "select id, event, name, price, perks, note from ticket_tiers order by event, position"
+        `select id, event, name, price, perks, note, capacity, sold
+           from ticket_tiers order by event, position`
       ),
     ]);
     if (!rows.length) return seedEvents.map(withAsset);
@@ -359,6 +390,8 @@ export async function getEvents(): Promise<CollegeEvent[]> {
         price: Number(t.price),
         perks: Array.isArray(t.perks) ? t.perks : [],
         note: t.note ?? undefined,
+        capacity: t.capacity === null ? null : Number(t.capacity),
+        sold: Number(t.sold ?? 0),
       });
       bySlug.set(t.event, list);
     }

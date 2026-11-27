@@ -937,7 +937,7 @@ export default function EventEditor({
                 </div>
               )}
               {preview.date && (
-                <span className="absolute bottom-2 left-3 rounded-md bg-ink/85 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-strong">
+                <span className="absolute bottom-2 left-3 rounded-md bg-page/90 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-strong">
                   {preview.date.toLocaleDateString("en-GB", {
                     day: "numeric",
                     month: "short",

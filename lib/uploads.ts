@@ -158,3 +158,52 @@ export async function uploadLogo(file: File): Promise<UploadedImage> {
 
   return { ok: true, url: `/${relative}`, width: LOGO_EDGE, height: LOGO_EDGE };
 }
+
+/* ------------------------------------------------------------------ * *  The browser tab icon ("favicon")
+\* ------------------------------------------------------------------ */
+
+/**
+ * The tab icon, normalised into a square.
+ *
+ * A favicon is drawn at 16 px, so the useful thing to do with a 3000 px crest is
+ * the opposite of what the hero needs: keep it small and let the mark fill the
+ * square. Like the logo, transparency is kept and the padding is transparent —
+ * a tab icon on a dark browser theme with a white plate around it looks like a
+ * bug, not a brand.
+ *
+ * PNG only, and not an `.ico`: every browser this shop cares about reads a PNG
+ * icon, and an ICO encoder would be a dependency for nothing.
+ */
+export const FAVICON_EDGE = 512;
+
+export async function uploadFavicon(file: File): Promise<UploadedImage> {
+  const ext = ALLOWED.get(file.type);
+  if (!ext) return { ok: false, error: "Upload a PNG, JPEG or WebP image." };
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return { ok: false, error: "That image is over 12 MB. Compress it and try again." };
+  }
+
+  let output: Buffer;
+  try {
+    const bytes = Buffer.from(await file.arrayBuffer());
+    output = await sharp(bytes)
+      .rotate()
+      .resize({
+        width: FAVICON_EDGE,
+        height: FAVICON_EDGE,
+        fit: "contain",
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      })
+      .png({ compressionLevel: 9, palette: false })
+      .toBuffer();
+  } catch {
+    return { ok: false, error: "That file is not a readable image." };
+  }
+
+  const relative = path.join("uploads", "brand", `icon-${randomUUID()}.png`).replace(/\\/g, "/");
+  const absolute = path.join(process.cwd(), "public", relative);
+  await mkdir(path.dirname(absolute), { recursive: true });
+  await writeFile(absolute, output);
+
+  return { ok: true, url: `/${relative}`, width: FAVICON_EDGE, height: FAVICON_EDGE };
+}

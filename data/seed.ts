@@ -43,6 +43,24 @@ export type Category = {
   image: string;
 };
 
+/** One colour × size cell of a product's shelf. `""` means "the only one". */
+export type StockCell = { colour: string; size: string; qty: number };
+
+/**
+ * A product's shelf, as the shop reads it.
+ *
+ * `undefined` on a product means stock is not counted for it at all — it sells
+ * until the office says otherwise. That is not the same as "sold out", which is
+ * why the whole summary is optional rather than a number defaulting to zero.
+ */
+export type ProductStock = {
+  cells: StockCell[];
+  total: number;
+  /** At least one cell is at or below LOW_STOCK and still sellable. */
+  low: boolean;
+  soldOut: boolean;
+};
+
 export type Product = {
   slug: string;
   name: string;
@@ -59,6 +77,8 @@ export type Product = {
   isNew?: boolean;
   gallery?: string[];
   colours?: string[];
+  /** Omitted when the product's stock is not counted. */
+  stock?: ProductStock;
 };
 
 export const lkr = (n: number) => `LKR ${n.toLocaleString("en-US")}`;
@@ -480,6 +500,10 @@ export type Tier = {
   price: number;
   perks: string[];
   note?: string;
+  /** Seats allotted to this tier. null = as many as turn up. */
+  capacity?: number | null;
+  /** Seats already sold, so the shop can say how many are left. */
+  sold?: number;
 };
 
 /** A numbered rule or a line of small print on an event page. */
