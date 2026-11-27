@@ -816,9 +816,10 @@ export default function EventEditor({
                   <p className="mt-1.5 text-[11px] text-muted">
                     {t.capacity === null || t.capacity === undefined
                       ? "Seats: no cap — sell as many as turn up."
-                      : `Seats: ${t.capacity}${
-                          t.sold ? ` — ${t.sold} sold, ${Math.max(0, t.capacity - t.sold)} left` : ""
-                        }.`}{" "}
+                      : `Seats: ${t.capacity} — ${t.sold ?? 0} sold, ${Math.max(
+                          0,
+                          t.capacity - (t.sold ?? 0)
+                        )} left.`}{" "}
                     <span className="text-faint">
                       id <code>{t.id}</code>
                     </span>
