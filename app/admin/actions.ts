@@ -20,7 +20,7 @@ import {
   ticketsForBooking,
   unblockTicket,
 } from "@/lib/bookings";
-import { saveLogo, saveLogoScale } from "@/lib/settings";
+import { saveFavicon, saveLogo, saveLogoScale } from "@/lib/settings";
 import { sendTicketEmail, sendTicketEmails, sampleTicket } from "@/lib/tickets/email";
 import { friendlyError } from "@/lib/errors";
 import { applySchema, query } from "@/lib/db";
@@ -31,7 +31,7 @@ import {
   unsetFeatured,
   type EventDraft,
 } from "@/lib/events";
-import { uploadImage, uploadLogo } from "@/lib/uploads";
+import { uploadFavicon, uploadImage, uploadLogo } from "@/lib/uploads";
 
 /**
  * Admin server actions.
@@ -395,6 +395,46 @@ export async function clearLogoAction() {
   await requireAdmin();
   try {
     await saveLogo("");
+  } catch (err) {
+    return { ok: false as const, error: friendlyError(err) };
+  }
+  revalidatePath("/", "layout");
+  revalidatePath("/admin", "layout");
+  return { ok: true as const };
+}
+
+/**
+ * The browser tab icon.
+ *
+ * Saved on upload, like the logo: an icon that needs a second press to take
+ * effect is an icon that is still the old one when the admin looks at the tab.
+ */
+export async function uploadFaviconAction(formData: FormData) {
+  await requireAdmin();
+  const file = formData.get("favicon");
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false as const, error: "Choose an image first." };
+  }
+  const result = await uploadFavicon(file);
+  if (!result.ok) return { ok: false as const, error: result.error };
+
+  try {
+    await saveFavicon(result.url);
+  } catch (err) {
+    return { ok: false as const, error: friendlyError(err) };
+  }
+
+  // The icon lives in <head>, so any cached page still carries the old one.
+  revalidatePath("/", "layout");
+  revalidatePath("/admin", "layout");
+  return { ok: true as const, url: result.url };
+}
+
+/** Back to the built-in mark in the tab. */
+export async function clearFaviconAction() {
+  await requireAdmin();
+  try {
+    await saveFavicon("");
   } catch (err) {
     return { ok: false as const, error: friendlyError(err) };
   }

@@ -2,6 +2,8 @@ import { hasDatabase, query, schemaFailure } from "./db";
 import { errorMessage } from "./errors";
 import { slugify } from "./slug";
 import { categories as seedCategories, products as seedProducts } from "@/data/seed";
+import { comboKey, type StockCell } from "./stock-core";
+import { readStock, saveProductStock, stockDraftFor } from "./stock";
 
 /**
  * The shop's own admin: categories, products, and the vocabulary the filters use.
@@ -45,6 +47,14 @@ export type AdminProduct = {
   isFeatured: boolean;
   isNew: boolean;
   active: boolean;
+  /**
+   * The shelf, as `"colour|size" → number`.
+   *
+   * Absent/empty means the product is not stock-counted; the editor shows as many
+   * empty boxes as the chosen colours and sizes call for. On save the same shape
+   * goes back, so the product and its stock are written by the same button.
+   */
+  stock?: Record<string, number>;
 };
 
 export type ProductDraft = Omit<AdminProduct, "slug" | "active"> & {
@@ -300,6 +310,27 @@ function safeJson(text: string): unknown {
   }
 }
 
+/** `"colour|size" → qty`, from the rows of one product. */
+function toStockMap(cells: StockCell[]): Record<string, number> {
+  const map: Record<string, number> = {};
+  for (const c of cells) map[comboKey(c.colour, c.size)] = c.qty;
+  return map;
+}
+
+/**
+ * The stock draft for one product, or `{}` when the database is a migration
+ * behind — the same deal as `readOr`: the editor still opens, and the banner
+ * already says why the table is missing.
+ */
+async function withStockDraft(product: AdminProduct): Promise<AdminProduct> {
+  try {
+    return { ...product, stock: await stockDraftFor(product.slug) };
+  } catch (err) {
+    if (!schemaFailure()) throw err;
+    return { ...product, stock: {} };
+  }
+}
+
 export async function listAdminProducts(): Promise<AdminProduct[]> {
   const rows = await readOr<ProductRow[] | null>(null, () =>
     query<ProductRow>(
@@ -309,7 +340,15 @@ export async function listAdminProducts(): Promise<AdminProduct[]> {
         order by category, name`
     )
   );
-  return rows ? rows.map(toProduct) : seedAdminProducts();
+  if (!rows) return seedAdminProducts();
+  const products = rows.map(toProduct);
+  try {
+    const shelves = await readStock(products.map((p) => p.slug));
+    for (const p of products) p.stock = toStockMap(shelves.get(p.slug) ?? []);
+  } catch (err) {
+    if (!schemaFailure()) throw err;
+  }
+  return products;
 }
 
 export async function getAdminProduct(slug: string): Promise<AdminProduct | undefined> {
@@ -322,7 +361,7 @@ export async function getAdminProduct(slug: string): Promise<AdminProduct | unde
     )
   );
   if (!rows) return seedAdminProducts().find((p) => p.slug === slug);
-  return rows[0] ? toProduct(rows[0]) : undefined;
+  return rows[0] ? withStockDraft(toProduct(rows[0])) : undefined;
 }
 
 export async function saveProduct(
@@ -385,6 +424,18 @@ export async function saveProduct(
          where slug = $1`,
         [slug, ...cols]
       );
+    }
+    // Stock is written by the same button as the product, so a new hoodie is
+    // never briefly on sale with an empty shelf. Only when the editor sent a
+    // shelf at all: a caller that knows nothing about stock must not wipe it.
+    if (draft.stock) {
+      const saved = await saveProductStock(
+        slug,
+        draft.colours.map((c) => c.trim()).filter(Boolean),
+        (draft.options?.values ?? []).map((v) => v.trim()).filter(Boolean),
+        draft.stock
+      );
+      if (!saved.ok) return { ok: false, error: saved.error };
     }
     return { ok: true, slug };
   } catch (err) {

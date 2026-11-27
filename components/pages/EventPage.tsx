@@ -19,6 +19,7 @@ import TicketBooking from "@/components/TicketBooking";
 import Reveal from "@/components/Reveal";
 import { lkr } from "@/lib/format";
 import { dayNumber, fullDate, monthShort, weekdayShort } from "@/lib/dates";
+import { seatsLeft, ticketsLeftLabel } from "@/lib/stock-core";
 import type { CollegeEvent } from "@/data/seed";
 
 /**
@@ -285,7 +286,10 @@ export default function EventPage({
                 <SectionHead number={numbered ? index("tickets") : undefined} label="Tickets" />
               </div>
               <ul className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {event.tiers.map((t) => (
+                {event.tiers.map((t) => {
+                  const left = seatsLeft(t);
+                  const gone = left !== null && left <= 0;
+                  return (
                   <li key={t.id} className="bento flex flex-col p-6">
                     <div className="flex items-start justify-between gap-3">
                       <h3 className="font-display text-lg font-semibold text-white">{t.name}</h3>
@@ -293,6 +297,15 @@ export default function EventPage({
                         {t.price === 0 ? "Free" : lkr(t.price)}
                       </p>
                     </div>
+                    {left !== null && (
+                      <p
+                        className={`mt-2 text-[10px] font-bold uppercase tracking-[0.16em] ${
+                          gone ? "text-red-300" : left <= 5 ? "text-gold" : "text-white/40"
+                        }`}
+                      >
+                        {gone ? "Sold out" : ticketsLeftLabel(t)}
+                      </p>
+                    )}
                     {(t.perks ?? []).length > 0 && (
                       <ul className="mt-4 space-y-2">
                         {(t.perks ?? []).map((p, i) => (
@@ -308,12 +321,14 @@ export default function EventPage({
                     )}
                     <button
                       onClick={() => setBooking(true)}
-                      className="mt-5 inline-flex w-fit items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-[10px] font-extrabold uppercase tracking-[0.18em] text-white transition-colors hover:bg-gold hover:text-ink"
+                      disabled={gone}
+                      className="mt-5 inline-flex w-fit items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-[10px] font-extrabold uppercase tracking-[0.18em] text-white transition-colors hover:bg-gold hover:text-ink disabled:cursor-not-allowed disabled:bg-white/5 disabled:text-white/35 disabled:hover:bg-white/5 disabled:hover:text-white/35"
                     >
-                      <TicketIcon size={12} /> Choose
+                      <TicketIcon size={12} /> {gone ? "Sold out" : "Choose"}
                     </button>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             </section>
           </Reveal>

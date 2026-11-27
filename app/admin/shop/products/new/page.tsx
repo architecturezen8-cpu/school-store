@@ -65,6 +65,7 @@ export default async function NewProductPage() {
           isFeatured: false,
           isNew: true,
           active: true,
+          stock: {},
         }}
         mode="create"
         takenSlugs={products.map((p) => p.slug)}

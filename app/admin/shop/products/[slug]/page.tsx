@@ -99,6 +99,7 @@ export default async function EditProductPage({
           isFeatured: product.isFeatured,
           isNew: product.isNew,
           active: product.active,
+          stock: product.stock ?? {},
         }}
         mode="update"
         takenSlugs={products.map((p) => p.slug)}

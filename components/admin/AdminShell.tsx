@@ -7,6 +7,7 @@ import LogoBadge from "@/components/LogoBadge";
 import { ToastProvider } from "@/components/admin/Toasts";
 import { signOut } from "@/app/admin/actions";
 import {
+  Boxes,
   CalendarCheck,
   CalendarDays,
   ExternalLink,
@@ -50,6 +51,7 @@ const NAV: { title: string; items: { href: string; label: string; icon: typeof M
     title: "The shop",
     items: [
       { href: "/admin/shop", label: "Products", icon: Package },
+      { href: "/admin/stock", label: "Stocks", icon: Boxes },
       { href: "/admin/shop/categories", label: "Categories", icon: LayoutGrid },
       { href: "/admin/shop/filters", label: "Filters", icon: SlidersHorizontal },
     ],
@@ -71,7 +73,7 @@ const NAV: { title: string; items: { href: string; label: string; icon: typeof M
   },
   {
     title: "Settings",
-    items: [{ href: "/admin/settings", label: "School logo", icon: Settings }],
+    items: [{ href: "/admin/settings", label: "Logo & tab icon", icon: Settings }],
   },
 ];
 

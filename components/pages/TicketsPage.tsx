@@ -9,6 +9,7 @@ import Countdown from "@/components/Countdown";
 import TicketBooking from "@/components/TicketBooking";
 import Link from "next/link";
 import Reveal from "@/components/Reveal";
+import { ticketsLeftLabel } from "@/lib/stock-core";
 
 /* ---------------- event card ---------------- */
 function EventCard({
@@ -189,6 +190,9 @@ function Spotlight({
                 className="rounded-full bg-navy-900 px-4 py-2 text-[11px] font-semibold text-white/65 transition-colors duration-300 hover:text-white"
               >
                 {t.name} · <span className="text-white">{t.price === 0 ? "Free" : lkr(t.price)}</span>
+                {ticketsLeftLabel(t) && (
+                  <span className="ml-1.5 text-white/40">· {ticketsLeftLabel(t)}</span>
+                )}
               </span>
             ))}
           </div>

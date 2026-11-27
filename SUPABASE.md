@@ -227,7 +227,7 @@ You can confirm the other direction from the terminal: after placing an order,
 
 | Thing | State |
 | --- | --- |
-| Schema (`db/schema.sql`) | applied — 10 tables + `order_number_seq`, `set_updated_at()`, `orders_touch_updated_at` |
+| Schema (`db/schema.sql`) | applied — 11 tables (including `product_stock`) + `order_number_seq`, `set_updated_at()`, `orders_touch_updated_at` |
 | Seed data | applied — 5 categories, 17 products, 4 reviews, 5 events, 12 tiers |
 | Orders / bookings | empty and ready; references start at `STC-01042` |
 | Row Level Security | on, **no policies** — the table owner (`postgres`) bypasses it, and only the server connects with that credential. Keep it this way: the tables are never exposed through the Supabase REST API. |
@@ -282,6 +282,22 @@ suggests:
 - The admin's own error boundary now sits *inside* the admin layout, so a screen
   that throws still leaves the sidebar and that bar on screen — the one place
   that explains the problem used to be the part that was hidden.
+
+### Stock and the tab icon are migrations too
+
+Two of the settings the office uses most live in tables that arrived later than
+the rest:
+
+| Thing | Where it lives | What a database without it does |
+| --- | --- | --- |
+| Stock per colour and size | `product_stock` (one row per cell) | the **Stocks** screen shows every product as “not counted”, and the product form saves everything except the shelf |
+| The browser tab icon | `site_settings.favicon` | the tab keeps the built-in mark; the school logo still loads, because that column is read separately |
+| Which colour and size an order line bought | `order_items.colour`, `order_items.size` | older orders still list, with an empty variant |
+
+None of these break a page: the admin opens, the banner names what is missing, and
+**Update the database** (or `npm run db:migrate`) adds it. Nothing is backfilled,
+because “how many hoodies are in the cupboard” is not a question a migration can
+answer — stock starts *not counted* until someone counts it.
 
 ### Windows: `npm run build` works from cmd and PowerShell
 

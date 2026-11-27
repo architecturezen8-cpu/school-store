@@ -158,6 +158,18 @@ try {
     return "catalogue on screen";
   });
 
+  // The table this round added. A Supabase project that has everything from the
+  // earlier rounds and not `product_stock` is the case the office will actually
+  // hit, so the screen that depends on it is checked while it is missing.
+  await step("the Stocks screen opens, with nothing counted yet", async () => {
+    await page.goto(BASE + "/admin/stock", { waitUntil: "networkidle" });
+    await page.waitForTimeout(800);
+    const body = flat(await page.locator("body").innerText());
+    if (/SOMETHING BROKE/i.test(body)) throw new Error("the error boundary");
+    if (!/not counted/i.test(body)) throw new Error("no 'not counted' state: " + body.slice(0, 200));
+    return "opens, everything not counted";
+  });
+
   await step("press the button: the database is brought up to date", async () => {
     await page.goto(BASE + "/admin/shop", { waitUntil: "networkidle" });
     await page.getByRole("button", { name: /Update the database/i }).click();
@@ -184,6 +196,20 @@ try {
       throw new Error("the filter would not delete");
     }
     return "added and deleted";
+  });
+
+  await step("the stock boxes exist and hold a number once the table is there", async () => {
+    await page.goto(BASE + "/admin/shop/products/crest-hoodie", { waitUntil: "networkidle" });
+    const box = page.locator('input[aria-label="Stock for Navy M"]');
+    await box.waitFor({ timeout: 25000 });
+    await box.fill("4");
+    await page.getByRole("button", { name: /^Save$/ }).click();
+    await page.waitForTimeout(3500);
+
+    await page.goto(BASE + "/admin/stock", { waitUntil: "networkidle" });
+    const body = flat(await page.locator("body").innerText());
+    if (!/4\s*left/i.test(body)) throw new Error("the number did not stick: " + body.slice(0, 300));
+    return "4 left";
   });
 
   await step("the built-in catalogue is no longer what the admin shows", async () => {

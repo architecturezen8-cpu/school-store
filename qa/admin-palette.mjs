@@ -48,6 +48,9 @@ const parse = (css) => {
 
 const ROUTES = [
   "/admin",
+  "/admin/stock",
+  "/admin/shop",
+  "/admin/settings",
   "/admin/events",
   "/admin/events/the-big-match",
   "/admin/bookings",

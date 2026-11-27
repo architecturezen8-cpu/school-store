@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { query, transaction } from "./db";
+import { comboKey } from "./stock-core";
 
 /* ------------------------------------------------------------------ *
  *  Orders — create, track, and read for the "Track my order" modal.
@@ -9,6 +10,9 @@ export const cartLineSchema = z.object({
   slug: z.string().min(1).max(120),
   qty: z.number().int().min(1).max(99),
   variant: z.string().max(80).optional().default(""),
+  /** Which shelf cell this line came from — the pair stock is counted by. */
+  colour: z.string().max(60).optional().default(""),
+  size: z.string().max(60).optional().default(""),
 });
 
 export const createOrderSchema = z.object({
@@ -21,7 +25,15 @@ export const createOrderSchema = z.object({
 
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
 
-export type OrderItem = { slug: string; name: string; price: number; qty: number; variant: string };
+export type OrderItem = {
+  slug: string;
+  name: string;
+  price: number;
+  qty: number;
+  variant: string;
+  colour: string;
+  size: string;
+};
 export type Order = {
   reference: string;
   email: string;
@@ -61,9 +73,51 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
     const missing = slugs.filter((s) => !bySlug.has(s));
     if (missing.length) throw new Error(`Unknown product: ${missing.join(", ")}`);
 
+    /**
+     * The shelf, locked for the rest of the transaction.
+     *
+     * Two parents can have the last medium navy shirt in their bags at the same
+     * time. Reading the stock without a lock and decrementing it later is how a
+     * shop sells the same shirt twice; `for update` makes the second checkout wait
+     * and then fail honestly.
+     */
+    const { rows: shelves } = await c.query<{ slug: string; colour: string; size: string; qty: number }>(
+      "select slug, colour, size, qty from product_stock where slug = any($1) for update",
+      [slugs]
+    );
+    const shelf = new Map<string, Map<string, number>>();
+    for (const r of shelves) {
+      const cells = shelf.get(r.slug) ?? new Map<string, number>();
+      cells.set(comboKey(r.colour, r.size), Number(r.qty));
+      shelf.set(r.slug, cells);
+    }
+
     const lines: OrderItem[] = parsed.items.map((i) => {
       const p = bySlug.get(i.slug)!;
-      return { slug: p.slug, name: p.name, price: Number(p.price), qty: i.qty, variant: i.variant ?? "" };
+      const colour = (i.colour ?? "").trim();
+      const size = (i.size ?? "").trim();
+      const cells = shelf.get(p.slug);
+      // No rows at all: this product is not stock-counted, so nothing to check.
+      if (cells) {
+        const left = cells.get(comboKey(colour, size)) ?? 0;
+        const label = [colour, size].filter(Boolean).join(" / ");
+        if (left < i.qty) {
+          throw new Error(
+            left === 0
+              ? `${p.name}${label ? ` (${label})` : ""} has just sold out.`
+              : `Only ${left} of ${p.name}${label ? ` (${label})` : ""} left — please reduce the quantity.`
+          );
+        }
+      }
+      return {
+        slug: p.slug,
+        name: p.name,
+        price: Number(p.price),
+        qty: i.qty,
+        variant: i.variant ?? [colour, size].filter(Boolean).join(" / "),
+        colour,
+        size,
+      };
     });
 
     const subtotal = lines.reduce((sum, l) => sum + l.price * l.qty, 0);
@@ -79,10 +133,18 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
 
     for (const l of lines) {
       await c.query(
-        `insert into order_items (order_id, slug, name, price, qty, variant)
-         values ($1, $2, $3, $4, $5, $6)`,
-        [order.id, l.slug, l.name, l.price, l.qty, l.variant]
+        `insert into order_items (order_id, slug, name, price, qty, variant, colour, size)
+         values ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [order.id, l.slug, l.name, l.price, l.qty, l.variant, l.colour, l.size]
       );
+      if (shelf.has(l.slug)) {
+        await c.query(
+          `update product_stock
+              set qty = greatest(0, qty - $4), updated_at = now()
+            where slug = $1 and colour = $2 and size = $3`,
+          [l.slug, l.colour, l.size, l.qty]
+        );
+      }
     }
     await c.query(
       "insert into order_events (order_id, status, message) values ($1, 'pending', $2)",
@@ -125,7 +187,9 @@ export async function trackOrder(reference: string, email: string): Promise<Orde
   if (!o) return null;
 
   const items = await query<OrderItem>(
-    "select slug, name, price, qty, variant from order_items where order_id = $1 order by id",
+    `select slug, name, price, qty, variant,
+            coalesce(colour, '') as colour, coalesce(size, '') as size
+       from order_items where order_id = $1 order by id`,
     [o.id]
   );
 
