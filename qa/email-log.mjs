@@ -10,7 +10,7 @@
  * Temporary QA script, not part of the app.
  *   QA_MODULES=/tmp/qaenv/node_modules QA_LIBS=/tmp/al/lib node qa/email-log.mjs
  */
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createHmac } from "node:crypto";
 import { execSync, spawn } from "node:child_process";
 import net from "node:net";
@@ -79,8 +79,26 @@ function portOpen(port) {
   });
 }
 
+/**
+ * One trap, and it is this run's.
+ *
+ * It used to reuse whatever was already on 1025 — which, in a long session, is
+ * the trap a *previous* run started, pointed at a different log file. The
+ * messages then went somewhere this run cannot read, and two steps failed with
+ * "no message in the trap" while the booking log correctly said "sent".
+ */
 async function ensureTrap() {
-  if (await portOpen(1025)) return "already up";
+  if (await portOpen(1025)) {
+    if (process.env.QA_REUSE_TRAP === "1") return "already up";
+    execSync("pkill -f '[m]ail-trap.mjs' || true");
+    for (let i = 0; i < 40 && (await portOpen(1025)); i++) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
+  // A fresh file, so this run's messages are the only ones in it.
+  try {
+    writeFileSync(TRAP_LOG, "");
+  } catch {}
   const child = spawn(
     "sh",
     ["-c", `node scripts/mail-trap.mjs --port 1025 >> "${TRAP_LOG}" 2>&1`],

@@ -17,7 +17,10 @@ import { open } from "./browser.mjs";
 const BASE = process.env.BASE ?? "http://localhost:3000";
 const OUT = process.env.OUT ?? "/tmp/codes19";
 const PASSWORD = process.env.ADMIN_PASSWORD ?? "thomian2026";
-const TRAP_LOG = process.env.TRAP_LOG ?? "/tmp/trap19.log";
+// The same log the mail-trap suites use, so whichever trap this session started
+// is the one being read. It was /tmp/trap19.log, which no running trap writes to
+// any more — the message was there, just in the other file.
+const TRAP_LOG = process.env.TRAP_LOG ?? "/tmp/trap20.log";
 mkdirSync(OUT, { recursive: true });
 
 function fromEnvFile(key) {
@@ -240,9 +243,15 @@ await step("bill: one code per line, above the items, total at the bottom", asyn
 
 await step("the bill travels with the ticket email", async () => {
   // The trap prints one block per message; the newest is the sale just made.
-  const log = readFileSync(TRAP_LOG, "utf8");
-  const blocks = log.split("── message ");
-  const last = blocks[blocks.length - 1] ?? "";
+  // The send runs *after* the booking response now, so this waits for it rather
+  // than reading the file the instant the seats are booked.
+  let last = "";
+  for (let i = 0; i < 20; i++) {
+    const blocks = readFileSync(TRAP_LOG, "utf8").split("── message ");
+    last = blocks[blocks.length - 1] ?? "";
+    if (last.includes(sale.reference)) break;
+    await new Promise((r) => setTimeout(r, 1000));
+  }
   if (!last.includes(sale.reference)) throw new Error("no message for this sale in the trap yet");
   if (!/attached[^\n]*receipt-/.test(last)) throw new Error("no bill attached: " + last.slice(0, 300));
   if (!/ticket-1\.png/.test(last)) throw new Error("no ticket file attached: " + last.slice(0, 300));

@@ -12,6 +12,35 @@ import { errorMessage } from "@/lib/errors";
 
 const STEPS = ["Tickets", "Details", "Confirmed"];
 
+/**
+ * The most of one ticket type a single order may hold.
+ *
+ * This is an *order* limit, not the stock: a tier with four seats left can only
+ * sell four, whatever this number says. The stepper used to stop at 8 no matter
+ * what the office had set, so a tier capped at three still let a buyer ask for
+ * eight and only found out when the server said no.
+ */
+const ORDER_LIMIT = 8;
+
+/**
+ * Seats left on a tier, or null when the tier has no cap.
+ *
+ * The live count (fetched when the modal opens) wins over the one baked into the
+ * page, because event pages are cached for a minute and the office may have just
+ * sold the last few seats over the counter.
+ */
+function seatsLeftOf(t: Tier, live: Record<string, number | null>): number | null {
+  if (Object.prototype.hasOwnProperty.call(live, t.id)) return live[t.id];
+  if (t.capacity === null || t.capacity === undefined) return null;
+  return Math.max(0, t.capacity - (t.sold ?? 0));
+}
+
+/** How many of this tier one order may contain: the order limit, or what is left. */
+function capOf(t: Tier, live: Record<string, number | null>): number {
+  const left = seatsLeftOf(t, live);
+  return left === null ? ORDER_LIMIT : Math.min(ORDER_LIMIT, Math.max(0, left));
+}
+
 export default function TicketBooking({
   event,
   onClose,
@@ -21,6 +50,8 @@ export default function TicketBooking({
 }) {
   const [step, setStep] = useState(1);
   const [qty, setQty] = useState<Record<string, number>>({});
+  /** Seats left per tier, straight from the database. Missing = use the page. */
+  const [live, setLive] = useState<Record<string, number | null>>({});
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -33,6 +64,8 @@ export default function TicketBooking({
     { seq: number; token: string; signature: string }[]
   >([]);
   const [emailSent, setEmailSent] = useState(false);
+  /** True when the server accepted an email for delivery; the log holds the rest. */
+  const [emailQueued, setEmailQueued] = useState(false);
   /** How many ticket emails went out — one per person, so usually the seat count. */
   const [emailsSent, setEmailsSent] = useState(0);
   const [tried, setTried] = useState(false);
@@ -49,8 +82,58 @@ export default function TicketBooking({
     setRef("");
     setTried(false);
     setError(null);
-    setQty({ [event.tiers[0]?.id ?? ""]: 1 });
+    setLive({});
+    const first = event.tiers[0];
+    setQty(first && capOf(first, {}) > 0 ? { [first.id]: 1 } : {});
   }, [event]);
+
+  /**
+   * Ask the database how many seats are really left, once per open.
+   *
+   * Nothing depends on this arriving: the page's own counts are the fallback, and
+   * the server refuses an over-book anyway. It simply means "3 left" on screen is
+   * today's number rather than the one cached a minute ago.
+   */
+  useEffect(() => {
+    if (!event) return;
+    let alive = true;
+    const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+    fetch(`${base}/api/events/${encodeURIComponent(event.slug)}/seats`, {
+      cache: "no-store",
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json: { tiers?: { id: string; left: number | null }[] } | null) => {
+        if (!alive || !json?.tiers) return;
+        const next: Record<string, number | null> = {};
+        for (const t of json.tiers) next[t.id] = t.left;
+        setLive(next);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [event]);
+
+  /**
+   * A count that no longer fits must come down the moment the truth arrives:
+   * eight seats held against a tier that has two left is the same bug in reverse.
+   */
+  useEffect(() => {
+    if (!event) return;
+    setQty((q) => {
+      let changed = false;
+      const next = { ...q };
+      for (const t of event.tiers) {
+        const cap = capOf(t, live);
+        const want = next[t.id] ?? 0;
+        if (want > cap) {
+          next[t.id] = cap;
+          changed = true;
+        }
+      }
+      return changed ? next : q;
+    });
+  }, [event, live]);
 
   useEffect(() => {
     if (!event) return;
@@ -92,7 +175,8 @@ export default function TicketBooking({
   const bump = (t: Tier, delta: number) =>
     setQty((q) => ({
       ...q,
-      [t.id]: Math.max(0, Math.min(8, (q[t.id] ?? 0) + delta)),
+      // Capped by what is actually left, never by the order limit alone.
+      [t.id]: Math.max(0, Math.min(capOf(t, live), (q[t.id] ?? 0) + delta)),
     }));
 
   const advance = () => {
@@ -151,7 +235,10 @@ export default function TicketBooking({
       );
       setEmailsSent(Number(data.email?.tickets ?? 0));
       // One message now carries every code, so this is no longer "one per
-      // person" — it is one email with all of them in it.
+      // person" — it is one email with all of them in it. `queued` means the
+      // server has taken it and is sending in the background; nothing here says
+      // "delivered", because at this instant it is not.
+      setEmailQueued(Boolean(data.email?.queued ?? data.email?.sent));
       setEmailSent(Boolean(data.email?.sent));
       setStep(3);
     } catch (err) {
@@ -243,21 +330,29 @@ export default function TicketBooking({
             <div className="space-y-3">
               {event.tiers.map((t) => {
                 const on = (qty[t.id] ?? 0) > 0;
+                const left = seatsLeftOf(t, live);
+                const cap = capOf(t, live);
+                const soldOut = cap === 0;
                 return (
                   <div
                     key={t.id}
+                    data-tier={t.id}
+                    data-left={left === null ? "" : String(left)}
                     className={`rounded-2xl border p-4 transition-colors duration-300 sm:p-5 ${
-                      on
-                        ? "border-white/25 bg-navy-900"
-                        : "border-white/8 bg-navy-950 hover:border-white/20"
+                      soldOut
+                        ? "border-white/8 bg-navy-950 opacity-55"
+                        : on
+                          ? "border-white/25 bg-navy-900"
+                          : "border-white/8 bg-navy-950 hover:border-white/20"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-3 sm:gap-4">
                       <button
+                        disabled={soldOut}
                         onClick={() =>
-                          setQty((q) => ({ ...q, [t.id]: on ? 0 : 1 }))
+                          setQty((q) => ({ ...q, [t.id]: on ? 0 : Math.min(1, cap) }))
                         }
-                        className="flex min-w-0 flex-1 items-start gap-3 text-left sm:gap-3.5"
+                        className="flex min-w-0 flex-1 items-start gap-3 text-left disabled:cursor-not-allowed sm:gap-3.5"
                       >
                         <span
                           className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border transition-colors ${
@@ -276,6 +371,21 @@ export default function TicketBooking({
                             {t.note && (
                               <span className="rounded-full bg-gold px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-ink">
                                 {t.note}
+                              </span>
+                            )}
+                            {/* Low stock is said out loud: a buyer picking a
+                                number should not have to guess why it stops. */}
+                            {left !== null && left > 0 && left <= 10 && (
+                              <span
+                                data-left-note={t.id}
+                                className="rounded-full bg-white/10 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-white/80"
+                              >
+                                {left === 1 ? "Last seat" : `Only ${left} left`}
+                              </span>
+                            )}
+                            {soldOut && (
+                              <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-white/70">
+                                Sold out
                               </span>
                             )}
                           </span>
@@ -306,13 +416,17 @@ export default function TicketBooking({
                             >
                               <Minus size={13} />
                             </button>
-                            <span className="min-w-6 text-center text-[13px] font-semibold">
+                            <span
+                              data-qty={t.id}
+                              className="min-w-6 text-center text-[13px] font-semibold"
+                            >
                               {qty[t.id] ?? 0}
                             </span>
                             <button
                               onClick={() => bump(t, 1)}
+                              disabled={(qty[t.id] ?? 0) >= cap}
                               aria-label="Add one"
-                              className="grid h-8 w-8 place-items-center rounded-r-full text-white/60 transition hover:text-white"
+                              className="grid h-8 w-8 place-items-center rounded-r-full text-white/60 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:text-white/60"
                             >
                               <Plus size={13} />
                             </button>
@@ -328,6 +442,11 @@ export default function TicketBooking({
             <div className="mt-6 flex items-center justify-between border-t border-white/8 pt-5">
               <span className="text-[13px] text-white/60">
                 {count} ticket{count === 1 ? "" : "s"}
+                {count >= ORDER_LIMIT && (
+                  <span className="ml-2 text-[11px] text-white/40">
+                    — {ORDER_LIMIT} is the most one order can hold
+                  </span>
+                )}
               </span>
               <span className="font-display text-xl font-semibold">
                 {total === 0 ? "Free" : lkr(total)}
@@ -387,7 +506,7 @@ export default function TicketBooking({
             </div>
 
             <p className="mt-4 text-[12px] leading-relaxed text-white/60">
-              E-tickets are emailed instantly. Show the booking reference at the
+              E-tickets are emailed the moment you book. Show the booking reference at the
               gate.
             </p>
 
@@ -442,7 +561,9 @@ export default function TicketBooking({
                     ? emailsSent > 1
                       ? `All ${emailsSent} tickets emailed to ${email || "your email"} — one code each, in one message`
                       : `Emailed to ${email || "your email"}`
-                    : `Booked for ${email || "your email"} — the ${tickets.length > 1 ? "tickets are" : "ticket is"} below`}
+                    : emailQueued
+                      ? `On its way to ${email || "your email"} — ${tickets.length > 1 ? "the tickets are" : "the ticket is"} below as well, so there is nothing to wait for`
+                      : `Booked for ${email || "your email"} — the ${tickets.length > 1 ? "tickets are" : "ticket is"} below`}
                 </p>
               </div>
             </div>

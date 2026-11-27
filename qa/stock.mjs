@@ -274,10 +274,23 @@ await step("stocks: a low cell is listed at the top and on the overview", async 
 
 /* ---------- 4f. tickets: a seat cap and "N left" ---------- */
 await step("tickets: a tier is capped, the event page counts down", async () => {
+  /*
+    The cap is written *relative to what is already sold*.
+
+    A flat 12 used to be fine, until the suites between them had bought more
+    than twelve grandstand seats — then 12 was below `sold`, the shop correctly
+    read the tier as sold out, and this test failed for the right reason. Twelve
+    seats still on sale is the thing being checked, so the cap is sold + 12.
+  */
+  const seats = await (await fetch(`${BASE}/api/events/the-big-match/seats`)).json();
+  const tier = seats.tiers.find((t) => t.id === "grandstand");
+  if (!tier) throw new Error("no grandstand tier on The Big Match");
+  const capTo = tier.sold + 12;
+
   await page.goto(BASE + "/admin/stock", { waitUntil: "networkidle" });
   const cap = page.locator('input[aria-label="Seats for The Big Match — Grandstand Seat"]').first();
   if ((await cap.count()) === 0) throw new Error("no Grandstand Seat row for The Big Match");
-  await cap.fill("12");
+  await cap.fill(String(capTo));
   await page.getByRole("button", { name: /save seat caps/i }).click();
   await page.waitForTimeout(2500);
 
@@ -285,7 +298,7 @@ await step("tickets: a tier is capped, the event page counts down", async () => 
   const text = await body(page);
   if (!/12 left/.test(text)) throw new Error("the event page does not count the seats: " + text.slice(0, 300));
   await shot(page, "event-tickets-left");
-  return "12 left";
+  return `cap ${capTo} · 12 left`;
 });
 
 /* ---------- 5. the tab icon ---------- */

@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import type { Product } from "@/data/seed";
+import { stockFor } from "@/lib/stock-core";
 
 export type CartItem = {
   /**
@@ -29,6 +30,15 @@ export type CartItem = {
   variant?: string;
   colour: string;
   size: string;
+  /**
+   * How many of this shelf cell exist, when the shop counts stock. null = not
+   * counted, so the bag does not police it.
+   *
+   * Kept on the line because the bag is where a quantity is raised and lowered by
+   * hand: without it, "+" could walk a hoodie past the three that are on the
+   * shelf, and the customer only found out at the till.
+   */
+  cap?: number | null;
 };
 
 export type CartChoice = { colour?: string; size?: string };
@@ -64,11 +74,19 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const id = `${product.slug}|${colour}|${size}`;
     const variant = [colour, size].filter(Boolean).join(" / ");
     const wanted = Math.max(1, Math.round(qty) || 1);
+    // The shelf decides the ceiling, not the stepper: three left is three, even
+    // if the number box was set to five. Nothing is added when there is none.
+    const available = stockFor(product, colour, size);
+    const cap = available === null ? null : available;
+    if (cap === 0) return;
+    const fit = (n: number) => (cap === null ? n : Math.min(n, cap));
 
     setItems((prev) => {
       const existing = prev.find((i) => i.id === id);
       if (existing) {
-        return prev.map((i) => (i.id === id ? { ...i, qty: i.qty + wanted } : i));
+        return prev.map((i) =>
+          i.id === id ? { ...i, qty: fit(i.qty + wanted), cap } : i
+        );
       }
       return [
         ...prev,
@@ -78,10 +96,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
           name: product.name,
           price: product.price,
           image: product.image,
-          qty: wanted,
+          qty: fit(wanted),
           variant,
           colour,
           size,
+          cap,
         },
       ];
     });
@@ -91,11 +110,21 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems((prev) => prev.filter((i) => i.id !== id));
   }, []);
 
+  /**
+   * Sets a line's quantity, never above what the shelf holds.
+   *
+   * The bag's own "+" button goes through here, so it stops at the stock exactly
+   * as the product page's stepper does — one rule, wherever the number is raised.
+   */
   const setQty = useCallback((id: string, qty: number) => {
     setItems((prev) =>
       qty <= 0
         ? prev.filter((i) => i.id !== id)
-        : prev.map((i) => (i.id === id ? { ...i, qty } : i))
+        : prev.map((i) =>
+            i.id === id
+              ? { ...i, qty: i.cap === null || i.cap === undefined ? qty : Math.min(qty, i.cap) }
+              : i
+          )
     );
   }, []);
 

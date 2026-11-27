@@ -103,5 +103,9 @@ export async function saveTicketCapsAction(formData: FormData) {
   revalidatePath("/tickets");
   revalidatePath("/events");
   revalidatePath("/admin/events");
+  // The event page prints "N left" on each tier, and it is a static page with a
+  // one-minute window: without this, a cap set now is not visible to a buyer for
+  // a minute. The dynamic segment covers every event in one call.
+  revalidatePath("/events/[slug]", "page");
   backWith({ ok: true });
 }

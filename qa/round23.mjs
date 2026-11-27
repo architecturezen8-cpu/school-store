@@ -170,6 +170,11 @@ const setHoodieQty = async (value) => {
     check = await hoodieShelf();
   }
   if (check.count !== value) throw new Error(`the shelf reads ${check.count}, not ${value}`);
+  // Saving is a server action, and its redirect can land a beat later — long
+  // enough to interrupt the next page.goto in the step after this one ("navigation
+  // is interrupted by another navigation"). Wait for the page to go quiet.
+  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.waitForTimeout(500);
   return { from, to: value };
 };
 
@@ -241,8 +246,26 @@ await step("admin editor: a custom colour takes its dot from the picker", async 
   // still mounting is how a colour gets pressed into a state nobody keeps.
   await page.waitForTimeout(2000);
 
+  /*
+    A colour left behind by an earlier run is repaired, not trusted.
+
+    This used to skip the whole picker whenever "House tie green" already
+    existed — so a stale row from a session where the save did not take kept its
+    navy fallback forever, and every later run failed on a colour it had just
+    decided not to set.
+  */
   const alreadyThere = page.locator('input[aria-label="Colour value for House tie green"]');
-  if (!(await alreadyThere.count())) {
+  if (await alreadyThere.count()) {
+    const current = (await alreadyThere.first().inputValue()).toLowerCase();
+    if (current !== "#2f7d4f") {
+      await alreadyThere.first().evaluate((el) => {
+        const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
+        set.call(el, "#2f7d4f");
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+    }
+  } else {
     await page.fill('input[aria-label="New colour"]', "House tie green");
     // Setting a React-controlled input by hand needs the *native* setter;
     // assigning `el.value` updates React's tracker and the change is swallowed.

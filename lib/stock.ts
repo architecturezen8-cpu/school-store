@@ -155,6 +155,16 @@ export async function listTierStock(): Promise<TierStock[]> {
 }
 
 /**
+ * The same numbers for one event, for the booking modal.
+ *
+ * A buyer choosing a quantity needs today's count, not the one the event page
+ * cached a minute ago; this is what `/api/events/:slug/seats` serves.
+ */
+export async function seatsForEvent(event: string): Promise<TierStock[]> {
+  return (await listTierStock()).filter((t) => t.event === event);
+}
+
+/**
  * Sets how many seats a tier has. A blank box means "no cap".
  *
  * The cap may be set below what is already sold — the office sometimes closes a

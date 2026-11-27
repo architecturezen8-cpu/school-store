@@ -17,6 +17,7 @@ import { ChevronRight, Mail, TicketPlus } from "lucide-react";
 import TicketControls from "@/components/admin/TicketControls";
 import { asset } from "@/lib/assets";
 import { signTicket } from "@/lib/tickets/sign";
+import { mailStatusByReference } from "@/lib/tickets/mail-log";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +47,11 @@ export default async function BookingsPage({
   const tickets: Map<string, TicketSummary[]> = databaseDown()
     ? new Map()
     : await ticketsByReference(bookings.map((b) => b.reference)).catch(() => new Map());
+  // Whether each sale's email actually left. "The parent says nothing came" is
+  // the question this column answers without opening the mail log.
+  const mail = databaseDown()
+    ? new Map()
+    : await mailStatusByReference(bookings.map((b) => b.reference));
   // People, not bookings: with one ticket per person a four-seat booking can be
   // half in, and "2 bookings admitted" would be a lie in the middle of the day.
   const admitted = bookings.reduce((n, b) => n + b.admitted, 0);
@@ -103,6 +109,7 @@ export default async function BookingsPage({
                   <th className="pb-3 pr-4 font-medium">Seats</th>
                   <th className="pb-3 pr-4 font-medium">Paid</th>
                   <th className="pb-3 pr-4 font-medium">Gate</th>
+                  <th className="pb-3 pr-4 font-medium">Email</th>
                   <th className="pb-3 text-right font-medium">
                     <span className="sr-only">Actions</span>
                   </th>
@@ -142,6 +149,39 @@ export default async function BookingsPage({
                         <Pill>not scanned</Pill>
                       )}
                     </td>
+                    <td className="py-3 pr-4">
+                      {(() => {
+                        const sent = mail.get(b.reference.toUpperCase());
+                        if (!sent) return <span className="text-[11px] text-faint">—</span>;
+                        if (sent.status === "sent") {
+                          return (
+                            <span
+                              data-mail={b.reference}
+                              data-mail-status="sent"
+                              title={`${sent.to} · ${new Date(sent.at).toLocaleString("en-GB")}`}
+                            >
+                              <Pill tone="ok">emailed</Pill>
+                            </span>
+                          );
+                        }
+                        if (sent.status === "skipped") {
+                          return (
+                            <span data-mail={b.reference} data-mail-status="skipped">
+                              <Pill>no mail set up</Pill>
+                            </span>
+                          );
+                        }
+                        return (
+                          <span
+                            data-mail={b.reference}
+                            data-mail-status="failed"
+                            title={sent.error}
+                          >
+                            <Pill tone="stop">not sent</Pill>
+                          </span>
+                        );
+                      })()}
+                    </td>
                     <td className="py-3 text-right">
                       {/* The bill, for a parent at the door who needs a receipt
                           on paper rather than four ticket QR codes. */}
@@ -177,7 +217,7 @@ export default async function BookingsPage({
                       which is also the only kind that survives a page reload in
                       the middle of a sale. */}
                   <tr>
-                    <td colSpan={6} className="pb-3">
+                    <td colSpan={7} className="pb-3">
                       <details className="group" data-booking={b.reference}>
                         <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-1 text-[11px] text-muted underline-offset-4 hover:text-strong">
                           <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />

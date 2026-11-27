@@ -115,6 +115,16 @@ export default function CartDrawer() {
                       )}
                       <p className="mt-0.5 text-sm font-semibold text-white">
                         {lkr(item.price)}
+                        {item.cap !== null &&
+                          item.cap !== undefined &&
+                          item.qty >= item.cap && (
+                            <span
+                              data-cap-note={item.id}
+                              className="ml-2 text-[11px] font-normal text-gold"
+                            >
+                              all {item.cap} in your bag
+                            </span>
+                          )}
                       </p>
                       <div className="mt-auto flex items-center gap-3 pt-2">
                         <button
@@ -129,8 +139,18 @@ export default function CartDrawer() {
                         </span>
                         <button
                           onClick={() => setQty(item.id, item.qty + 1)}
+                          disabled={
+                            item.cap !== null &&
+                            item.cap !== undefined &&
+                            item.qty >= item.cap
+                          }
                           aria-label="Increase quantity"
-                          className="grid h-7 w-7 place-items-center rounded-full border border-white/15 text-white/60 transition hover:bg-navy-800 hover:text-white"
+                          title={
+                            item.cap !== null && item.cap !== undefined && item.qty >= item.cap
+                              ? `Only ${item.cap} in stock`
+                              : undefined
+                          }
+                          className="grid h-7 w-7 place-items-center rounded-full border border-white/15 text-white/60 transition hover:bg-navy-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:bg-transparent disabled:hover:text-white/60"
                         >
                           <Plus size={12} />
                         </button>

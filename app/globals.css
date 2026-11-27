@@ -133,19 +133,42 @@ h4 {
   color: #04060d;
 }
 
+/* ---------- scrollbars ----------------------------------------------------
+   Neutral grey, on every screen.
+
+   The thumb was #16244a — navy-700 — which is invisible against the navy
+   storefront and unmistakably blue against the admin's charcoal. A scrollbar is
+   furniture, not part of the design: it should read as "there is more of this
+   page", in a grey that belongs to both skins. The gold hover stays, because it
+   is the one accent the whole site shares.
+
+   `scrollbar-color` is what Firefox reads; the `-webkit-` rules cover Chrome,
+   Safari and Edge. The transparent border plus `background-clip` keeps the thumb
+   slim without needing to know which colour is behind it. */
+html {
+  scrollbar-color: #3a3f45 transparent;
+  scrollbar-width: thin;
+}
+
 ::-webkit-scrollbar {
   width: 10px;
+  height: 10px;
 }
 ::-webkit-scrollbar-track {
-  background: #04060d;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #16244a;
+  background: #3a3f45;
   border-radius: 999px;
-  border: 2px solid #04060d;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #ffd444;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 /* ---------- solid panel primitive (no glass, static hairline) ---------- */

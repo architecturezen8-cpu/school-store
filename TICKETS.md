@@ -171,6 +171,33 @@ Resend is used when `RESEND_API_KEY` is set; otherwise plain SMTP. With neither,
 bookings still succeed, the mail is logged to the server console, and the
 confirmation screen says the ticket is below instead of claiming it was emailed.
 
+#### The send does not hold the booking
+
+Clicking **Confirm booking** writes the seats and answers — it does not wait for
+the mail server. The email is handed off after the response is on the wire
+(`after()` in `app/api/bookings/route.ts`), so a slow SMTP server costs the buyer
+nothing, and the response never claims a delivery it cannot know about: it says
+the mail is *queued*, and the confirmation screen says the ticket is below as
+well.
+
+Three things make that hand-off reliable:
+
+- **Timeouts everywhere.** Resend gets 15 seconds; SMTP gets 10 to connect, 10 to
+  greet and 20 on the socket. Before this, nodemailer would sit on a silent
+  socket for up to ten minutes — which is exactly how an email "sometimes never
+  arrives": the hosting platform kills the function long before SMTP gives up.
+- **One retry, and only for the network's failures.** A timeout, a dropped
+  socket, a refused connection, a rate limit or a 5xx is tried again 700 ms
+  later. A wrong password or a refused recipient is not: it would fail
+  identically, and one honest line in the log is worth more than two.
+- **The tickets are drawn three at a time, not one after another.** A party of
+  eight used to be eight successive renders of a full-page ticket before the
+  message could be handed to the server.
+
+If it still does not arrive, the bookings list says so: each row carries an
+**Email** column — *emailed*, *not sent* or *no mail set up* — read from
+`email_log`, and **Resend** sends it again.
+
 ![The ticket email](docs/screens/ticket-email.png)
 
 ![The ticket email page: preview and a test send, nothing to edit](docs/screens/admin-mail.png)
@@ -223,6 +250,26 @@ finished panel live in `docs/screens/` — `admin-overview.png`, `admin-bookings
   the gate accepts the reference and admits the next seat that has not been in,
   so printing it on something anybody can photograph would put the party behind
   one shared string.
+
+### How many seats one order may hold
+
+Two numbers decide it, and the smaller wins:
+
+- **what is left on that ticket type** — `capacity - sold`, from the ticket
+  office's own seat cap; and
+- **the order limit** — eight of one type, `ORDER_LIMIT` in
+  `components/TicketBooking.tsx`.
+
+A tier with three seats left stops at three, says **Only 3 left** beside the
+name, and disables **+**. The modal asks `/api/events/:slug/seats` when it opens,
+so those numbers are today's rather than the ones the cached event page was
+built with, and the server refuses an over-book anyway
+(`POST /api/bookings` → `409 Only 3 Grandstand Seat left`). A cap of zero makes
+the tier read **Sold out** and its checkbox does nothing.
+
+The shop's own bag follows the same rule: a line remembers the shelf count for
+its colour and size, `+` in the bag stops there, and the line says when it holds
+every one the shop has.
 
 ### One code per ticket, and stopping one
 
@@ -286,8 +333,9 @@ ticket file per person), and it is behind the **Bill** button in the admin and o
 the confirmation screen. The customer's ticket page does not link it.
 
 `/admin/bookings` lists every booking: what was paid, whether it has been
-scanned, a **Resend** button that re-sends that customer's ticket, and a link to
-the booking's own page.
+scanned, whether its email actually left (**Email**: emailed / not sent / no
+mail set up), a **Resend** button that re-sends that customer's ticket, and a
+link to the booking's own page.
 
 ### The email log
 
