@@ -32,15 +32,14 @@ repo — a good way to see the result without touching GitHub).
 **What goes in:** `app/`, `components/`, `data/`, `db/`, `lib/`, `public/`,
 `scripts/`, `package.json`, `package-lock.json`, `next.config.mjs`,
 `tsconfig.json`, `postcss.config.mjs`, `eslint.config.mjs`, `.env.example`,
-`.gitignore`, `.vercelignore` — **167 files**.
+`.gitignore`, `.vercelignore` — **168 files**.
 
 **What stays out:** `qa/`, `docs/`, `index.html`, `stackblitz.config.json`, the
 `*.md` notes, `PUSH-ME.md`/this file, `.arena/`, `.pglite/`, `.env.local`,
 `node_modules/`, `.next/`, `out/`.
 
-Verified: the tree this produces is byte-identical to the one that was extracted
-into an empty directory, `npm ci`-ed and built — **35/35 static pages**, and
-served with `next start` across `/`, `/shop`, `/product/*`, `/tickets`,
+Verified: that exact tree, extracted into an empty directory, `npm ci`-ed and
+built — **35/35 static pages** — and served with `next start` across `/`, `/shop`, `/product/*`, `/tickets`,
 `/events/*`, `/admin`, `/admin/stock`, `/admin/mail`, `/admin/bookings`,
 `/admin/events`, `/admin/templates`, `/sitemap.xml`, `/robots.txt` (all 200, or
 307 on `/gate`).
