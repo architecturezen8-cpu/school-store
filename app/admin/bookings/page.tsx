@@ -1,0 +1,215 @@
+import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { isAdmin } from "@/lib/admin/auth";
+import { databaseProblem } from "@/lib/admin/db-guard";
+import { databaseDown, hasDatabase } from "@/lib/db";
+import { Fragment } from "react";
+import { listBookings, ticketsByReference, type TicketSummary } from "@/lib/bookings";
+import { lkr } from "@/lib/format";
+import { safeDecode } from "@/lib/safe-decode";
+import Link from "next/link";
+import ParamToast from "@/components/admin/ParamToast";
+import DownloadReceipt from "@/components/DownloadReceipt";
+import SubmitButton from "@/components/SubmitButton";
+import { resendTicketAction } from "../actions";
+import { Empty, Notice, PageHeader, Panel, Pill, Stat, buttonClass } from "@/components/admin/ui";
+import { ChevronRight, Mail, TicketPlus } from "lucide-react";
+import TicketControls from "@/components/admin/TicketControls";
+import { asset } from "@/lib/assets";
+import { signTicket } from "@/lib/tickets/sign";
+
+export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Bookings",
+  robots: { index: false, follow: false },
+};
+
+export default async function BookingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ ok?: string; error?: string }>;
+}) {
+  if (!(await isAdmin())) redirect("/admin?next=/admin/bookings");
+  if (!hasDatabase()) redirect("/admin?error=database");
+
+  const { ok, error } = await searchParams;
+
+  const okText = ok ? `Ticket re-sent for ${safeDecode(ok)}.` : "";
+  const errorText = error ? safeDecode(error) : "";
+  // A database that has already failed is not asked again: one timeout per
+  // process is a diagnosis, three hundred is a hung page.
+  const problem = databaseProblem();
+  const bookings = databaseDown() ? [] : await listBookings(300);
+  // One query for every sale's tickets, not one per row: the list is where a
+  // single ticket gets stopped, so each row has to know its tickets.
+  const tickets: Map<string, TicketSummary[]> = databaseDown()
+    ? new Map()
+    : await ticketsByReference(bookings.map((b) => b.reference)).catch(() => new Map());
+  // People, not bookings: with one ticket per person a four-seat booking can be
+  // half in, and "2 bookings admitted" would be a lie in the middle of the day.
+  const admitted = bookings.reduce((n, b) => n + b.admitted, 0);
+  const revenue = bookings.reduce((n, b) => n + b.total, 0);
+  const seats = bookings.reduce((n, b) => n + b.seats, 0);
+
+  return (
+    <div className="space-y-3">
+      <section className="rounded-2xl bg-panel p-6">
+        <PageHeader
+          eyebrow="Tickets"
+          title="Bookings"
+          actions={
+            <Link href="/admin/bookings/new" className={buttonClass("primary")}>
+              <TicketPlus className="h-4 w-4" /> Issue a ticket
+            </Link>
+          }
+          description="Everyone who has bought a ticket, what they paid and whether the code has been used at the gate."
+        />
+        {problem && (
+          <div className="mt-4">
+            <Notice tone="warn">{problem}</Notice>
+          </div>
+        )}
+
+        {(ok || error) && (
+          <div className="mt-4 space-y-2">
+            <ParamToast ok={okText} error={errorText} />
+            
+          </div>
+        )}
+      </section>
+
+      <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Stat label="Bookings" value={String(bookings.length)} />
+        <Stat label="Seats" value={String(seats)} />
+        <Stat
+          label="Admitted at the gate"
+          value={String(admitted)}
+          note={`${seats - admitted} of ${seats} still to come`}
+        />
+        <Stat label="Taken" value={lkr(revenue)} tone="invert" />
+      </dl>
+
+      <Panel title="All bookings" description="Newest first.">
+        {bookings.length === 0 ? (
+          <Empty>No bookings yet. They appear here the moment someone reserves a ticket.</Empty>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-left text-sm">
+              <thead className="text-[11px] uppercase tracking-[0.14em] text-muted">
+                <tr>
+                  <th className="pb-3 pr-4 font-medium">Reference</th>
+                  <th className="pb-3 pr-4 font-medium">Customer</th>
+                  <th className="pb-3 pr-4 font-medium">Seats</th>
+                  <th className="pb-3 pr-4 font-medium">Paid</th>
+                  <th className="pb-3 pr-4 font-medium">Gate</th>
+                  <th className="pb-3 text-right font-medium">
+                    <span className="sr-only">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {bookings.map((b) => {
+                  const sales = tickets.get(b.reference) ?? [];
+                  const back = "/admin/bookings";
+                  return (
+                  <Fragment key={b.reference}>
+                  <tr className="align-middle">
+                    <td className="py-3 pr-4 font-mono text-xs text-body">{b.reference}</td>
+                    <td className="py-3 pr-4">
+                      <Link
+                        href={`/admin/bookings/${encodeURIComponent(b.reference)}`}
+                        className="block text-strong underline-offset-4 hover:underline"
+                      >
+                        {b.name}
+                      </Link>
+                      <span className="block truncate text-xs text-muted">{b.email}</span>
+                    </td>
+                    <td className="py-3 pr-4 text-body">
+                      {b.seatsText || `${b.seats} seats`}
+                      <span className="block text-xs text-muted">{b.eventTitle}</span>
+                    </td>
+                    <td className="py-3 pr-4 text-body">{lkr(b.total)}</td>
+                    <td className="py-3 pr-4">
+                      {b.seats > 1 && (
+                        <span className="mr-1 font-mono text-[11px] text-faint">
+                          {b.admitted}/{b.seats}
+                        </span>
+                      )}
+                      {b.admittedAt ? (
+                        <Pill tone="ok">{new Date(b.admittedAt).toLocaleString("en-GB")}</Pill>
+                      ) : (
+                        <Pill>not scanned</Pill>
+                      )}
+                    </td>
+                    <td className="py-3 text-right">
+                      {/* The bill, for a parent at the door who needs a receipt
+                          on paper rather than four ticket QR codes. */}
+                      <span className="mr-1.5 inline-block align-middle">
+                        <DownloadReceipt
+                          href={asset(
+                            `/api/tickets/${encodeURIComponent(b.token)}/receipt?s=${encodeURIComponent(
+                              signTicket(b.token)
+                            )}`
+                          )}
+                          pending="Drawing…"
+                          showNote={false}
+                          className={`${buttonClass("ghost")} !px-3 !py-1.5 !text-xs`}
+                        >
+                          Bill
+                        </DownloadReceipt>
+                      </span>
+                      <form action={resendTicketAction} className="inline">
+                        <input type="hidden" name="token" value={b.token} />
+                        <SubmitButton
+                          pending="Sending…"
+                          className={`${buttonClass("ghost")} !px-3 !py-1.5 !text-xs`}
+                          icon={<Mail className="h-3.5 w-3.5" />}
+                        >
+                          Resend
+                        </SubmitButton>
+                      </form>
+                    </td>
+                  </tr>
+
+                  {/* The tickets themselves, folded away under the sale.
+                      No JavaScript: <details> is the browser's own disclosure,
+                      which is also the only kind that survives a page reload in
+                      the middle of a sale. */}
+                  <tr>
+                    <td colSpan={6} className="pb-3">
+                      <details className="group" data-booking={b.reference}>
+                        <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-1 text-[11px] text-muted underline-offset-4 hover:text-strong">
+                          <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
+                          {sales.length} ticket{sales.length === 1 ? "" : "s"} — block, pause or
+                          delete one
+                        </summary>
+                        <ul className="mt-2 space-y-1.5">
+                          {sales.map((t) => (
+                            <TicketControls
+                              key={t.token}
+                              ticket={t}
+                              reference={b.reference}
+                              back={back}
+                            />
+                          ))}
+                          {sales.length === 0 && (
+                            <li className="rounded-lg bg-panel px-3 py-2 text-[11px] text-muted">
+                              No tickets on this sale — every one has been deleted.
+                            </li>
+                          )}
+                        </ul>
+                      </details>
+                    </td>
+                  </tr>
+                  </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
+    </div>
+  );
+}

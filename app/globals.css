@@ -1,0 +1,239 @@
+/* Fonts live in public/fonts and are served from this origin — see the
+   @font-face rules below. The previous `@import` of fonts.googleapis.com was a
+   render-blocking third-party request, so first paint waited on a network that
+   is slow, filtered, or (in some environments) unreachable. */
+@import "tailwindcss";
+@source "../components";
+@source "../app";
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../public/fonts/inter-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Poppins";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../public/fonts/poppins-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Poppins";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../public/fonts/poppins-500.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Poppins";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("../public/fonts/poppins-600.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Poppins";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../public/fonts/poppins-700.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Poppins";
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url("../public/fonts/poppins-800.woff2") format("woff2");
+}
+
+@theme {
+  /* ---- palette: black, navy, white + a single premium gold accent ---- */
+  --color-gold: #ffd444;
+  --color-accent: #ffffff;
+  --color-ink: #04060d;
+  --color-navy-950: #060a16;
+  --color-navy-900: #0a1224;
+  --color-navy-800: #0f1a33;
+  --color-navy-700: #16244a;
+  --color-navy-600: #1e3060;
+
+  /* ---- admin surfaces -------------------------------------------------------
+     The admin wears no navy: a warm-neutral charcoal stack with the existing
+     `gold` as its only accent. These names are used only by components/admin,
+     so the storefront is untouched.
+
+     Why charcoal rather than black, and off-white rather than white: pure white
+     on pure black is a 21:1 contrast ratio, and an hour of it is genuinely
+     tiring — the eye keeps re-adapting between the letterforms and the
+     background. Dropping both ends slightly (F2F4F6 on #1C1E21 = 15:1) keeps
+     the text unmistakably readable while removing the glare.
+
+     The tiles also had to move up with it. On #000 a #111 tile is a 1.11:1
+     step, which is below the point where a raised surface reads as raised; on
+     this page the same step is measured from a lighter page, so the tile is
+     lifted further to stay legible as a separate surface. */
+  --color-well: #17181b;
+  --color-panel: #1c1e21;
+  --color-panel-2: #26292d;
+  --color-line: #34383d;
+  --color-gold-bright: #ffe066;
+
+  /* ---- admin text ramp -----------------------------------------------------
+     Four steps, each named for its job rather than its opacity. Every one of
+     them clears 4.5:1 on every admin surface — including `faint`, which is the
+     old white/45 meta text that used to sit at 4.78 on a tile and below 4.5 on
+     nothing else. Contrast that changes with the surface behind it is how a
+     hierarchy turns into an accessibility bug. */
+  --color-strong: #f2f4f6;
+  --color-body: #d3d7dc;
+  --color-muted: #a4aab2;
+  --color-faint: #878e97;
+  --color-page: #131417;
+
+  --font-display: "Poppins", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #04060d;
+  color: #ffffff;
+  font-family: var(--font-sans);
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+::selection {
+  background: #ffd444;
+  color: #04060d;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #04060d;
+}
+::-webkit-scrollbar-thumb {
+  background: #16244a;
+  border-radius: 999px;
+  border: 2px solid #04060d;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #ffd444;
+}
+
+/* ---------- solid panel primitive (no glass, static hairline) ---------- */
+.bento {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background-color: #0a1224;
+  transition:
+    background-color 0.4s ease,
+    box-shadow 0.4s ease,
+    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.bento:hover {
+  background-color: #0f1a33;
+}
+
+.bento-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+}
+
+/* ---------- keyframes ---------- */
+@keyframes kenburns {
+  0% {
+    transform: scale(1.02) translateY(0);
+  }
+  100% {
+    transform: scale(1.14) translateY(-1.5%);
+  }
+}
+
+@keyframes spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes progress-x {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes scroll-dot {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(32px);
+    opacity: 0;
+  }
+}
+
+@keyframes aura {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes ring-pulse {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.5;
+  }
+  70% {
+    transform: scale(1.2);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.2);
+    opacity: 0;
+  }
+}
+
+/* ---------- film grain ---------- */
+.grain-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0.04;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='180' height='180' filter='url(%23n)' opacity='0.6'/></svg>");
+}
