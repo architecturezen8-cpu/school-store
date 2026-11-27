@@ -729,6 +729,7 @@ export default function EventEditor({
                   name: "",
                   price: 0,
                   perks: [],
+                  capacity: null,
                 })
               }
               className={`${buttonClass("secondary")} !px-3 !py-1.5 !text-xs`}
@@ -745,7 +746,7 @@ export default function EventEditor({
             <ul className="mt-4 space-y-3">
               {draft.tiers.map((t, i) => (
                 <li key={t.id} className="rounded-xl bg-well p-4">
-                  <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_120px_auto] sm:items-center">
+                  <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_120px_140px_auto] sm:items-center">
                     <input
                       value={t.name}
                       onChange={(e) => updateList<"tiers">("tiers", i, { name: e.target.value } as never)}
@@ -762,6 +763,32 @@ export default function EventEditor({
                         updateList<"tiers">("tiers", i, { price: Number(e.target.value) } as never)
                       }
                       aria-label={`Ticket type ${i + 1} price`}
+                      className={inputClass}
+                    />
+                    {/*
+                      Seats for this tier, right where the type is created.
+
+                      The same number also lives on the Stocks screen, but an
+                      event is where you know it: "200 seats in the grandstand"
+                      is part of designing the match, not of counting a shelf.
+                      Blank means no cap — the shop prints no countdown.
+                    */}
+                    <input
+                      type="number"
+                      min={0}
+                      step={10}
+                      value={t.capacity ?? ""}
+                      onChange={(e) =>
+                        updateList<"tiers">(
+                          "tiers",
+                          i,
+                          {
+                            capacity: e.target.value === "" ? null : Number(e.target.value),
+                          } as never
+                        )
+                      }
+                      placeholder="No cap"
+                      aria-label={`Ticket type ${i + 1} seats`}
                       className={inputClass}
                     />
                     <button
@@ -787,7 +814,14 @@ export default function EventEditor({
                     className={inputClass}
                   />
                   <p className="mt-1.5 text-[11px] text-muted">
-                    id <code className="text-muted">{t.id}</code>
+                    {t.capacity === null || t.capacity === undefined
+                      ? "Seats: no cap — sell as many as turn up."
+                      : `Seats: ${t.capacity}${
+                          t.sold ? ` — ${t.sold} sold, ${Math.max(0, t.capacity - t.sold)} left` : ""
+                        }.`}{" "}
+                    <span className="text-faint">
+                      id <code>{t.id}</code>
+                    </span>
                   </p>
                 </li>
               ))}

@@ -227,7 +227,7 @@ You can confirm the other direction from the terminal: after placing an order,
 
 | Thing | State |
 | --- | --- |
-| Schema (`db/schema.sql`) | applied — 11 tables (including `product_stock`) + `order_number_seq`, `set_updated_at()`, `orders_touch_updated_at` |
+| Schema (`db/schema.sql`) | applied — 12 tables (including `product_stock` and `hero_slides`) + `order_number_seq`, `set_updated_at()`, `orders_touch_updated_at`, and the four oversell `check` constraints |
 | Seed data | applied — 5 categories, 17 products, 4 reviews, 5 events, 12 tiers |
 | Orders / bookings | empty and ready; references start at `STC-01042` |
 | Row Level Security | on, **no policies** — the table owner (`postgres`) bypasses it, and only the server connects with that credential. Keep it this way: the tables are never exposed through the Supabase REST API. |
@@ -295,6 +295,9 @@ the rest:
 | Which colour and size an order line bought | `order_items.colour`, `order_items.size` | older orders still list, with an empty variant |
 | Seat caps per ticket tier | `ticket_tiers.capacity`, `ticket_tiers.sold` | the event page shows no “N left”, and the Stocks screen says “no cap” |
 | The colours a product is sold in | `products.colours` | the product form still saves, but the shop shows no colour chips |
+| The dot drawn beside each colour | `products.colour_swatches` | every colour still gets a dot — from the school's palette or a hue of its name — but not the one the office picker chose |
+| The home page's slideshow | `hero_slides` (a table) | the hero shows the three photographs that came with the app; the admin's **Hero slideshow** page offers to copy them |
+| The rules that stop overselling | four `check` constraints on `product_stock` and `ticket_tiers`, and four indexes | checkout still refuses to oversell (the guards live in the transaction), but nothing stops a hand written `update` from taking a shelf below zero |
 
 None of these break a page: the admin opens, the banner names what is missing, and
 **Update the database** (or `npm run db:migrate`) adds it.

@@ -42,6 +42,12 @@ create table if not exists products (
 -- `create table` above only helps a database that does not exist yet.
 alter table products add column if not exists colours jsonb not null default '[]'::jsonb;
 
+-- The dot drawn beside each of those colours: {"Navy": "#12203d", …}. A colour
+-- with no entry still gets a dot — `colourHex()` falls back to the school's
+-- palette, then to a hue derived from the name — so this column only records the
+-- ones the office chose by hand, with a picker.
+alter table products add column if not exists colour_swatches jsonb not null default '{}'::jsonb;
+
 create index if not exists products_category_idx on products (category) where active;
 create index if not exists products_featured_idx on products (is_featured) where active;
 
@@ -352,6 +358,62 @@ update bookings b
  where exists (select 1 from booking_tickets bt where bt.booking = b.id)
    and (b.admitted_at is null) <> exists (select 1 from booking_tickets bt
                                            where bt.booking = b.id and bt.admitted_at is null);
+
+-- ---------- rules that keep a rush honest ------------------------------------
+-- The shop is quiet all term and then the whole school wants a shirt on the
+-- Friday before the match. Every guarantee about overselling lives in the
+-- database rather than in the page that happens to be selling:
+--
+--   * a shelf can never go below zero, whatever a bug (or a person with psql)
+--     tries to write;
+--   * a tier's seats are never negative and never exceed the cap, so a burst of
+--     checkouts that races past `sold + n <= capacity` fails at the row instead
+--     of selling seat 201;
+--   * the lookups the checkout and the gate make while a queue is building are
+--     indexed, so the queue moves at the speed of the disk, not of a scan.
+--
+-- Written as `do` blocks because Postgres has no `add constraint if not exists`
+-- and this file is re-run by `npm run db:migrate` and by the admin button.
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'product_stock_qty_nonneg') then
+    alter table product_stock
+      add constraint product_stock_qty_nonneg check (qty >= 0);
+  end if;
+
+  if not exists (select 1 from pg_constraint where conname = 'ticket_tiers_capacity_nonneg') then
+    alter table ticket_tiers
+      add constraint ticket_tiers_capacity_nonneg check (capacity is null or capacity >= 0);
+  end if;
+
+  if not exists (select 1 from pg_constraint where conname = 'ticket_tiers_sold_nonneg') then
+    alter table ticket_tiers
+      add constraint ticket_tiers_sold_nonneg check (sold >= 0);
+  end if;
+
+  if not exists (select 1 from pg_constraint where conname = 'ticket_tiers_sold_within_capacity') then
+    alter table ticket_tiers
+      add constraint ticket_tiers_sold_within_capacity check (capacity is null or sold <= capacity);
+  end if;
+end $$;
+
+create index if not exists orders_created_idx on orders (created_at desc);
+create index if not exists order_items_order_idx on order_items (order_id);
+create index if not exists bookings_event_idx on bookings (event);
+create index if not exists booking_tickets_booking_idx on booking_tickets (booking);
+
+-- ---------- the home page's slideshow ----------------------------------------
+-- Three photographs behind the school's name, changed by the office rather than
+-- by a developer. No rows means the built-in three are on screen, so a fresh
+-- database is never a blank home page.
+create table if not exists hero_slides (
+  id         uuid primary key default gen_random_uuid(),
+  image      text not null,
+  caption    text not null default '',
+  position   integer not null default 0,
+  active     boolean not null default true,
+  created_at timestamptz not null default now()
+);
 
 -- ---------- the school's own settings ---------------------------------------
 -- One row. Today this is the logo the admin uploads: the same image is used on

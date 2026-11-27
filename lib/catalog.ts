@@ -44,6 +44,15 @@ export type AdminProduct = {
   options: { label: string; values: string[] } | null;
   gallery: string[];
   colours: string[];
+  /**
+   * name → #rrggbb, for the dot the shop draws beside each colour.
+   *
+   * A colour *name* is a word; a swatch is the colour. The office picks the
+   * exact shade when it adds a colour, and the shop reuses it everywhere — the
+   * product page, the quick view and the shop's filter row. Missing entries fall
+   * back to the school's palette, then to a hue derived from the name.
+   */
+  colourSwatches: Record<string, string>;
   isFeatured: boolean;
   isNew: boolean;
   active: boolean;
@@ -142,6 +151,7 @@ function seedAdminProducts(): AdminProduct[] {
     options: p.options ?? null,
     gallery: p.gallery ?? [],
     colours: p.colours ?? [],
+    colourSwatches: {},
     isFeatured: Boolean(p.isFeatured),
     isNew: Boolean(p.isNew),
     active: true,
@@ -265,6 +275,7 @@ type ProductRow = {
   options: unknown;
   gallery: unknown;
   colours: unknown;
+  colour_swatches: unknown;
   is_featured: boolean;
   is_new: boolean;
   active: boolean;
@@ -284,6 +295,7 @@ const toProduct = (r: ProductRow): AdminProduct => ({
   options: asOptions(r.options),
   gallery: asStrings(r.gallery),
   colours: asStrings(r.colours),
+  colourSwatches: asSwatches(r.colour_swatches),
   isFeatured: r.is_featured,
   isNew: r.is_new,
   active: r.active,
@@ -292,6 +304,18 @@ const toProduct = (r: ProductRow): AdminProduct => ({
 function asStrings(value: unknown): string[] {
   const raw = typeof value === "string" ? safeJson(value) : value;
   return Array.isArray(raw) ? raw.map((v) => String(v).trim()).filter(Boolean) : [];
+}
+
+/** The saved dots, with anything that is not a real hex colour dropped. */
+function asSwatches(value: unknown): Record<string, string> {
+  const raw = typeof value === "string" ? safeJson(value) : value;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: Record<string, string> = {};
+  for (const [name, hex] of Object.entries(raw as Record<string, unknown>)) {
+    const key = String(name).trim();
+    if (key && typeof hex === "string" && /^#[0-9a-f]{6}$/i.test(hex)) out[key] = hex.toLowerCase();
+  }
+  return out;
 }
 
 function asOptions(value: unknown): { label: string; values: string[] } | null {
@@ -335,7 +359,7 @@ export async function listAdminProducts(): Promise<AdminProduct[]> {
   const rows = await readOr<ProductRow[] | null>(null, () =>
     query<ProductRow>(
       `select slug, name, price, image, tag, category, rating, reviews, description,
-              details, options, gallery, colours, is_featured, is_new, active
+              details, options, gallery, colours, colour_swatches, is_featured, is_new, active
          from products
         order by category, name`
     )
@@ -355,7 +379,7 @@ export async function getAdminProduct(slug: string): Promise<AdminProduct | unde
   const rows = await readOr<ProductRow[] | null>(null, () =>
     query<ProductRow>(
       `select slug, name, price, image, tag, category, rating, reviews, description,
-              details, options, gallery, colours, is_featured, is_new, active
+              details, options, gallery, colours, colour_swatches, is_featured, is_new, active
          from products where slug = $1`,
       [slug]
     )
@@ -399,6 +423,14 @@ export async function saveProduct(
       : null,
     JSON.stringify(draft.gallery.map((g) => g.trim()).filter(Boolean)),
     JSON.stringify(draft.colours.map((c) => c.trim()).filter(Boolean)),
+    JSON.stringify(
+      Object.fromEntries(
+        draft.colours
+          .map((c) => c.trim())
+          .filter((c) => /^#[0-9a-f]{6}$/i.test(draft.colourSwatches?.[c] ?? ""))
+          .map((c) => [c, draft.colourSwatches[c].toLowerCase()])
+      )
+    ),
     Boolean(draft.isFeatured),
     Boolean(draft.isNew),
     Boolean(draft.active),
@@ -411,8 +443,8 @@ export async function saveProduct(
       await query(
         `insert into products
            (name, price, image, tag, category, rating, reviews, description, details,
-            options, gallery, colours, is_featured, is_new, active, slug)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+            options, gallery, colours, colour_swatches, is_featured, is_new, active, slug)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
         [...cols, slug]
       );
     } else {
@@ -420,7 +452,7 @@ export async function saveProduct(
         `update products set
            name = $2, price = $3, image = $4, tag = $5, category = $6, rating = $7,
            reviews = $8, description = $9, details = $10, options = $11, gallery = $12,
-           colours = $13, is_featured = $14, is_new = $15, active = $16
+           colours = $13, colour_swatches = $14, is_featured = $15, is_new = $16, active = $17
          where slug = $1`,
         [slug, ...cols]
       );

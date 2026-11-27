@@ -300,7 +300,7 @@ export default function EventPage({
                     {left !== null && (
                       <p
                         className={`mt-2 text-[10px] font-bold uppercase tracking-[0.16em] ${
-                          gone ? "text-red-300" : left <= 5 ? "text-gold" : "text-white/40"
+                          gone ? "text-red-300" : left <= 5 ? "text-gold" : "text-stock"
                         }`}
                       >
                         {gone ? "Sold out" : ticketsLeftLabel(t)}

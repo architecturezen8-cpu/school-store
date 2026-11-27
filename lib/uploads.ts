@@ -35,6 +35,31 @@ export type UploadedImage =
   | { ok: false; error: string };
 
 export async function uploadImage(file: File, folder = ""): Promise<UploadedImage> {
+  // `folder` is a sub-folder *inside* uploads/events, not the folder itself —
+  // EVENT_UPLOAD_DIR already ends in `events`.
+  const safeFolder = folder.replace(/[^a-z0-9-]/gi, "").slice(0, 40);
+  return store(file, path.join("uploads", "events", safeFolder));
+}
+
+/**
+ * A photograph for the home page's slideshow.
+ *
+ * Same shrinking and same limits as any other upload, in its own folder so the
+ * hero can be cleared out without touching event artwork.
+ */
+export async function uploadHeroImage(file: File): Promise<UploadedImage> {
+  return store(file, path.join("uploads", "hero"));
+}
+
+/**
+ * Shrink, normalise and write one image under `public/<dir>`.
+ *
+ * The single place an upload touches the disk. `dir` is a path under `public/`
+ * and is the caller's business — `uploadImage` for event artwork,
+ * `uploadHeroImage` for the slideshow, and the two brand uploaders below for the
+ * logo and the tab icon.
+ */
+async function store(file: File, dir: string): Promise<UploadedImage> {
   const ext = ALLOWED.get(file.type);
   if (!ext) return { ok: false, error: "Upload a PNG, JPEG or WebP image." };
   if (file.size > MAX_UPLOAD_BYTES) {
@@ -69,12 +94,7 @@ export async function uploadImage(file: File, folder = ""): Promise<UploadedImag
     return { ok: false, error: "That file is not a readable image." };
   }
 
-  // `folder` is a sub-folder *inside* uploads/events, not the folder itself —
-  // EVENT_UPLOAD_DIR already ends in `events`.
-  const safeFolder = folder.replace(/[^a-z0-9-]/gi, "").slice(0, 40);
-  const relative = path
-    .join("uploads", "events", safeFolder, `${randomUUID()}${ext}`)
-    .replace(/\\/g, "/");
+  const relative = path.join(dir, `${randomUUID()}${ext}`).replace(/\\/g, "/");
   const absolute = path.join(process.cwd(), "public", relative);
   await mkdir(path.dirname(absolute), { recursive: true });
   await writeFile(absolute, output);
@@ -88,11 +108,13 @@ export async function uploadImage(file: File, folder = ""): Promise<UploadedImag
  * The path check is the whole point: a stored URL could have been typed in by
  * hand, and `unlink` on `../../app/page.tsx` would be a bad afternoon.
  */
+const REMOVABLE = [path.join("public", "uploads", "events"), path.join("public", "uploads", "hero")];
+
 export async function removeUpload(url: string): Promise<void> {
-  if (!url.startsWith("/uploads/events/")) return;
+  if (!url.startsWith("/uploads/events/") && !url.startsWith("/uploads/hero/")) return;
   const absolute = path.join(process.cwd(), "public", url.replace(/^\//, ""));
-  const root = path.join(process.cwd(), EVENT_UPLOAD_DIR);
-  if (!absolute.startsWith(root + path.sep)) return;
+  const ok = REMOVABLE.some((dir) => absolute.startsWith(path.join(process.cwd(), dir) + path.sep));
+  if (!ok) return;
   await unlink(absolute).catch(() => {});
 }
 

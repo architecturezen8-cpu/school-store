@@ -77,6 +77,14 @@ export type Product = {
   isNew?: boolean;
   gallery?: string[];
   colours?: string[];
+  /**
+   * name → #rrggbb: the dot the shop draws beside each colour.
+   *
+   * Optional because a product that has never had a colour picked for it still
+   * has to render — `colourHex()` then falls back to the school's palette and
+   * finally to a hue derived from the name.
+   */
+  colourSwatches?: Record<string, string>;
   /** Omitted when the product's stock is not counted. */
   stock?: ProductStock;
 };

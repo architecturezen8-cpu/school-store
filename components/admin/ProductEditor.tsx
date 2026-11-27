@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Field, Notice, buttonClass, inputClass, labelClass } from "@/components/admin/ui";
 import { comboKey, combosFor } from "@/lib/stock-core";
+import { colourHex, suggestedHex } from "@/lib/colour";
 import { useToast } from "@/components/admin/Toasts";
 import AdminImage from "@/components/admin/AdminImage";
 import type { ProductDraft } from "@/lib/catalog";
@@ -66,6 +67,7 @@ export default function ProductEditor({
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState("");
   const [newColour, setNewColour] = useState("");
+  const [newColourHex, setNewColourHex] = useState("#12203d");
   const [newSize, setNewSize] = useState("");
   const mainInput = useRef<HTMLInputElement>(null);
   const galleryInput = useRef<HTMLInputElement>(null);
@@ -95,12 +97,24 @@ export default function ProductEditor({
   const anyStock = Object.values(stock).some((v) => Number(v) > 0 || String(v ?? "") !== "");
   const stockTotal = shelf.reduce((sum, cell) => sum + (Number(stock[comboKey(cell.colour, cell.size)]) || 0), 0);
 
+  /**
+   * Add a colour, with the dot the shop will show for it.
+   *
+   * The picker is the point: "House tie green" is a name the office knows and a
+   * colour the customer has to guess. Pick it once here and every surface — the
+   * product page, the quick view, the shop filters — draws the same dot.
+   */
   const addColour = () => {
     const value = newColour.trim();
     if (!value) return;
     if (!draft.colours.includes(value)) set("colours", [...draft.colours, value]);
+    set("colourSwatches", { ...draft.colourSwatches, [value]: newColourHex });
     setNewColour("");
   };
+
+  /** Set (or re-set) the dot for a colour already on this product. */
+  const setSwatch = (colour: string, hex: string) =>
+    set("colourSwatches", { ...draft.colourSwatches, [colour]: hex });
   const addSize = () => {
     const value = newSize.trim();
     if (!value) return;
@@ -378,17 +392,35 @@ export default function ProductEditor({
                       )
                     }
                     aria-pressed={on}
-                    className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${
+                    className={`flex items-center gap-1.5 rounded-full py-1 pl-1 pr-2.5 text-[11px] font-medium transition-colors ${
                       on ? "bg-gold text-black" : "bg-panel text-muted hover:text-strong"
                     }`}
                   >
+                    <span
+                      aria-hidden
+                      className="h-4 w-4 rounded-full ring-1 ring-inset ring-black/25"
+                      style={{ background: colourHex(label, draft.colourSwatches) }}
+                    />
                     {label}
                   </button>
                 );
               })}
             </div>
-            {/* A colour the office only has on this one item. */}
+            {/* A colour the office only has on this one item: the name *and* the
+                dot, chosen here so no other screen has to guess it. */}
             <div className="mt-3 flex items-center gap-1.5">
+              <label
+                className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-lg ring-1 ring-inset ring-line"
+                title="Pick the colour"
+              >
+                <input
+                  type="color"
+                  value={newColourHex}
+                  onChange={(e) => setNewColourHex(e.target.value)}
+                  aria-label="New colour value"
+                  className="h-10 w-10 cursor-pointer border-0 bg-transparent p-0"
+                />
+              </label>
               <input
                 value={newColour}
                 onChange={(e) => setNewColour(e.target.value)}
@@ -411,6 +443,29 @@ export default function ProductEditor({
                 <Plus className="h-3.5 w-3.5" />
               </button>
             </div>
+            {draft.colours.length > 0 && (
+              <div className="mt-3 space-y-1.5 border-t border-line pt-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-faint">
+                  The dot the shop shows
+                </p>
+                {draft.colours.map((c) => (
+                  <label key={c} className="flex items-center gap-2 text-[11px] text-muted">
+                    <input
+                      type="color"
+                      aria-label={`Colour value for ${c}`}
+                      value={
+                        /^#[0-9a-f]{6}$/i.test(draft.colourSwatches[c] ?? "")
+                          ? draft.colourSwatches[c]
+                          : suggestedHex(c)
+                      }
+                      onChange={(e) => setSwatch(c, e.target.value)}
+                      className="h-7 w-9 cursor-pointer rounded border-0 bg-transparent p-0"
+                    />
+                    <span className="truncate">{c}</span>
+                  </label>
+                ))}
+              </div>
+            )}
             {draft.colours.some((c) => !colourOptions.includes(c)) && (
               <p className="mt-2 text-[11px] leading-relaxed text-muted">
                 Only on this product: {draft.colours.filter((c) => !colourOptions.includes(c)).join(", ")}.

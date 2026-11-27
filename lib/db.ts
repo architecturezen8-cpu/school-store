@@ -187,6 +187,8 @@ export async function probeSchema(): Promise<boolean> {
     "select 1 from product_stock limit 0", // round 22 — the stock shelf
     "select favicon from site_settings limit 0", // round 22 — the tab icon
     "select capacity from ticket_tiers limit 0", // round 22 — seat caps
+    "select 1 from hero_slides limit 0", // round 23 — the home page's slideshow
+    "select colour_swatches from products limit 0", // round 23 — the colour dots
   ];
   for (const sql of probes) {
     try {
@@ -297,11 +299,33 @@ async function createPool(): Promise<Pool> {
   const isLocal =
     /(^|@)(localhost|127\.0\.0\.1|::1)[:/]/.test(url) || url.includes("host=/");
 
+  /**
+   * The connection budget.
+   *
+   * A shop's traffic is not smooth: nothing happens all morning, then a
+   * WhatsApp message goes round the class and thirty checkouts arrive at once.
+   * Two things keep that from becoming a database incident:
+   *
+   *  - the pool is small (8 by default, `PG_POOL_MAX` overrides). Supabase's
+   *    free plan counts connections, and a pool that grows to match the burst
+   *    is a pool that hits the server's ceiling and takes *every* request down,
+   *    including the admin's. Extra visitors wait their turn for a few
+   *    milliseconds instead.
+   *  - nothing is allowed to hold a connection forever. A statement that runs
+   *    past ten seconds is a bug, not a slow query; a lock held past four
+   *    seconds means another checkout is stuck; a transaction open past fifteen
+   *    seconds with no work is a leak. All three are cancelled by Postgres
+   *    rather than nursing the pool into exhaustion.
+   */
   return new PgPool({
     connectionString: url,
-    max: 5,
+    max: Number(process.env.PG_POOL_MAX) || 8,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 8_000,
+    statement_timeout: 10_000,
+    lock_timeout: 4_000,
+    idle_in_transaction_session_timeout: 15_000,
+    query_timeout: 12_000,
     ssl: url && !isLocal ? { rejectUnauthorized: false } : undefined,
   });
 }
@@ -539,21 +563,46 @@ export async function transaction<T>(
 ): Promise<T> {
   if (backend === "pg") {
     if (!pool) throw new Error("DATABASE_URL is not configured");
-    const client = await (await pool).connect().catch((err) => {
-      noteFailure(err);
-      noteReason(err);
-      throw new Error(errorMessage(err), { cause: err });
-    });
+
+    /**
+     * One retry, for the two errors that mean "try again", not "you lose".
+     *
+     * Two checkouts touching the same two shirts in a different order can
+     * deadlock: Postgres picks one to abort (40P01) and the work is genuinely
+     * undone, so running it again is correct and produces exactly one order.
+     * 40001 is the same story under serializable isolation. Every other error —
+     * sold out, bad card, connection refused — is rethrown untouched, because
+     * retrying it would just fail twice and hide the reason.
+     *
+     * This is only safe because the bodies of our transactions are pure
+     * database work. A transaction that sent an email would send it twice.
+     */
+    const RETRYABLE = new Set(["40P01", "40001"]);
+
+    const attempt = async (): Promise<T> => {
+      const client = await (await pool!).connect().catch((err) => {
+        noteFailure(err);
+        noteReason(err);
+        throw new Error(errorMessage(err), { cause: err });
+      });
+      try {
+        await client.query("begin");
+        const out = await fn(client as unknown as Parameters<typeof fn>[0]);
+        await client.query("commit");
+        return out;
+      } catch (err) {
+        await client.query("rollback").catch(() => {});
+        throw err;
+      } finally {
+        client.release();
+      }
+    };
+
     try {
-      await client.query("begin");
-      const out = await fn(client as unknown as Parameters<typeof fn>[0]);
-      await client.query("commit");
-      return out;
+      return await attempt();
     } catch (err) {
-      await client.query("rollback").catch(() => {});
-      throw err;
-    } finally {
-      client.release();
+      if (!RETRYABLE.has(String((err as { code?: string })?.code ?? ""))) throw err;
+      return attempt();
     }
   }
   if (backend === "pglite") {

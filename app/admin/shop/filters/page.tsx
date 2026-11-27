@@ -6,6 +6,7 @@ import { databaseProblem } from "@/lib/admin/db-guard";
 import { databaseDown, hasDatabase } from "@/lib/db";
 import { listAdminProducts, listFilters, type ShopFilter } from "@/lib/catalog";
 import { safeDecode } from "@/lib/safe-decode";
+import { colourHex } from "@/lib/colour";
 import ParamToast from "@/components/admin/ParamToast";
 import SubmitButton from "@/components/SubmitButton";
 import {
@@ -135,7 +136,7 @@ export default async function FiltersPage({
                   <input
                     type="color"
                     name="swatch"
-                    defaultValue={editing?.swatch || "#8b9099"}
+                    defaultValue={editing?.swatch || (editing ? colourHex(editing.label) : "#8b9099")}
                     className="h-10 w-14 cursor-pointer rounded-lg bg-well p-1"
                   />
                   <span className="text-[11px] leading-relaxed text-muted">
@@ -190,7 +191,7 @@ export default async function FiltersPage({
                     <span
                       aria-hidden
                       className="h-6 w-6 shrink-0 rounded-full ring-1 ring-inset ring-black/25"
-                      style={{ background: f.swatch || "#8b9099" }}
+                      style={{ background: f.swatch || colourHex(f.label) }}
                     />
                   ) : (
                     <span className="grid h-6 min-w-8 shrink-0 place-items-center rounded-md bg-panel px-1.5 font-mono text-[10px] text-body">

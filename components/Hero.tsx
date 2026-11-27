@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { ArrowRight } from "lucide-react";
-import { heroSlides } from "@/lib/hero";
+import { heroSlides, type HeroSlide } from "@/lib/hero";
 
-export default function Hero() {
+export default function Hero({ slides }: { slides?: HeroSlide[] } = {}) {
+  // The database first, the built-in three when nobody has uploaded anything.
+  const reel = heroSlides(slides);
   const [index, setIndex] = useState(0);
   const [mounted, setMounted] = useState(false);
 
@@ -16,7 +18,7 @@ export default function Hero() {
 
   useEffect(() => {
     const t = window.setInterval(
-      () => setIndex((i) => (i + 1) % heroSlides.length),
+      () => setIndex((i) => (i + 1) % reel.length),
       6500
     );
     return () => window.clearInterval(t);
@@ -29,7 +31,7 @@ export default function Hero() {
       id="home"
       className="relative flex h-[100svh] min-h-[640px] items-center justify-center overflow-hidden"
     >
-      {heroSlides.map((s, i) => (
+      {reel.map((s, i) => (
         <div
           key={i}
           aria-hidden={i === index ? undefined : true}
@@ -119,7 +121,7 @@ export default function Hero() {
         </span>
         <div className="flex flex-col gap-2 pb-1">
           <span className="text-[10px] font-semibold tracking-[0.3em] text-white/60">
-            / {String(heroSlides.length).padStart(2, "0")}
+            / {String(reel.length).padStart(2, "0")}
           </span>
           <span key={index} className="block h-px w-24 bg-white/15">
             <span className="block h-full w-full origin-left animate-[progress-x_6.5s_linear_forwards] bg-accent" />
@@ -129,7 +131,7 @@ export default function Hero() {
 
       {/* caption */}
       <div className="absolute bottom-9 right-6 z-10 hidden h-6 w-56 text-right md:right-10 md:block">
-        {heroSlides.map((s, i) => (
+        {reel.map((s, i) => (
           <p
             key={i}
             className={`text-xs font-medium uppercase tracking-[0.3em] text-white/60 transition-all duration-700 ${
