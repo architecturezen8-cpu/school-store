@@ -1,0 +1,39 @@
+# What Vercel uploads = the app, not the workshop around it.
+#
+# The working branch carries the test suites, the static GitHub Pages export,
+# the design notes and the hand-off files. None of that belongs in a deployment:
+# it is uploaded, built and then paid for in build minutes, and it is the only
+# real difference between "the files we work on" and "the files that go live".
+# Keeping one branch and excluding the rest here means the two can never drift.
+
+# Test suites and their helpers
+qa/
+
+# GitHub Pages static export + its redirect page
+docs/
+index.html
+
+# Notes, plans, hand-off scripts
+*.md
+deprecated/
+publish-final.sh
+final-site.tar.gz
+realign.sh
+
+# Local state and secrets
+.env
+.env.local
+.env.*.local
+.pglite/
+.pgdata/
+out/
+.next/
+node_modules/
+tsconfig.tsbuildinfo
+next-env.d.ts
+
+# Screenshots and session artefacts
+.arena/
+shots/
+verify/
+verify-*.png
