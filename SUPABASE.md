@@ -293,9 +293,17 @@ the rest:
 | Stock per colour and size | `product_stock` (one row per cell) | the **Stocks** screen shows every product as “not counted”, and the product form saves everything except the shelf |
 | The browser tab icon | `site_settings.favicon` | the tab keeps the built-in mark; the school logo still loads, because that column is read separately |
 | Which colour and size an order line bought | `order_items.colour`, `order_items.size` | older orders still list, with an empty variant |
+| Seat caps per ticket tier | `ticket_tiers.capacity`, `ticket_tiers.sold` | the event page shows no “N left”, and the Stocks screen says “no cap” |
+| The colours a product is sold in | `products.colours` | the product form still saves, but the shop shows no colour chips |
 
 None of these break a page: the admin opens, the banner names what is missing, and
-**Update the database** (or `npm run db:migrate`) adds it. Nothing is backfilled,
+**Update the database** (or `npm run db:migrate`) adds it.
+
+Every one of them is an `alter table … add column if not exists`, not just a
+column in a `create table if not exists` — the latter only helps a database that
+does not exist yet, which is how a project could be one round behind and have no
+repair that fixed it. The probe that decides whether to show the banner asks for
+all of them, so a missing *column* is reported the same way a missing table is. Nothing is backfilled,
 because “how many hoodies are in the cupboard” is not a question a migration can
 answer — stock starts *not counted* until someone counts it.
 

@@ -21,7 +21,7 @@
  *   QA_MODULES=/tmp/qaenv/node_modules QA_LIBS=/tmp/al/lib node qa/schema-guard.mjs
  */
 import { spawn } from "node:child_process";
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import net from "node:net";
 import { createRequire } from "node:module";
 import { open } from "./browser.mjs";
@@ -68,7 +68,15 @@ rmSync(DB_DIR, { recursive: true, force: true });
 const db = await PGlite.create(DB_DIR);
 await db.exec(readFileSync("db/schema.sql", "utf8"));
 await db.exec("drop table shop_filters");
-console.log("· database with every table from the earlier rounds, minus shop_filters");
+// The other half of "one migration behind": the tables are all there and a
+// *column* is not. This is the exact shape the office hit — every screen worked,
+// and saving the tab icon answered `column "favicon" of relation "site_settings"
+// does not exist`.
+await db.exec("alter table site_settings drop column favicon");
+await db.exec("alter table ticket_tiers drop column capacity");
+console.log(
+  "· database with the earlier rounds' tables, minus shop_filters, site_settings.favicon and ticket_tiers.capacity"
+);
 
 const server = new PGLiteSocketServer({ db, port: PORT, host: "127.0.0.1", maxConnections: 8 });
 await server.start();
@@ -170,6 +178,40 @@ try {
     return "opens, everything not counted";
   });
 
+  // This is the failure that started the round: the app knew the database was
+  // behind, but the probe only asked about a table, so a missing column reached
+  // the person as a raw Postgres sentence in the middle of the form.
+  await step("the tab icon says the database is behind, not that the app broke", async () => {
+    await page.goto(BASE + "/admin/settings", { waitUntil: "networkidle" });
+    const bar = flat(await page.locator("body").innerText());
+    if (!/older than this version/i.test(bar)) throw new Error("no warning bar: " + bar.slice(0, 300));
+
+    const png = await page.evaluate(() => {
+      const c = document.createElement("canvas");
+      c.width = 96;
+      c.height = 96;
+      const g = c.getContext("2d");
+      g.fillStyle = "#c9a227";
+      g.fillRect(0, 0, 96, 96);
+      return c.toDataURL("image/png").split(",")[1];
+    });
+    const out = process.env.OUT ?? "/tmp/schema-guard";
+    mkdirSync(out, { recursive: true });
+    writeFileSync(`${out}/icon.png`, Buffer.from(png, "base64"));
+
+    await page.setInputFiles('#icon input[type="file"]', `${out}/icon.png`);
+    await page.waitForTimeout(3500);
+    const text = flat(await page.locator("body").innerText());
+    if (!/not saved/i.test(text)) throw new Error("the upload was accepted: " + text.slice(-300));
+    if (/column "favicon" of relation/i.test(text)) {
+      throw new Error("still the raw Postgres sentence: " + text.slice(-300));
+    }
+    if (!/one version behind|db:migrate|Update the database/i.test(text)) {
+      throw new Error("the message does not say what to do: " + text.slice(-300));
+    }
+    return "told to migrate";
+  });
+
   await step("press the button: the database is brought up to date", async () => {
     await page.goto(BASE + "/admin/shop", { waitUntil: "networkidle" });
     await page.getByRole("button", { name: /Update the database/i }).click();
@@ -210,6 +252,28 @@ try {
     const body = flat(await page.locator("body").innerText());
     if (!/4\s*left/i.test(body)) throw new Error("the number did not stick: " + body.slice(0, 300));
     return "4 left";
+  });
+
+  await step("the tab icon saves once the column exists", async () => {
+    await page.goto(BASE + "/admin/settings", { waitUntil: "networkidle" });
+    const out = process.env.OUT ?? "/tmp/schema-guard";
+    await page.setInputFiles('#icon input[type="file"]', `${out}/icon.png`);
+    await page.waitForTimeout(4000);
+    const text = flat(await page.locator("body").innerText());
+    if (!/tab icon saved/i.test(text)) throw new Error("not saved: " + text.slice(-300));
+
+    await page.goto(BASE + "/", { waitUntil: "networkidle" });
+    const icon = await page.locator('link[rel="icon"]').first().getAttribute("href");
+    if (!/uploads\/brand\/icon-/.test(icon ?? "")) throw new Error(`the tab points at ${icon}`);
+
+    // Leave the brand as it was found.
+    await page.goto(BASE + "/admin/settings", { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /use the built-in mark/i }).first().click();
+    await page.waitForTimeout(2500);
+    await page.goto(BASE + "/", { waitUntil: "networkidle" });
+    const after = await page.locator('link[rel="icon"]').first().getAttribute("href");
+    if (/uploads\/brand\/icon-/.test(after ?? "")) throw new Error("the test icon was left behind");
+    return "saved, then cleared";
   });
 
   await step("the built-in catalogue is no longer what the admin shows", async () => {

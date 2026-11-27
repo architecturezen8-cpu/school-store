@@ -169,10 +169,32 @@ export function schemaFailure(): { code: string; message: string } | undefined {
  */
 export async function probeSchema(): Promise<boolean> {
   if (!hasDatabase() || backend === "none") return false;
-  try {
-    await query("select 1 from shop_filters limit 0");
-  } catch {
-    // The failure is already classified and recorded by `query`.
+
+  /**
+   * Everything the app expects a database to have by now, oldest first.
+   *
+   * Checking one table was not enough: a project that has every table from an
+   * earlier round but not this round's *column* passed the probe, so the warning
+   * never appeared and the first sign of trouble was a raw Postgres sentence in
+   * the middle of a form — `column "favicon" of relation "site_settings" does
+   * not exist` — with nothing saying what to do about it.
+   *
+   * It stops at the first miss on purpose: a successful query clears the
+   * recorded failure, and the useful answer is *what* is missing, not how many.
+   */
+  const probes = [
+    "select 1 from shop_filters limit 0", // round 21
+    "select 1 from product_stock limit 0", // round 22 — the stock shelf
+    "select favicon from site_settings limit 0", // round 22 — the tab icon
+    "select capacity from ticket_tiers limit 0", // round 22 — seat caps
+  ];
+  for (const sql of probes) {
+    try {
+      await query(sql);
+    } catch {
+      // The failure is already classified and recorded by `query`.
+      break;
+    }
   }
   return Boolean(global.__dbSchema);
 }
