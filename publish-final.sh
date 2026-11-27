@@ -4,11 +4,14 @@
 #
 # The working branch (`arena/…`) is the whole workshop: app, tests, the Pages
 # export, notes. This script takes that branch, drops everything that is not
-# part of the site, and commits the remainder onto `final` — a fresh commit on
-# top of the previous one, so the push is a plain fast-forward.
+# part of the site, and commits the remainder onto `live-site` — a fresh commit
+# on top of the previous one, so the push is a plain fast-forward.
 #
-#   ./publish-final.sh                 # final ← origin/arena/6b38c6e9-school-store
-#   DEST_BRANCH=live ./publish-final.sh
+# It also runs in CI (.github/workflows/live-site.yml), so in normal use nobody
+# types this: pushing the working branch is what publishes the site.
+#
+#   ./publish-final.sh                 # live-site ← origin/arena/6b38c6e9-school-store
+#   DEST_BRANCH=final ./publish-final.sh
 #   DEST_REMOTE=/tmp/mirror.git ./publish-final.sh   # try it without pushing anywhere real
 #
 # Nothing is checked out, switched or reset: the commit is built in a temporary
@@ -17,11 +20,11 @@ set -euo pipefail
 
 SRC_REF="${SRC_REF:-origin/arena/6b38c6e9-school-store}"
 DEST_REMOTE="${DEST_REMOTE:-origin}"
-DEST_BRANCH="${DEST_BRANCH:-final}"
+DEST_BRANCH="${DEST_BRANCH:-live-site}"
 
 # Kept in this order: directories first, then the root files.
 DROP=(
-  qa docs .arena .pglite .pgdata out .next node_modules
+  qa docs .github .arena .pglite .pgdata out .next node_modules
   index.html
   README.md SUPABASE.md DEPLOY.md STACKBLITZ.md TICKETS.md PUBLISH.md PUSH-ME.md
   stackblitz.config.json

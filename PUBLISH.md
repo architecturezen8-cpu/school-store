@@ -7,16 +7,24 @@ There are two ways to keep those apart, and they are not exclusive.
 
 ---
 
-## 1. `final` — a separate branch, generated (not hand-maintained)
+## 1. `live-site` — the live branch, published automatically
+
+`main` and the working branch carry everything; **`live-site` carries only the
+site**. It is produced by `.github/workflows/live-site.yml`: every push to the
+working branch republishes it, so there is nothing to run, zip or copy. Point the
+host at it (Vercel → *Production Branch* → `live-site`) and that is the whole
+setup.
+
+The same thing by hand, when you want it without waiting for CI:
 
 ```bash
 git pull --ff-only            # get the latest work
-./publish-final.sh            # publish just the site to origin/final
+./publish-final.sh            # publish just the site to origin/live-site
 ```
 
 `publish-final.sh` takes `origin/arena/6b38c6e9-school-store`, copies the tree
 into a temp directory, deletes everything that is not the site, and commits what
-is left on top of the previous `final` — one fast-forward commit per publish.
+is left on top of the previous `live-site` — one fast-forward commit per publish.
 Two things it deliberately does **not** do:
 
 - it never checks anything out, switches branch or resets your tree (it builds
@@ -24,7 +32,7 @@ Two things it deliberately does **not** do:
 - it does not publish twice: run it with nothing new and it prints
   `Nothing to publish`.
 
-Options: `DEST_BRANCH=live ./publish-final.sh`,
+Options: `DEST_BRANCH=final ./publish-final.sh`,
 `SRC_REF=origin/main ./publish-final.sh`,
 `DEST_REMOTE=/tmp/mirror.git ./publish-final.sh` (dry run against a local bare
 repo — a good way to see the result without touching GitHub).
@@ -34,8 +42,8 @@ repo — a good way to see the result without touching GitHub).
 `tsconfig.json`, `postcss.config.mjs`, `eslint.config.mjs`, `.env.example`,
 `.gitignore`, `.vercelignore` — **168 files**.
 
-**What stays out:** `qa/`, `docs/`, `index.html`, `stackblitz.config.json`, the
-`*.md` notes, `PUSH-ME.md`/this file, `.arena/`, `.pglite/`, `.env.local`,
+**What stays out:** `qa/`, `docs/`, `.github/`, `index.html`, `stackblitz.config.json`, the
+`*.md` notes (including this file), `.arena/`, `.pglite/`, `.env.local`,
 `node_modules/`, `.next/`, `out/`.
 
 Verified: that exact tree, extracted into an empty directory, `npm ci`-ed and
@@ -44,7 +52,7 @@ built — **35/35 static pages** — and served with `next start` across `/`, `/
 `/admin/events`, `/admin/templates`, `/sitemap.xml`, `/robots.txt` (all 200, or
 307 on `/gate`).
 
-Then point the deployment at `final` (Vercel → *Production Branch* → `final`).
+Then point the deployment at `live-site` (Vercel → *Production Branch* → `live-site`).
 
 ---
 
@@ -55,8 +63,8 @@ already strips the same files before upload, so the build never sees `qa/` or
 `docs/`. Nothing to maintain, nothing to forget: the two lists are checked in
 together.
 
-Use this if you want **one** branch. Use `publish-final.sh` if you want the live
-branch to be reviewable on its own (or someone else deploys it).
+Use this if you would rather deploy straight from the working branch and not
+have a second branch at all. It excludes the same list, so both routes agree.
 
 ---
 

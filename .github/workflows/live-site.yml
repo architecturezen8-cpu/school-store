@@ -1,0 +1,44 @@
+name: live site
+
+# The working branch is the workshop; `live-site` is the shop.
+#
+# Every push to the working branch republishes that branch's *site only* (app,
+# components, data, db, lib, public, scripts, configs — see publish-final.sh)
+# onto `live-site`. Nobody has to zip, prune or copy anything by hand, and the
+# deploy branch can never drift from the code we are actually running.
+#
+# Point the host at `live-site` as the production branch:
+#   Vercel → Project → Settings → Git → Production Branch → live-site
+
+on:
+  push:
+    branches:
+      - arena/6b38c6e9-school-store
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# One publish at a time; a newer push wins.
+concurrency:
+  group: live-site
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The script asks origin for the branch's current tip so the commit it
+          # creates sits on top of it (a fast-forward), and compares trees to
+          # decide whether there is anything to publish at all.
+          fetch-depth: 0
+
+      - name: Publish the site to live-site
+        env:
+          DEST_BRANCH: live-site
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          ./publish-final.sh

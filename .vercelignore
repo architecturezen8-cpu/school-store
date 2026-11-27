@@ -6,8 +6,9 @@
 # real difference between "the files we work on" and "the files that go live".
 # Keeping one branch and excluding the rest here means the two can never drift.
 
-# Test suites and their helpers
+# Test suites, CI, and their helpers
 qa/
+.github/
 
 # GitHub Pages static export + its redirect page
 docs/
